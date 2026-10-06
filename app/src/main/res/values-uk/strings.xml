@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Користувацький інтерфейс</string>
   <string name="pref_language_title">Мова</string>
   <string name="pref_language_system_default">Системні налаштування за замовчуванням</string>
-  <string name="pref_theme_title">Тема</string>
-  <string name="pref_theme_system">Системні налаштування за замовчуванням</string>
-  <string name="pref_theme_light">Легкий</string>
-  <string name="pref_theme_dark">Темний</string>
   <string name="pref_rotation_title">Режим обертання</string>
   <string name="pref_titlebarhide_title">"Автоматичне приховуваня головної  панелі"</string>
   <string name="pref_titlebarhide_summary">"Натисніть на консоль, щоб відобразити панель заголовку та  меню доступу"</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Змінити колір %1$d</string>
   <string name="dialog_title_reset_all">Скинути всі кольори?</string>
   <string name="dialog_message_reset_all">Це скине всі 256 кольорів до їхніх значень за замовчуванням. Цю дію неможливо скасувати.</string>
-  <string name="app_is_running">ConnectBot запущено</string>
+  <string name="app_is_running">Mercurio запущено</string>
   <string name="label_red">Червоний</string>
   <string name="label_green">Зелений</string>
   <string name="label_blue">Синій</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Введення тексту</string>
-  <string name="terminal_text_input_dialog_title">Введення тексту</string>
-  <string name="terminal_text_input_dialog_label">Введіть текст, який потрібно надіслати в термінал</string>
-  <string name="terminal_text_input_resize_handle">Змінити розмір</string>
-  <string name="console_menu_text_input">Введення тексту</string>
+    <string name="terminal_text_input_dialog_label">Введіть текст, який потрібно надіслати в термінал</string>
+    <string name="console_menu_text_input">Введення тексту</string>
   <string name="button_send">Надіслати</string>
   <string name="button_ok">Добре</string>
   <string name="button_close">Закрити</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Налаштування хоста</string>
   <string name="pubkey_import_existing">Імпортувати наявний публічний ключ</string>
   <string name="notification_permission_title">Залишайтеся на зв’язку у фоновому режимі</string>
-  <string name="notification_permission_message">Щоб підтримувати активність ваших з’єднань під час перемикання між програмами, ConnectBot потребує дозволу на надсилання сповіщень. Без нього система може розірвати з’єднання, щоб заощадити заряд батареї.</string>
+  <string name="notification_permission_message">Щоб підтримувати активність ваших з’єднань під час перемикання між програмами, Mercurio потребує дозволу на надсилання сповіщень. Без нього система може розірвати з’єднання, щоб заощадити заряд батареї.</string>
   <string name="grant_permission">Дозволити</string>
   <string name="connect_anyway">Підключитися все одно</string>
   <string name="notification_permission_denied_title">Необхідний дозвіл на надсилання сповіщень</string>
-  <string name="notification_permission_denied_message">Щоб забезпечити постійний зв’язок у фоновому режимі, увімкніть сповіщення для ConnectBot у системних налаштуваннях.</string>
+  <string name="notification_permission_denied_message">Щоб забезпечити постійний зв’язок у фоновому режимі, увімкніть сповіщення для Mercurio у системних налаштуваннях.</string>
   <string name="open_settings">Відкрити налаштування</string>
   <string name="notification_permission_denied_snackbar">З’єднання може розірватися без попереднього повідомлення або запиту дозволу</string>
   <string name="notification_permission_console_warning">З’єднання може розірватися під час роботи у фоновому режимі</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Журнали програм</string>
   <string name="copy_logs">Копіювати журнали</string>
   <string name="logs_copied">Журнали скопійовано до буфера обміну</string>
-  <string name="logs_bug_report_info">Щоб повідомити про помилку, скопіюйте ці журнали та створіть нове повідомлення на сайті https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Щоб повідомити про помилку, скопіюйте ці журнали та створіть нове повідомлення на сайті https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">Журнали недоступні</string>
   <string name="help_section_about">Про програму</string>
   <string name="title_contact">Контакти та підтримка</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Аутентифікація під час запуску</string>
   <string name="pref_auth_on_launch_summary">Вимагайте підтвердження за допомогою відбитка пальця, розпізнавання обличчя або PIN-коду пристрою під час відкриття програми</string>
   <string name="pref_security_category">Безпека</string>
-  <string name="auth_screen_title">ConnectBot заблоковано</string>
+  <string name="auth_screen_title">Mercurio заблоковано</string>
   <string name="auth_screen_unlock_button">Торкніться, щоб розблокувати</string>
-  <string name="auth_prompt_title">Розблокуйте ConnectBot</string>
+  <string name="auth_prompt_title">Розблокуйте Mercurio</string>
   <string name="auth_prompt_subtitle">Підтвердьте свою особу, щоб продовжити</string>
   <string name="pref_language_download" tools:machine_translated="true">Завантажити мовний пакет</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Завантаження не вдалося, торкніться, щоб повторити спробу.</string>

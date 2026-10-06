@@ -359,7 +359,7 @@ private fun MigrationFailedContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         val annotatedString = buildAnnotatedString {
-            val url = UrlUtils.normalizeUrl("https://github.com/connectbot/connectbot/issues")
+            val url = UrlUtils.normalizeUrl("https://github.com/Ormus-Solutions/mercurio/issues")
             val fullText = stringResource(id = R.string.migration_failed_help, url)
             var startIndex = 0
             UrlUtils.extractUrls(fullText).forEach { linkUrl ->

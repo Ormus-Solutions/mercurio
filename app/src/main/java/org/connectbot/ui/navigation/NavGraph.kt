@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,6 +113,21 @@ fun ConnectBotNavHost(
                 onNavigateToSettings = {
                     navController.navigateSafely(NavDestinations.SETTINGS_HIGHLIGHT_CONN_PERSIST)
                 },
+                // Switching to another open session re-targets the same console
+                // route, so navigateSafely's same-destination guard would block
+                // it. Navigate directly and pop the current console so the back
+                // stack doesn't grow with every switch.
+                onNavigateToConsole = { hostIdToShow ->
+                    navController.navigate("${NavDestinations.CONSOLE}/$hostIdToShow") {
+                        popUpTo("${NavDestinations.CONSOLE}/{${NavArgs.HOST_ID}}") {
+                            inclusive = true
+                        }
+                    }
+                },
+                onNavigateToHostList = {
+                    navController.popBackStack(NavDestinations.HOST_LIST, inclusive = false)
+                },
+                onNavigateToRoute = { route -> navController.navigateSafely(route) },
             )
         }
 

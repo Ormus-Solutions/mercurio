@@ -1,12 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Mercurio themed (monochrome) launcher icon: the system tints it. The flat Ormus gold mark (ormus-brand
+  ~ assets/marks/ormus-mark-gold-1024.png), traced to filled vector paths with
+  ~ potrace so it stays sharp at every launcher size. The mark belongs to Ormus
+  ~ Solutions and is not covered by this project's Apache-2.0 license.
+  -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-  <path
-      android:pathData="M38.839,39.124l15.232,15.232 -15.232,15.232 -3.839,-3.839L46.395,54.356 34.995,42.963Z"
-      android:fillColor="#fff"/>
-  <path
-      android:pathData="M54,66L73,66L73,70L54,70Z"
-      android:fillColor="#fff"/>
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<group android:translateX="20.085" android:translateY="17.722" android:scaleX="0.07503" android:scaleY="0.07503">
+		<group android:translateY="1024" android:scaleX="0.1" android:scaleY="-0.1">
+			<path android:pathData="M5629 9229 c-96 -52 -236 -156 -377 -282 -366 -325 -630 -763 -724 -1199 -18 -86 -22 -135 -22 -303 -1 -194 0 -204 32 -325 38 -145 114 -310 191 -411 68 -90 200 -213 297 -277 43 -29 156 -92 249 -139 94 -47 197 -105 230 -128 125 -89 204 -200 240 -340 40 -154 26 -443 -29 -607 -13 -40 -23 -74 -22 -75 6 -7 108 74 169 134 176 173 289 379 337 613 19 92 21 127 17 280 -4 147 -9 190 -31 270 -74 268 -147 410 -468 905 -108 167 -222 431 -261 604 -29 131 -31 482 -3 636 28 157 100 362 187 533 42 83 74 152 71 152 -4 0 -41 -19 -83 -41z" android:fillColor="#FFFFFFFF"/>
+			<path android:pathData="M2720 7472 c0 -119 67 -356 150 -527 114 -238 273 -415 536 -598 89 -62 339 -211 372 -221 11 -4 26 -14 33 -22 11 -13 9 -14 -17 -8 -228 54 -574 203 -761 327 -53 35 -83 49 -83 40 0 -25 70 -196 112 -273 181 -331 385 -509 814 -708 400 -187 533 -263 687 -393 l82 -70 7 93 c9 122 -7 386 -32 533 -37 219 -124 429 -239 582 -128 169 -279 287 -720 557 -337 206 -641 430 -828 610 -108 103 -113 107 -113 78z" android:fillColor="#FFFFFFFF"/>
+			<path android:pathData="M5093 6110 c-124 -26 -215 -129 -242 -275 -16 -83 -14 -361 4 -476 40 -268 137 -474 309 -656 43 -46 75 -83 72 -83 -4 0 -47 20 -97 45 -251 126 -555 170 -723 105 -76 -29 -147 -95 -183 -169 -27 -53 -28 -63 -27 -191 1 -122 4 -144 33 -230 82 -251 246 -409 519 -501 48 -16 187 -50 309 -74 411 -83 543 -142 711 -319 52 -55 82 -99 116 -168 63 -127 78 -189 83 -346 5 -112 2 -147 -16 -226 -50 -213 -187 -418 -360 -536 -212 -143 -488 -183 -761 -109 -102 27 -258 105 -357 178 l-83 61 -37 -42 c-21 -24 -71 -77 -111 -119 l-73 -76 68 -55 c434 -354 1088 -403 1526 -116 109 72 259 220 335 331 101 146 168 322 197 517 75 491 -174 968 -635 1218 -120 65 -361 142 -540 172 -133 22 -138 29 -35 48 288 53 588 1 826 -144 33 -20 62 -34 65 -31 11 11 44 119 55 181 42 242 -79 461 -395 719 -197 160 -308 280 -363 392 -50 99 -87 240 -98 371 -12 147 22 202 102 159 39 -21 136 -121 247 -255 76 -91 78 -92 71 -54 -4 22 -8 125 -9 229 -3 193 -11 247 -47 318 -26 50 -85 114 -133 144 -86 55 -230 83 -323 63z" android:fillColor="#FFFFFFFF"/>
+			<path android:pathData="M5020 3047 c-147 -42 -249 -190 -238 -346 6 -83 34 -147 92 -209 72 -77 122 -97 241 -97 92 0 104 2 153 30 201 111 245 374 88 530 -28 28 -73 61 -100 74 -61 28 -171 37 -236 18z" android:fillColor="#FFFFFFFF"/>
+		</group>
+	</group>
 </vector>

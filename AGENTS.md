@@ -1,34 +1,35 @@
-# Repository Guidelines
+# Repository guidelines
 
-## Project Structure & Module Organization
+## Project structure
 
-ConnectBot is a Gradle Android SSH client project with `oss` and `google` product flavors. The main app lives in `app/`, with Kotlin and Java sources under `app/src/main/java/org/connectbot`. UI code is grouped in `ui/`, data and Room code in `data/`, dependency injection in `di/`, terminal/service code in `service/`, and protocol logic in `transport/`. Native code is in `app/src/main/cpp`, Android resources in `app/src/main/res`, and Room schemas in `app/schemas`. Unit tests are in `app/src/test/kotlin`, instrumentation tests in `app/src/androidTest`, and shared test helpers in `app/src/sharedTest/kotlin`. Translation files are under `translations/` and `app/locale/`.
+Mercurio is an Android SSH client for driving AI coding agents in Herdr, forked from ConnectBot. It is a Gradle project with one product flavor, `oss`. The app lives in `app/`. ConnectBot's code and most of the app sit under `app/src/main/java/org/connectbot`: UI in `ui/`, data and Room in `data/`, dependency injection in `di/`, terminal and service code in `service/`, protocol code in `transport/`, the usage log in `usage/`. Mercurio-only features sit under `app/src/main/java/solutions/ormus/logos`: Herdr in `herd/`, push in `push/`, agent commands in `commands/`. Resources are in `app/src/main/res`, Room schemas in `app/schemas`. Unit tests are in `app/src/test/kotlin`, instrumentation tests in `app/src/androidTest`, shared test helpers in `app/src/sharedTest/kotlin`. `scripts/` holds the usage log readers, `host/` the push watcher for Herdr hosts, `docs/` the design notes.
 
-## Build, Test, and Development Commands
+## Build and checks
 
-Use the checked-in Gradle wrapper:
+Use the checked-in Gradle wrapper in a full clone. Never use a git worktree: the app-versioning plugin fails in worktrees. Run one Gradle build per clone at a time.
 
-- `./gradlew assemble` builds all variants.
-- `./gradlew :app:assembleOssDebug` builds the open-source debug APK.
-- `./gradlew test` runs local JVM/Robolectric tests.
-- `./gradlew connectedAndroidTest` runs device/emulator instrumentation tests.
-- `./gradlew connectedOssDebugAndroidTest` and `./gradlew connectedGoogleDebugAndroidTest` run flavor-specific instrumentation tests.
-- `./gradlew lint` runs Android lint with `app/lint.xml`.
-- `./gradlew spotlessCheck` verifies formatting; `./gradlew spotlessApply` formats supported files.
-- `./gradlew check test` runs the standard verification set used before submitting changes.
+- `./gradlew :app:assembleOssDebug` builds the debug APK.
+- `./gradlew testOssDebugUnitTest` runs the JVM and Robolectric tests.
+- `./gradlew spotlessCheck` checks formatting; `./gradlew spotlessApply` fixes it.
+- `./gradlew :app:lintOssDebug` runs Android lint. Run it on its own: it can crash when it shares a Gradle run with other tasks.
+- `./gradlew connectedOssDebugAndroidTest` runs instrumentation tests on a device or emulator. It wipes the app's data there.
 
-## Coding Style & Naming Conventions
+The gate before a merge is `./gradlew testOssDebugUnitTest spotlessCheck :app:assembleOssDebug`, then `./gradlew :app:lintOssDebug`. There is no hosted CI. To prove a change on an emulator, follow `.grok/skills/verify-mercurio/SKILL.md`.
 
-Target Java 17/JVM 17. Kotlin uses ktlint, including Compose rules; Java under `app/src/main/java/org/connectbot` uses Google Java Format through Spotless. Keep package names lowercase and aligned with existing feature areas. Name Kotlin and Java types in `PascalCase`, functions and properties in `camelCase`, and tests as `*Test`. Prefer existing Compose, Hilt, Room, and repository patterns over new abstractions. Declare Gradle dependency and plugin versions in `gradle/libs.versions.toml` and use version catalog aliases from build scripts. In Jetpack Compose, read UI strings from Android resources with `stringResource()`. Add XML comments directly before new `strings.xml` entries so translators understand the string's purpose and placement. For new project-owned source files, use the current-year copyright notice for Kenny Root unless the surrounding package uses a different established notice.
+## Coding style
 
-## Testing Guidelines
+Target JVM 17. Kotlin uses ktlint with the Compose rules. Spotless enforces it and the license header in `spotless/license-header.txt`; files copied from Termish keep their MIT header (see `NOTICE`). Name types in `PascalCase`, functions and properties in `camelCase`, tests `*Test`. Prefer the existing Compose, Hilt, Room and repository patterns over new abstractions. Declare dependency and plugin versions in `gradle/libs.versions.toml`. In Compose, read UI strings with `stringResource()`, and put an XML comment before each new `strings.xml` entry so translators know where it shows. Never change the applicationId `solutions.ormus.logos` or the namespace `org.connectbot`.
 
-Add focused tests for behavior changes. Use Robolectric for local UI/ViewModel tests in `app/src/test/kotlin`; use Android instrumentation tests only when device APIs, Hilt runner behavior, or emulator state is required. Keep Compose business logic in ViewModels so it can be covered by local tests where practical. Follow existing Mockito guidance in `README_TESTING.md`: use `org.mockito.Mockito` imports rather than mockito-kotlin. For database changes, update Room schema JSON under `app/schemas` and test migrations when relevant. `OpenSSHContainerTest` exercises a real OpenSSH server in Docker; run it from an Android emulator, not a physical device, with Docker available on the host.
+## Tests
 
-## Commit & Pull Request Guidelines
+Add focused tests for behavior changes. Use Robolectric in `app/src/test/kotlin` for UI and ViewModel tests; use instrumentation tests only when device APIs, the Hilt runner or emulator state are required. Keep Compose business logic in ViewModels so local tests can cover it. For database changes, update the Room schema JSON under `app/schemas` and test the migration.
 
-Commit history uses short imperative subjects, for example `Fix pubkey list item compose lint` or `Add unit tests for importKeyFromText`. Keep the subject at 50 characters or less when practical, add a wrapped body for context, and make each commit a logical unit. Before opening a PR, run `git diff --check`, `./gradlew lint`, and `./gradlew check test`. PRs should describe the change, link related issues, mention test coverage, and include screenshots or screen recordings for visible UI changes.
+Every new user action gets an id in `usage/UsageActions.kt` and the same line in `docs/usage-actions.txt`, in the same order (`UsageSchemaTest` checks). Ids only: never typed text, keys or passwords. See `docs/USAGE.md`.
 
-## Agent-Specific Instructions
+## Commits and pull requests
 
-Do not overwrite unrelated local changes. Keep edits scoped to the requested behavior, preserve generated schema and translation files unless intentionally updating them, and prefer Gradle tasks over ad hoc build commands. Never block the main UI thread; dispatch IPC, network, disk I/O, and other long-running work off the main thread. In injected classes and ViewModels, use the injected `CoroutineDispatchers` instead of hardcoded `Dispatchers.IO` or similar dispatchers so tests can control execution.
+Commit subjects follow `type(scope): description`, for example `fix(push): post a pushed Needs you before the push service stops`. Types: feat, fix, refactor, perf, docs, test, style, chore, build, ci, revert. One change per pull request, against `main` on Ormus-Solutions/mercurio. Run `git diff --check` and the gate above before opening it. Describe the change, link the issue, name the tests, and add screenshots for visible UI changes.
+
+## Agent-specific instructions
+
+Do not overwrite unrelated local changes. Keep edits scoped to the requested behavior, and leave generated schema and translation files alone unless the change needs them. Never block the main thread; run IPC, network, disk I/O and other long work off it. In injected classes and ViewModels, use the injected `CoroutineDispatchers` instead of hardcoded `Dispatchers.IO` so tests can control execution.

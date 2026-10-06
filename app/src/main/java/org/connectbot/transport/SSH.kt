@@ -33,7 +33,9 @@ import com.trilead.ssh2.InteractiveCallback
 import com.trilead.ssh2.IpVersion
 import com.trilead.ssh2.KnownHosts
 import com.trilead.ssh2.LocalPortForwarder
+import com.trilead.ssh2.SFTPv3Client
 import com.trilead.ssh2.Session
+import com.trilead.ssh2.StreamGobbler
 import com.trilead.ssh2.UserAuthBannerCallback
 import com.trilead.ssh2.crypto.PEMDecoder
 import com.trilead.ssh2.crypto.fingerprint.KeyFingerprint
@@ -115,6 +117,72 @@ class SSH :
 
     private val portForwards = mutableListOf<PortForward>()
     private val userAuthBannerCallbacks = mutableListOf<Pair<Connection, UserAuthBannerCallback>>()
+
+    /**
+     * Upload [bytes] to [remotePath] on the connected host over a dedicated SFTP
+     * channel, separate from the interactive PTY. Blocking; call off the main
+     * thread. Creates the immediate parent directory if it does not exist.
+     */
+    fun uploadFile(remotePath: String, bytes: ByteArray) {
+        val conn = connection ?: throw IllegalStateException("Not connected")
+        val sftp = SFTPv3Client(conn)
+        try {
+            val dir = remotePath.substringBeforeLast('/', "")
+            if (dir.isNotEmpty()) {
+                try {
+                    sftp.mkdir(dir, 448) // 0700
+                } catch (_: Exception) {
+                    // directory already exists
+                }
+            }
+            val handle = sftp.createFileTruncate(remotePath)
+            try {
+                var offset = 0
+                while (offset < bytes.size) {
+                    val len = minOf(32768, bytes.size - offset)
+                    sftp.write(handle, offset.toLong(), bytes, offset, len)
+                    offset += len
+                }
+            } finally {
+                sftp.closeFile(handle)
+            }
+        } finally {
+            sftp.close()
+        }
+    }
+
+    /**
+     * Run [command] on the connected host over its own exec channel, beside the
+     * interactive PTY, and return its stdout as UTF-8. Blocking; call off the main
+     * thread. Throws [IOException] on timeout or a non-zero exit, carrying stderr.
+     */
+    fun exec(command: String, timeoutMs: Long = EXEC_TIMEOUT_MS): String {
+        val result = execDetailed(command, timeoutMs)
+        val exit = result.exitCode
+        if (exit != null && exit != 0) {
+            throw IOException("Exit $exit from `$command`: ${result.stderr.trim()}")
+        }
+        return result.stdout
+    }
+
+    /**
+     * Run [command] like [exec], but hand back stdout, stderr and the exit code
+     * together instead of throwing on a non-zero exit, for commands (such as
+     * Herdr's CLI) that report failures as JSON on stderr. Blocking; call off the
+     * main thread. Throws [IOException] on timeout and [IllegalStateException]
+     * when not connected.
+     */
+    fun execDetailed(command: String, timeoutMs: Long = EXEC_TIMEOUT_MS): CommandOutput = SSH.execDetailed(connection ?: throw IllegalStateException("Not connected"), command, timeoutMs)
+
+    /**
+     * `SHA256:` fingerprint of the host key this connection verified during key
+     * exchange, or null before then. The usage upload pins Sun's key against it.
+     */
+    fun hostKeyFingerprint(): String? = try {
+        connection?.connectionInfo?.serverHostKey?.let { KeyFingerprint.createSHA256Fingerprint(it) }
+    } catch (_: IOException) {
+        null
+    }
 
     private var columns: Int = 0
     private var rows: Int = 0
@@ -371,6 +439,9 @@ class SSH :
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun authenticate() {
+        // Hosts saved before the editor trimmed may still carry a stray space (issue #84).
+        host = host?.let { it.copy(username = it.username.trim()) }
+
         // Prompt for username if not configured
         if (host?.username.isNullOrEmpty()) {
             val username = bridge?.requestStringPrompt(
@@ -770,6 +841,7 @@ class SSH :
             return jc
         } catch (e: IOException) {
             Timber.e(e, "Failed to connect to jump host: ${jumpHost.nickname}")
+            bridge?.recordFailure(e)
             bridge?.outputLine(manager?.res?.getString(R.string.terminal_jump_failed, jumpHost.nickname, e.message))
             try {
                 unregisterUserAuthBanner(jc)
@@ -970,6 +1042,7 @@ class SSH :
             }
         } catch (e: IOException) {
             Timber.e(e, "Problem in SSH connection thread during authentication")
+            bridge?.recordFailure(e)
 
             // Display the reason in the text.
             var t: Throwable? = e
@@ -1105,6 +1178,7 @@ class SSH :
 
         // Unexpected disconnect - normal flow
         Timber.d("SSH connection lost outside grace period - disconnecting")
+        bridge?.recordFailure(reason)
         onDisconnect()
     }
 
@@ -1457,7 +1531,7 @@ class SSH :
             Ed25519Provider.insertIfNeeded()
         }
 
-        private fun parseIpVersion(value: String, hostname: String): IpVersion {
+        internal fun parseIpVersion(value: String, hostname: String): IpVersion {
             // If hostname is a literal IP address, use automatic (the address type is already determined)
             if (HostConstants.isIpAddress(hostname)) {
                 return IpVersion.IPV4_AND_IPV6
@@ -1469,8 +1543,40 @@ class SSH :
             }
         }
 
+        /**
+         * Run [command] over its own exec channel on [conn] and collect stdout, stderr and
+         * the exit code; see [execDetailed]. Blocking. Throws [IOException] on timeout.
+         */
+        fun execDetailed(conn: Connection, command: String, timeoutMs: Long = EXEC_TIMEOUT_MS): CommandOutput {
+            val session = conn.openSession()
+            try {
+                session.execCommand(command)
+                // Gobblers drain both streams on their own threads so a chatty command
+                // cannot stall on a full channel window while we wait for it to finish.
+                val stdout = StreamGobbler(session.stdout)
+                val stderr = StreamGobbler(session.stderr)
+                val condition = session.waitForCondition(
+                    ChannelCondition.EXIT_STATUS or ChannelCondition.CLOSED,
+                    timeoutMs,
+                )
+                if (condition and ChannelCondition.TIMEOUT != 0) {
+                    throw IOException("Timed out after ${timeoutMs}ms: $command")
+                }
+                return CommandOutput(
+                    stdout = stdout.readBytes().toString(Charsets.UTF_8),
+                    stderr = stderr.readBytes().toString(Charsets.UTF_8),
+                    exitCode = session.exitStatus,
+                )
+            } finally {
+                session.close()
+            }
+        }
+
         private const val PROTOCOL = "ssh"
         private const val DEFAULT_PORT = 22
+
+        // Upper bound for one exec-channel command (snapshots, status reads).
+        private const val EXEC_TIMEOUT_MS = 15_000L
 
         private const val AUTH_PUBLICKEY = "publickey"
         private const val AUTH_PASSWORD = "password"

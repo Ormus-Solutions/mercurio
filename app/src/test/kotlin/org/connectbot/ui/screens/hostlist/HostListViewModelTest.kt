@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import kotlinx.coroutines.test.setMain
 import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.ServiceError
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
@@ -89,7 +90,7 @@ class HostListViewModelTest {
     private fun createViewModel(sortedByColor: Boolean = false): HostListViewModel {
         whenever(sharedPreferences.getBoolean(PreferenceConstants.SORT_BY_COLOR, false))
             .thenReturn(sortedByColor)
-        return HostListViewModel(context, repository, dispatchers, sharedPreferences)
+        return HostListViewModel(context, repository, dispatchers, sharedPreferences, mock<DiagnosticsReporter>())
     }
 
     private fun createTerminalManager(): TerminalManager {

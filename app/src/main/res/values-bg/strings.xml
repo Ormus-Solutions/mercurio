@@ -118,10 +118,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Системна настройка по подразбиране</string>
   <string name="pref_language_download" tools:machine_translated="true">Изтеглете езиков пакет</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Изтеглянето не успя, докоснете, за да опитате отново.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Тема</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Системна настройка по подразбиране</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Светла тема</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Тъмна тема</string>
   <string name="pref_rotation_title" tools:machine_translated="true">Режим на завъртане</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">Автоматично скриване на лентата с инструменти</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">Докоснете конзолата, за да покажете лентата със заглавието и да отворите менюто.</string>
@@ -346,7 +342,7 @@
   <string name="dialog_title_edit_color" tools:machine_translated="true">Редактиране на цвят %1$d</string>
   <string name="dialog_title_reset_all" tools:machine_translated="true">Възстановяване на всички цветове?</string>
   <string name="dialog_message_reset_all" tools:machine_translated="true">Това ще възстанови всички 256 цвята до техните стандартни стойности. Тази операция не може да бъде отменена.</string>
-  <string name="app_is_running" tools:machine_translated="true">ConnectBot работи</string>
+  <string name="app_is_running" tools:machine_translated="true">Mercurio работи</string>
   <string name="label_red" tools:machine_translated="true">Червено</string>
   <string name="label_green" tools:machine_translated="true">Зелено</string>
   <string name="label_blue" tools:machine_translated="true">Синьо</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Въвеждане на текст</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Въвеждане на текст</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Въведете текста, който искате да изпратите към терминала</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Промяна на размера</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Въвеждане на текст</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Въведете текста, който искате да изпратите към терминала</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Въвеждане на текст</string>
   <string name="button_send" tools:machine_translated="true">Изпрати</string>
   <string name="button_ok" tools:machine_translated="true">Добре</string>
   <string name="button_close" tools:machine_translated="true">Затвори</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Съдържание на частния ключ</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Поставяне от буфера за обмен</string>
   <string name="notification_permission_title" tools:machine_translated="true">Поддържайте връзката във фонов режим</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot се нуждае от разрешение за изпращане на известия, за да поддържа връзките ви активни, когато превключвате между приложения. В противен случай системата може да прекъсне връзките ви, за да пести батерия.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio се нуждае от разрешение за изпращане на известия, за да поддържа връзките ви активни, когато превключвате между приложения. В противен случай системата може да прекъсне връзките ви, за да пести батерия.</string>
   <string name="grant_permission" tools:machine_translated="true">Разрешавам</string>
   <string name="connect_anyway" tools:machine_translated="true">Свържи се въпреки това</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Необходими са разрешения за известия</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">За да поддържате връзките си активни във фонов режим, моля, разрешете известията за ConnectBot в системните настройки.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">За да поддържате връзките си активни във фонов режим, моля, разрешете известията за Mercurio в системните настройки.</string>
   <string name="open_settings" tools:machine_translated="true">Отвори настройките</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Възможно е връзките да бъдат прекъснати, ако не е дадено разрешение за получаване на известия.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Връзката може да прекъсне, когато приложението работи във фонов режим</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Приложни логове</string>
   <string name="copy_logs" tools:machine_translated="true">Копиране на логове</string>
   <string name="logs_copied" tools:machine_translated="true">Данните от логовете са копирани в буфера за обмен.</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">За да съобщите за проблем, копирайте тези записи и отворете нова заявка на адрес: https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">За да съобщите за проблем, копирайте тези записи и отворете нова заявка на адрес: https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Няма налични записи</string>
   <string name="help_section_about" tools:machine_translated="true">За програмата</string>
   <string name="title_contact" tools:machine_translated="true">Контакти и поддръжка</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Удостоверяване при стартиране.</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Изисквайте използването на пръстов отпечатък, разпознаване на лице или ПИН код на устройството при отваряне на приложението.</string>
   <string name="pref_security_category" tools:machine_translated="true">Сигурност</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot е заключен</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio е заключен</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Докоснете, за да отключите</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Отключете ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Отключете Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Потвърдете самоличността си, за да продължите.</string>
   <string name="auth_banner_title" tools:machine_translated="true">Съобщение за удостоверяване от %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Съобщение за удостоверяване:</string>

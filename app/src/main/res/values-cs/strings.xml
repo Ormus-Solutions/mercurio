@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Uživatelské rozhraní</string>
   <string name="pref_language_title">Jazyk</string>
   <string name="pref_language_system_default">Výchozí nastavení systému</string>
-  <string name="pref_theme_title">Vzhled</string>
-  <string name="pref_theme_system">Výchozí nastavení systému</string>
-  <string name="pref_theme_light">Lehký</string>
-  <string name="pref_theme_dark">Tmavý</string>
   <string name="pref_rotation_title">Režim rotace</string>
   <string name="pref_titlebarhide_title">Automaticky schovávat nadpis</string>
   <string name="pref_titlebarhide_summary">Klikni pro zobrazení nadpisu a přístupového menu</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Upravit barvu %1$d</string>
   <string name="dialog_title_reset_all">Resetovat všechny barvy?</string>
   <string name="dialog_message_reset_all">Tohle resetuje všechny 256 barev na jejich výchozí hodnoty. Tento krok nelze vrátit zpět.</string>
-  <string name="app_is_running">ConnectBot běží</string>
+  <string name="app_is_running">Mercurio běží</string>
   <string name="label_red">Červená</string>
   <string name="label_green">zelená</string>
   <string name="label_blue">Modrý</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Vstup textu</string>
-  <string name="terminal_text_input_dialog_title">Vstup textu</string>
-  <string name="terminal_text_input_dialog_label">Zadejte text k odeslání do terminálu</string>
-  <string name="terminal_text_input_resize_handle">Změnit velikost</string>
-  <string name="console_menu_text_input">Vstup textu</string>
+    <string name="terminal_text_input_dialog_label">Zadejte text k odeslání do terminálu</string>
+    <string name="console_menu_text_input">Vstup textu</string>
   <string name="button_send">Odeslat</string>
   <string name="button_ok">OK</string>
   <string name="button_close">Zavřít</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Nastavení hostitele</string>
   <string name="pubkey_import_existing">Importovat veřejný klíč</string>
   <string name="notification_permission_title">Zůstaňte připojeni na pozadí</string>
-  <string name="notification_permission_message">ConnectBot potřebuje oprávnění pro zasílání oznámení, aby udržel vaše připojení aktivní, když přepínáte mezi aplikacemi. Bez tohoto oprávnění může systém vaše připojení ukončit, aby šetřil baterii.</string>
+  <string name="notification_permission_message">Mercurio potřebuje oprávnění pro zasílání oznámení, aby udržel vaše připojení aktivní, když přepínáte mezi aplikacemi. Bez tohoto oprávnění může systém vaše připojení ukončit, aby šetřil baterii.</string>
   <string name="grant_permission">Povolit</string>
   <string name="connect_anyway">Připojit se i tak</string>
   <string name="notification_permission_denied_title">Je nutné povolit notifikace</string>
-  <string name="notification_permission_denied_message">Chcete-li, aby vaše připojení zůstala aktivní na pozadí, povolte v nastavení systému oznámení pro aplikaci ConnectBot.</string>
+  <string name="notification_permission_denied_message">Chcete-li, aby vaše připojení zůstala aktivní na pozadí, povolte v nastavení systému oznámení pro aplikaci Mercurio.</string>
   <string name="open_settings">Otevřít nastavení</string>
   <string name="notification_permission_denied_snackbar">Připojení se může neočekávaně přerušit bez předchozího upozornění</string>
   <string name="notification_permission_console_warning">Připojení se může v pozadí přerušit</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Záznamy aplikace</string>
   <string name="copy_logs">Kopírovat protokoly</string>
   <string name="logs_copied">Protokoly zkopírovány do schránky</string>
-  <string name="logs_bug_report_info">Chcete-li nahlásit chybu, zkopírujte tyto protokoly a otevřete nový problém na adrese https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Chcete-li nahlásit chybu, zkopírujte tyto protokoly a otevřete nový problém na adrese https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">Žádné záznamy nejsou k dispozici</string>
   <string name="help_section_about">O aplikaci</string>
   <string name="title_contact">Kontakt a podpora</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Ověření při spuštění</string>
   <string name="pref_auth_on_launch_summary">Při spuštění aplikace vyžadujte ověření pomocí otisku prstu, rozpoznávání obličeje nebo PIN kódu zařízení</string>
   <string name="pref_security_category">Bezpečnost</string>
-  <string name="auth_screen_title">ConnectBot je uzamčen</string>
+  <string name="auth_screen_title">Mercurio je uzamčen</string>
   <string name="auth_screen_unlock_button">Klepnutím odemkněte</string>
-  <string name="auth_prompt_title">Odemkněte ConnectBot</string>
+  <string name="auth_prompt_title">Odemkněte Mercurio</string>
   <string name="auth_prompt_subtitle">Ověřte svou identitu a pokračujte</string>
   <string name="pref_language_download" tools:machine_translated="true">Stáhnout jazykový balíček</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Stahování se nezdařilo, klepnutím můžete zkusit znovu.</string>

@@ -178,7 +178,7 @@
   <string name="no">Non</string>
   <string name="yes">Si</string>
   <string name="menu_colors_reset">Reiniciar</string>
-  <string name="app_is_running">ConnectBot está en execución</string>
+  <string name="app_is_running">Mercurio está en execución</string>
   <string name="colors_fg_label">FG: %1$d</string>
   <string name="color_bg_label">BG: %1$d</string>
   <string name="image_description_connected">Conectado.</string>
@@ -270,10 +270,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Predeterminación do sistema</string>
   <string name="pref_language_download" tools:machine_translated="true">Descargar o paquete de idiomas</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">A descarga fallou, toque para tentar de novo.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Tema</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Configuración predeterminada do sistema</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Claro</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Escuro</string>
   <string name="pref_conn_persist_title" tools:machine_translated="true">Mantéñase conectado en segundo plano.</string>
   <string name="pref_conn_persist_summary" tools:machine_translated="true">Manteña as súas sesións activas aínda que cambie a outras aplicacións.</string>
   <string name="pref_bumpyarrows_title" tools:machine_translated="true">Frechas con textura</string>
@@ -396,10 +392,8 @@
   <string name="palette_editor_builtin_note" tools:machine_translated="true">Os esquemas predefinidos só poden consultarse. Duplícaos para personalizalos.</string>
   <string name="section_color_preview" tools:machine_translated="true">Vista previa</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Introdución de texto</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Introdución de texto</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Introduza o texto que quere enviar ao terminal.</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Redimensionar</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Introdución de texto</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Introduza o texto que quere enviar ao terminal.</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Introdución de texto</string>
   <string name="button_send" tools:machine_translated="true">Enviar</string>
   <string name="button_ok" tools:machine_translated="true">De acordo / Ben / Está ben</string>
   <string name="button_close" tools:machine_translated="true">Pechar</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Contido da clave privada</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Pegar desde a área de recorte</string>
   <string name="notification_permission_title" tools:machine_translated="true">Mantéñase conectado en segundo plano.</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot necesita permiso para enviar notificacións para manter as túas conexións activas cando cambias de aplicación. Sen este permiso, o sistema pode interromper as túas conexións para aforrar batería.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio necesita permiso para enviar notificacións para manter as túas conexións activas cando cambias de aplicación. Sen este permiso, o sistema pode interromper as túas conexións para aforrar batería.</string>
   <string name="grant_permission" tools:machine_translated="true">Permitir</string>
   <string name="connect_anyway" tools:machine_translated="true">Conectar de todos xeitos.</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">É necesario conceder o permiso de notificación.</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">Para manter as túas conexións activas en segundo plano, activa as notificacións para ConnectBot na configuración do sistema.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">Para manter as túas conexións activas en segundo plano, activa as notificacións para Mercurio na configuración do sistema.</string>
   <string name="open_settings" tools:machine_translated="true">Abrir configuración</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">As conexións poden interromperse se non se concede o permiso de notificación.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">A conexión pode interromperse en segundo plano.</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Rexistros da aplicación</string>
   <string name="copy_logs" tools:machine_translated="true">Copiar rexistros</string>
   <string name="logs_copied" tools:machine_translated="true">Os rexistros foron copiados ao portapapeles.</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">Para informar dun erro, copie estes rexistros e abra un novo informe en https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">Para informar dun erro, copie estes rexistros e abra un novo informe en https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Non hai rexistros dispoñibles</string>
   <string name="help_section_about" tools:machine_translated="true">Sobre</string>
   <string name="title_contact" tools:machine_translated="true">Contacto e asistencia</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Autenticación ao iniciar a aplicación</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Require a pegada, o recoñecemento facial ou un código PIN do dispositivo ao abrir a aplicación.</string>
   <string name="pref_security_category" tools:machine_translated="true">Seguridade</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot está bloqueado</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio está bloqueado</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Toca para desbloquear</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Desbloquear ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Desbloquear Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Verifica a túa identidade para continuar.</string>
   <string name="auth_banner_title" tools:machine_translated="true">Mensaxe de autenticación proveniente de %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Mensaxe de autenticación:</string>

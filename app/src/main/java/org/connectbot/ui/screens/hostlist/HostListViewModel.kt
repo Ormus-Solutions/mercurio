@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.data.entity.Pubkey
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.ServiceError
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
@@ -80,6 +81,7 @@ class HostListViewModel @Inject constructor(
     private val repository: HostRepository,
     private val dispatchers: CoroutineDispatchers,
     private val sharedPreferences: SharedPreferences,
+    private val diagnosticsReporter: DiagnosticsReporter,
 ) : ViewModel() {
 
     private var terminalManager: TerminalManager? = null
@@ -180,6 +182,15 @@ class HostListViewModel @Inject constructor(
         is ServiceError.ColorSchemeLoadFailed -> {
             context.getString(R.string.error_color_scheme_load_failed, error.reason)
         }
+    }
+
+    /**
+     * Secrets-free diagnostics report of [host]'s session, for "Copy details"
+     * on a failed connection; null when the host has no session left.
+     */
+    suspend fun diagnosticsReport(host: Host): String? {
+        val bridge = terminalManager?.bridgesFlow?.value?.find { it.host.id == host.id } ?: return null
+        return diagnosticsReporter.build(bridge)
     }
 
     private fun updateConnectionStates(hosts: List<Host>) {

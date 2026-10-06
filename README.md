@@ -1,84 +1,176 @@
-[![Build Status](https://github.com/connectbot/connectbot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/connectbot/connectbot/actions/workflows/ci.yml)
+# Mercurio
 
-# ConnectBot
+Mercurio is an Android console for driving AI coding agents that run on your
+own machines. It connects over SSH, works with [Herdr][herdr] on the host, and
+puts the keys, notifications and approvals for agents such as Claude Code and
+Codex on a phone.
 
-ConnectBot is a [Secure Shell](https://en.wikipedia.org/wiki/Secure_Shell)
-client for Android that lets you connect to remote servers over a
-cryptographically secure link.
+Mercurio is a fork of [ConnectBot][connectbot], the Android SSH client by Kenny
+Root and contributors. The SSH stack, the terminal emulator and host and key
+management come from ConnectBot. Mercurio is maintained by
+[Ormus Solutions][ormus].
 
+## What it does
 
-## How to Install
+### Terminal and input
 
-### Google Play
+- **Compose bar.** Two rows of keys under the terminal: paging ↑ and ↓, Herdr,
+  the tab switchers ← and →, Esc, Tab, a text field for the keyboard or the
+  phone's voice input, and one ⏎ key that sends the field's text and then
+  Enter, or Enter alone when the field is empty.
+- **Tray.** ⋯ or a swipe up on the bar opens more keys: arrows, jump to the
+  latest output, Mode, clear the typed line, the read view, copy the latest
+  URL, copy the agent's last reply, paste a screenshot, Herdr's sidebar and the
+  slash menu.
+- **Read view.** Recent output in a full-screen view you can scroll and select.
+  On a Herdr host it reads the focused pane with `herdr pane read`.
+- **Draft view.** The text input button opens the whole draft in a large view,
+  so a long dictated message can be read before it goes out.
+- **Slash menu.** The agent's built-in slash commands (Claude Code, Codex,
+  Grok) and your own commands and skills, read from the host.
+- **Command palette.** One search over every action, from the console menu.
+- **Paste screenshot.** Uploads the phone's newest screenshot to the host over
+  SFTP and puts its path in the text field.
+- **Session drawer.** Every open session on every host, with its state and the
+  last line of output. Tap the host name or swipe in from the left edge.
+- **Machines.** A list of your Tailscale machines, read from `tailscale status`
+  on a connected host. One tap connects.
 
-[![Get it on Google Play][2]][1]
+### Herdr
 
-  [1]: https://play.google.com/store/apps/details?id=org.connectbot
-  [2]: https://developer.android.com/images/brand/en_generic_rgb_wo_60.png
+- **Found on any SSH host.** Herdr features turn on once Herdr answers on the
+  host. There is no setting for it.
+- **Workspace picker.** Connecting to a Herdr host offers its workspaces before
+  attaching.
+- **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
+  for the focused workspace's tabs. Long press a key to hide or change it, or
+  add your own keystroke keys.
+- **Keys from the host's config.** The prefix and every client key come from
+  the host's Herdr config, with Herdr's defaults for anything it leaves out.
+- **Gestures.** On the terminal of a Herdr session, one finger across switches
+  tabs, two fingers across move pane focus, and two fingers up or down step
+  through workspaces. One finger up or down still scrolls; a pinch still zooms.
+- **Herd screen.** Every agent in the session by state (blocked, done, working,
+  idle). Tap one to focus its pane.
+- **Reattach.** When the Herdr client drops with `lost connection to server`,
+  Mercurio runs `herdr` again and the session comes back.
 
-The easiest way to get ConnectBot is to [install from Google Play Store][1].
-If you have installed from a downloaded APK, Google Play Store can upgrade
-your installed version to the latest version. However, once it has upgraded
-*you can't install a version from the releases on GitHub anymore* (due to
-key rotation that upgrades the package signature to a more secure algorithm).
+### Notifications and approvals
 
+- **Needs you.** A notification when an agent is blocked on you, and one when
+  it finishes, from Herdr's agent state.
+- **Approve or deny.** Answer a blocked Claude Code or Codex agent from its
+  notification. This works with no session open: Mercurio logs in with the
+  host's saved key, sends the answer and logs out. Other agents get the
+  notification without the buttons.
+- **Push.** While Android has the app frozen, a watcher on the host can wake
+  it through [UnifiedPush][unifiedpush] and an [ntfy][ntfy] server you run.
+  See [docs/PUSH.md](docs/PUSH.md).
 
-### Download a release
+### When something fails
 
-ConnectBot can be downloaded from [releases](
-https://github.com/connectbot/connectbot/releases) on GitHub. There are
-two versions:
+- **Fix prompt.** A failed connection, a Herdr host that does not answer, or a
+  failed Herdr action offers Copy fix prompt: the error and its
+  diagnostics, with secrets removed, framed as a prompt for a coding agent.
 
--  `google` &mdash; for a version that uses Google Play Services
-   to handle upgrading the cryptography provider
--  `oss` &mdash; includes the cryptography provider in the APK which
-   increases its size by a few megabytes.
+## Requirements
 
-## Architecture
+- Android 7.0 (API 24) or newer.
+- An SSH server on each host. Telnet hosts also work, without the Herdr
+  features.
+- [Herdr][herdr] on the host for the agent features. Without it, Mercurio is a
+  plain SSH client and the Herdr keys stay dimmed. The key defaults follow
+  Herdr 0.9.0.
+- For push (optional): an ntfy server you run, the ntfy app on the phone, and
+  `python3` on each Herdr host.
 
-### Major dependencies
+## Build from source
 
-The ConnectBot app that uses two other libraries to provide its functionality:
-* [ConnectBot Terminal](https://github.com/connectbot/termlib) &mdash; the
-  terminal emulator used by the app is also created and maintained by the
-  ConnectBot author, Kenny Root.
-* [ConnectBot fork of Trilead SSH-2](https://github.com/connectbot/sshlib)
-  &mdash; a heavily modified fork of the original Trilead SSH-2 Java library
-  written by Christian Plattner.
+Mercurio is not on Google Play. Build it from source:
 
-## Compiling
-
-### Android Studio
-
-ConnectBot is most easily developed in [Android Studio](
-https://developer.android.com/studio/). You can import this project
-directly from its project creation screen by importing from the GitHub URL.
-
-### Command line
-
-To compile ConnectBot using `gradlew`, you must first specify where your
-Android SDK is via the `ANDROID_SDK_HOME` environment variable. Then
-you can invoke the Gradle wrapper to build:
+- A JDK, version 17 or newer.
+- The Android SDK. Gradle finds it through `ANDROID_HOME` or `sdk.dir` in
+  `local.properties`.
+- A full clone with tags. The version name comes from the latest `v*` tag, and
+  the versioning plugin fails inside a git worktree.
 
 ```sh
-./gradlew build
+git clone https://github.com/Ormus-Solutions/mercurio.git
+cd mercurio
+./gradlew :app:assembleOssDebug
+adb install -r app/build/outputs/apk/oss/debug/app-oss-debug.apk
 ```
 
-### Continuous Integration
+`oss` is the only build flavor. The debug build's application id ends in
+`.debug`, so it installs beside a release build.
 
-ConnectBot uses [GitHub Actions](https://github.com/connectbot/connectbot/actions)
-for continuous integration. The workflow is defined in
-`.github/workflows/ci.yml`.
+### Checks
 
-#### Running Workflows Locally with act
-
-In general, simply running `./gradlew build` should cover all the
-checks run in the GitHub Actions continuous integration workflow, but you can
-run GitHub Actions workflows locally using [`nektos/act`](https://github.com/nektos/act).
-This requires Docker to be installed and running.
-
-To run the main CI workflow (`ci.yml`):
+This repo runs no hosted CI. Before a merge, run the gate in a full clone:
 
 ```sh
-act -W .github/workflows/ci.yml
+./gradlew testOssDebugUnitTest spotlessCheck :app:assembleOssDebug
+./gradlew :app:lintOssDebug
 ```
+
+Run lint on its own: the lint analyzer can crash when it shares a Gradle run
+with other tasks. To prove a change on an emulator, follow
+[`.grok/skills/verify-mercurio/SKILL.md`](.grok/skills/verify-mercurio/SKILL.md).
+
+## Host setup
+
+1. Install [Herdr][herdr] on the host and check that `herdr` runs in an SSH
+   session.
+2. In Mercurio, add the host and set its **Post-login automation** to `herdr`.
+   Each connection then attaches to the host's Herdr session, which keeps its
+   panes and agents between connections.
+3. For push alerts while the phone sleeps, set up the ntfy server, the ntfy app
+   and the host watcher in [docs/PUSH.md](docs/PUSH.md).
+
+## Privacy
+
+- **No Google services.** The build has no Google Play services, Firebase or
+  analytics library. Push goes through UnifiedPush to a server you run.
+- **Push messages carry ids only.** A push holds pane, tab and workspace ids
+  and labels, never pane text, prompts or secrets. Mercurio reads the pane over
+  SSH after it wakes.
+- **Usage log.** Mercurio keeps a log of which controls you use, to guide
+  design. It records action ids, never typed text, terminal output, hostnames,
+  usernames, keys or passwords. It is stored in the app's private files.
+  Recording is on by default. Turn off Record my usage in Settings, Usage and
+  wish list, and nothing is recorded.
+- **Upload only over your own SSH.** The log and the wish list leave the phone
+  only over an SSH session to a host named in that same settings section, and
+  only when the session's host key matches the key pinned there. There is no
+  HTTP endpoint and no third party.
+- **Diagnostics on request.** A fix prompt is built on the phone with private
+  keys and saved passwords removed. It goes to the clipboard only when you tap
+  Copy fix prompt, and into the wish list only when you tap Send to wish list.
+
+## License and credit
+
+Mercurio is licensed under the [Apache License 2.0](LICENSE). See
+[NOTICE](NOTICE) for what was changed and for third-party code.
+
+Mercurio is built on the work of the ConnectBot project:
+
+- [ConnectBot][connectbot] by Kenny Root and contributors, the app this is a
+  fork of.
+- [ConnectBot Terminal][termlib], the terminal emulator, by Kenny Root.
+- [ConnectBot's fork of Trilead SSH-2][sshlib], the SSH library, originally by
+  Christian Plattner.
+
+The Herdr models and client in `solutions/ormus/logos/herd/` are adapted from
+[Termish][termish] (MIT).
+
+Mercurio is not affiliated with or endorsed by the ConnectBot project. Report
+Mercurio problems in this repository, not upstream.
+
+[connectbot]: https://github.com/connectbot/connectbot
+[termlib]: https://github.com/connectbot/termlib
+[sshlib]: https://github.com/connectbot/sshlib
+[herdr]: https://github.com/herdrdev/herdr
+[termish]: https://github.com/farlume/termish
+[unifiedpush]: https://unifiedpush.org
+[ntfy]: https://ntfy.sh
+[ormus]: https://ormus.solutions

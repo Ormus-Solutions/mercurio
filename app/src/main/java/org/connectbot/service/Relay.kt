@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -130,6 +130,13 @@ class Relay(
 
                     charBuffer.flip()
 
+                    // Peek the decoded text for the session activity preview.
+                    // append() reads via charAt and does not advance position,
+                    // so the encoder below still sees the full buffer.
+                    if (charBuffer.hasRemaining()) {
+                        bridge.recordOutput(charBuffer)
+                    }
+
                     encoder.encode(charBuffer, destBuffer, endOfInput)
                     destBuffer.flip()
 
@@ -173,6 +180,7 @@ class Relay(
             }
         } catch (e: IOException) {
             Timber.e(e, "Problem while handling incoming data in relay")
+            bridge.recordFailure(e)
         }
     }
 

@@ -147,7 +147,7 @@ fun HostEditorScreenContent(
     var expandedMode by remember(uiState.isLoading) {
         mutableStateOf(hostId != -1L && !uiState.isNicknameMatching)
     }
-    val protocols = listOf("ssh", "telnet", "local")
+    val protocols = listOf("ssh", "telnet")
 
     Scaffold(
         topBar = {

@@ -111,10 +111,6 @@
   <string name="pref_ui_category">מנשק משתמש</string>
   <string name="pref_language_title">שפה</string>
   <string name="pref_language_system_default">ברירת המחדל של המערכת</string>
-  <string name="pref_theme_title">נושא</string>
-  <string name="pref_theme_system">ברירת המחדל של המערכת</string>
-  <string name="pref_theme_light">קַל</string>
-  <string name="pref_theme_dark">חושך</string>
   <string name="pref_rotation_title">מצב סיבוב</string>
   <string name="pref_titlebarhide_title">הסתר אוטומטית של סרגל הכותרת</string>
   <string name="pref_titlebarhide_summary">הקש על המסוף כדי להציג את סרגל הכותרת ולגשת לתפריט.</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">ערוך צבע %1$d</string>
   <string name="dialog_title_reset_all">לאפס את כל הצבעים?</string>
   <string name="dialog_message_reset_all">פעולה זו תאפס את כל 256 הצבעים לערכים המוגדרים כברירת מחדל. לא ניתן לבטל פעולה זו.</string>
-  <string name="app_is_running">ConnectBot פעיל</string>
+  <string name="app_is_running">Mercurio פעיל</string>
   <string name="label_red">אדום</string>
   <string name="label_green">ירוק</string>
   <string name="label_blue">כחול</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">קלט טקסט</string>
-  <string name="terminal_text_input_dialog_title">קלט טקסט</string>
-  <string name="terminal_text_input_dialog_label">הזן טקסט לשליחה למסוף</string>
-  <string name="terminal_text_input_resize_handle">שנה גודל</string>
-  <string name="console_menu_text_input">קלט טקסט</string>
+    <string name="terminal_text_input_dialog_label">הזן טקסט לשליחה למסוף</string>
+    <string name="console_menu_text_input">קלט טקסט</string>
   <string name="button_send">שלח</string>
   <string name="button_ok">בסדר</string>
   <string name="button_close">סגור</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">הגדרת מארח</string>
   <string name="pubkey_import_existing">ייבא מפתח ציבורי קיים</string>
   <string name="notification_permission_title">הישארו מחוברים ברקע</string>
-  <string name="notification_permission_message">אפליקציית ConnectBot זקוקה להרשאת התראות כדי לשמור על החיבורים שלך פעילים בעת מעבר בין אפליקציות. בלעדיה, המערכת עלולה לנתק את החיבורים שלך כדי לחסוך בסוללה.</string>
+  <string name="notification_permission_message">אפליקציית Mercurio זקוקה להרשאת התראות כדי לשמור על החיבורים שלך פעילים בעת מעבר בין אפליקציות. בלעדיה, המערכת עלולה לנתק את החיבורים שלך כדי לחסוך בסוללה.</string>
   <string name="grant_permission">אפשר</string>
   <string name="connect_anyway">התחבר בכל מקרה</string>
   <string name="notification_permission_denied_title">נדרשת הרשאת התראות</string>
-  <string name="notification_permission_denied_message">כדי לשמור על פעילות החיבורים שלך ברקע, אנא הפעל התראות עבור ConnectBot בהגדרות המערכת.</string>
+  <string name="notification_permission_denied_message">כדי לשמור על פעילות החיבורים שלך ברקע, אנא הפעל התראות עבור Mercurio בהגדרות המערכת.</string>
   <string name="open_settings">פתח הגדרות</string>
   <string name="notification_permission_denied_snackbar">ייתכן שהחיבורים ינותקו ללא הודעה או בקשת אישור</string>
   <string name="notification_permission_console_warning">ייתכן שהחיבור ינותק בזמן שהוא פועל ברקע</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">יומני יישומים</string>
   <string name="copy_logs">העתק יומנים</string>
   <string name="logs_copied">היומנים הועתקו ללוח הגזירים</string>
-  <string name="logs_bug_report_info">כדי לדווח על תקלה, העתק את קבצי הרישום האלה ופתח דיווח חדש בכתובת https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">כדי לדווח על תקלה, העתק את קבצי הרישום האלה ופתח דיווח חדש בכתובת https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">אין יומנים זמינים</string>
   <string name="help_section_about">אודות</string>
   <string name="title_contact">צור קשר ותמיכה</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">אימות בעת ההפעלה</string>
   <string name="pref_auth_on_launch_summary">יש לדרוש טביעת אצבע, זיהוי פנים או קוד PIN של המכשיר בעת פתיחת האפליקציה</string>
   <string name="pref_security_category">אבטחה</string>
-  <string name="auth_screen_title">ConnectBot נעול</string>
+  <string name="auth_screen_title">Mercurio נעול</string>
   <string name="auth_screen_unlock_button">הקש כדי לבטל את הנעילה</string>
-  <string name="auth_prompt_title">פתח את ConnectBot</string>
+  <string name="auth_prompt_title">פתח את Mercurio</string>
   <string name="auth_prompt_subtitle">אמת את זהותך כדי להמשיך</string>
   <string name="pref_language_download" tools:machine_translated="true">הורד חבילת שפה</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">ההורדה נכשלה, לחצו כדי לנסות שוב</string>

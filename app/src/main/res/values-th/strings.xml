@@ -113,10 +113,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">ค่าเริ่มต้นของระบบ</string>
   <string name="pref_language_download" tools:machine_translated="true">ดาวน์โหลดชุดภาษา</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">ดาวน์โหลดไม่สำเร็จ แตะเพื่อลองใหม่อีกครั้ง</string>
-  <string name="pref_theme_title" tools:machine_translated="true">รูปแบบ</string>
-  <string name="pref_theme_system" tools:machine_translated="true">ค่าเริ่มต้นของระบบ</string>
-  <string name="pref_theme_light" tools:machine_translated="true">ธีมสีอ่อน</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">สีเข้ม</string>
   <string name="pref_rotation_title" tools:machine_translated="true">โหมดการหมุน</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">ซ่อนแถบชื่อหน้าต่างโดยอัตโนมัติ</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">แตะที่ส่วนคอนโซลเพื่อแสดงแถบชื่อเรื่องและเข้าถึงเมนู</string>
@@ -346,7 +342,7 @@
   <string name="dialog_title_edit_color" tools:machine_translated="true">แก้ไขสี %1$d</string>
   <string name="dialog_title_reset_all" tools:machine_translated="true">ต้องการรีเซ็ตสีทั้งหมดหรือไม่?</string>
   <string name="dialog_message_reset_all" tools:machine_translated="true">การดำเนินการนี้จะรีเซ็ตสีทั้งหมด 256 สีให้กลับไปเป็นค่าเริ่มต้น และไม่สามารถยกเลิกการดำเนินการนี้ได้.</string>
-  <string name="app_is_running" tools:machine_translated="true">ConnectBot กำลังทำงาน</string>
+  <string name="app_is_running" tools:machine_translated="true">Mercurio กำลังทำงาน</string>
   <string name="label_red" tools:machine_translated="true">สีแดง</string>
   <string name="label_green" tools:machine_translated="true">สีเขียว</string>
   <string name="label_blue" tools:machine_translated="true">สีน้ำเงิน</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">ช่องป้อนข้อความ</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">ช่องป้อนข้อความ</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">พิมพ์ข้อความเพื่อส่งไปยังเทอร์มินัล</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">ปรับขนาด</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">ช่องสำหรับป้อนข้อความ</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">พิมพ์ข้อความเพื่อส่งไปยังเทอร์มินัล</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">ช่องสำหรับป้อนข้อความ</string>
   <string name="button_send" tools:machine_translated="true">ส่ง</string>
   <string name="button_ok" tools:machine_translated="true">ตกลง</string>
   <string name="button_close" tools:machine_translated="true">ปิด</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">เนื้อหาของคีย์ส่วนตัว</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">วางเนื้อหาจากคลิปบอร์ด</string>
   <string name="notification_permission_title" tools:machine_translated="true">เชื่อมต่อในเบื้องหลังต่อไป</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot จำเป็นต้องได้รับสิทธิ์ในการส่งการแจ้งเตือน เพื่อให้การเชื่อมต่อของคุณยังคงทำงานอยู่เมื่อคุณสลับไปใช้แอปอื่น หากไม่มีสิทธิ์นี้ ระบบอาจตัดการเชื่อมต่อของคุณเพื่อประหยัดพลังงานแบตเตอรี่.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio จำเป็นต้องได้รับสิทธิ์ในการส่งการแจ้งเตือน เพื่อให้การเชื่อมต่อของคุณยังคงทำงานอยู่เมื่อคุณสลับไปใช้แอปอื่น หากไม่มีสิทธิ์นี้ ระบบอาจตัดการเชื่อมต่อของคุณเพื่อประหยัดพลังงานแบตเตอรี่.</string>
   <string name="grant_permission" tools:machine_translated="true">อนุญาต</string>
   <string name="connect_anyway" tools:machine_translated="true">เชื่อมต่อโดยไม่ให้สิทธิ์การแจ้งเตือน</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">จำเป็นต้องให้สิทธิ์การแจ้งเตือน</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">เพื่อให้การเชื่อมต่อของคุณยังคงทำงานอยู่เบื้องหลัง โปรดเปิดการแจ้งเตือนสำหรับ ConnectBot ในการตั้งค่าของระบบ.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">เพื่อให้การเชื่อมต่อของคุณยังคงทำงานอยู่เบื้องหลัง โปรดเปิดการแจ้งเตือนสำหรับ Mercurio ในการตั้งค่าของระบบ.</string>
   <string name="open_settings" tools:machine_translated="true">เปิดการตั้งค่า</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">การเชื่อมต่ออาจถูกตัดการเชื่อมต่อหากไม่ได้ให้สิทธิ์การแจ้งเตือน</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">การเชื่อมต่ออาจถูกตัดเมื่อแอปทำงานอยู่เบื้องหลัง</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">บันทึกการทำงานของแอปพลิเคชัน</string>
   <string name="copy_logs" tools:machine_translated="true">คัดลอกบันทึก</string>
   <string name="logs_copied" tools:machine_translated="true">คัดลอกบันทึกไปยังคลิปบอร์ดแล้ว</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">หากต้องการรายงานข้อผิดพลาด โปรดคัดลอกข้อมูลบันทึกเหล่านี้ และเปิดรายงานปัญหาใหม่ได้ที่ https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">หากต้องการรายงานข้อผิดพลาด โปรดคัดลอกข้อมูลบันทึกเหล่านี้ และเปิดรายงานปัญหาใหม่ได้ที่ https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">ไม่มีข้อมูลบันทึก</string>
   <string name="help_section_about" tools:machine_translated="true">เกี่ยวกับ</string>
   <string name="title_contact" tools:machine_translated="true">ติดต่อและขอความช่วยเหลือ</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">การยืนยันตัวตนเมื่อเปิดใช้งาน</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">กำหนดให้ต้องใช้ลายนิ้วมือ, การจดจำใบหน้า หรือรหัส PIN ของอุปกรณ์ เมื่อเปิดแอป</string>
   <string name="pref_security_category" tools:machine_translated="true">การรักษาความปลอดภัย</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot ถูกล็อกแล้ว</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio ถูกล็อกแล้ว</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">แตะเพื่อปลดล็อก</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">ปลดล็อก ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">ปลดล็อก Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">ยืนยันตัวตนของคุณเพื่อดำเนินการต่อ</string>
   <string name="auth_banner_title" tools:machine_translated="true">ข้อความยืนยันตัวตนจาก %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] ข้อความยืนยันตัวตน:</string>

@@ -1,0 +1,12 @@
+[Unit]
+Description=Mercurio push watcher (Herdr agent alerts to UnifiedPush)
+Documentation=https://github.com/Ormus-Solutions/mercurio/blob/main/docs/PUSH.md
+
+[Service]
+ExecStart=%h/.local/bin/mercurio-push-watch
+# Exit 0 means no Herdr on this host: stay stopped. Anything else: start again.
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

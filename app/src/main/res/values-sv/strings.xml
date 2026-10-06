@@ -144,7 +144,7 @@
   <string name="no">Nej</string>
   <string name="yes">Ja</string>
   <string name="menu_colors_reset">Återställ</string>
-  <string name="app_is_running">ConnectBot är igång</string>
+  <string name="app_is_running">Mercurio är igång</string>
   <string name="app_copyright" tools:machine_translated="true">Copyright © Kenny Root</string>
   <string name="title_eula" tools:machine_translated="true">Licens</string>
   <string name="title_color_picker" tools:machine_translated="true">Välj en färg</string>
@@ -212,10 +212,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Systemets standardinställning</string>
   <string name="pref_language_download" tools:machine_translated="true">Ladda ner språkpaket</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Nedladdningen misslyckades, tryck för att försöka igen.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Tema</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Systemets standardinställning</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Ljust läge</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Mörkt</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">Dölj automatiskt titelfältet</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">Tryck på konsolen för att visa titelraden och öppna menyn</string>
   <string name="pref_alwaysvisible_title" tools:machine_translated="true">Visa alltid specialtangenter</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Textinmatning</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Textinmatning</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Ange text som ska skickas till terminalen.</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Ändra storlek</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Textinmatning</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Ange text som ska skickas till terminalen.</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Textinmatning</string>
   <string name="button_send" tools:machine_translated="true">Skicka</string>
   <string name="button_ok" tools:machine_translated="true">OK</string>
   <string name="button_close" tools:machine_translated="true">Stäng</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Innehåll i den privata nyckeln</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Klistra in från urklipp</string>
   <string name="notification_permission_title" tools:machine_translated="true">Håll anslutningen aktiv i bakgrunden</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot behöver tillåtelse att skicka aviseringar för att hålla dina anslutningar aktiva när du byter app. Utan den tillåtelsen kan systemet bryta anslutningarna för att spara batteri.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio behöver tillåtelse att skicka aviseringar för att hålla dina anslutningar aktiva när du byter app. Utan den tillåtelsen kan systemet bryta anslutningarna för att spara batteri.</string>
   <string name="grant_permission" tools:machine_translated="true">Tillåt</string>
   <string name="connect_anyway" tools:machine_translated="true">Anslut ändå</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Behöver tillstånd för aviseringar</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">För att dina anslutningar ska förbli aktiva i bakgrunden, aktivera notifikationer för ConnectBot i systeminställningarna.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">För att dina anslutningar ska förbli aktiva i bakgrunden, aktivera notifikationer för Mercurio i systeminställningarna.</string>
   <string name="open_settings" tools:machine_translated="true">Öppna inställningar</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Anslutningar kan brytas utan att användaren har gett tillstånd för aviseringar.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Anslutningen kan brytas när appen körs i bakgrunden</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Programloggar</string>
   <string name="copy_logs" tools:machine_translated="true">Kopiera loggar</string>
   <string name="logs_copied" tools:machine_translated="true">Loggarna har kopierats till urklipp</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">För att rapportera ett fel, kopiera dessa loggar och öppna ett nytt ärende på https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">För att rapportera ett fel, kopiera dessa loggar och öppna ett nytt ärende på https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Inga loggar tillgängliga</string>
   <string name="help_section_about" tools:machine_translated="true">Om</string>
   <string name="title_contact" tools:machine_translated="true">Kontakta oss och få support</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Autentisering vid uppstart</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Kräv fingeravtryck, ansiktsigenkänning eller enhets-PIN-kod när appen öppnas.</string>
   <string name="pref_security_category" tools:machine_translated="true">Säkerhet</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot är låst</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio är låst</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Tryck för att låsa upp</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Lås upp ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Lås upp Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Verifiera din identitet för att fortsätta</string>
   <string name="auth_banner_title" tools:machine_translated="true">Autentiseringsmeddelande från %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Autentiseringsmeddelande:</string>

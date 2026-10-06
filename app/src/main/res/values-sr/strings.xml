@@ -232,10 +232,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Podrazumevana postavka sistema</string>
   <string name="pref_language_download" tools:machine_translated="true">Преузмите језички пакет</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Преузимање није успело, додирните да бисте покушали поново.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Тема</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Подразумеване системске поставке</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Svetla tema</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Тамна тема</string>
   <string name="pref_alwaysvisible_title" tools:machine_translated="true">Специјални тастери увек видљиви</string>
   <string name="pref_pg_updn_gesture_title" tools:machine_translated="true">Покрет за прелазак на следећу/претходну страницу</string>
   <string name="pref_pg_updn_gesture_summary" tools:machine_translated="true">Превуците прву трећину екрана слева како бисте послали команду за померање курсора нагоре/надоле у терминал.</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Унос текста</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Поље за унос текста</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Unesite tekst koji želite da pošaljete na terminal.</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Промени величину</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Поље за унос текста</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Unesite tekst koji želite da pošaljete na terminal.</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Поље за унос текста</string>
   <string name="button_send" tools:machine_translated="true">Пошаљи</string>
   <string name="button_ok" tools:machine_translated="true">У реду</string>
   <string name="button_close" tools:machine_translated="true">Затвори</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Садржај приватног кључа</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Налепи садржај из припремљеног подручја</string>
   <string name="notification_permission_title" tools:machine_translated="true">Ostanite povezani u pozadini</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot-у је потребno dozvola za slanje obaveštenja kako bi vaše veze ostale aktivne kada prelazite između aplikacija. Bez ove dozvole, sistem može prekinuti vaše veze radi štednje baterije.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio-у је потребno dozvola za slanje obaveštenja kako bi vaše veze ostale aktivne kada prelazite između aplikacija. Bez ove dozvole, sistem može prekinuti vaše veze radi štednje baterije.</string>
   <string name="grant_permission" tools:machine_translated="true">Дозволи</string>
   <string name="connect_anyway" tools:machine_translated="true">Poveži se svakako</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Потребно је одобрење за слање обавештења.</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">Da biste omogućili da vaše veze budu aktivne u pozadini, molimo vas da uključite obaveštenja za ConnectBot u podešavanjima sistema.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">Da biste omogućili da vaše veze budu aktivne u pozadini, molimo vas da uključite obaveštenja za Mercurio u podešavanjima sistema.</string>
   <string name="open_settings" tools:machine_translated="true">Otvori podešavanja</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Везе могу бити прекинуте ако нисте добили дозволу за примање обавештења.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Веза може да се прекине док је апликација у позадини</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Evidencije aplikacije</string>
   <string name="copy_logs" tools:machine_translated="true">Копирај дневнике</string>
   <string name="logs_copied" tools:machine_translated="true">Evidencije kopirane u привремену меморију</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">Да бисте пријавили грешку, копирајте ове евиденције и отворите нови захтев на https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">Да бисте пријавили грешку, копирајте ове евиденције и отворите нови захтев на https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Није доступна ниједна евиденција</string>
   <string name="help_section_about" tools:machine_translated="true">O programu</string>
   <string name="title_contact" tools:machine_translated="true">Контакт и подршка</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Аутентификација при покретању.</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Захтевајте очитавање отиска прста, препознавање лица или унос ПИН-а уређа при отварању апликације.</string>
   <string name="pref_security_category" tools:machine_translated="true">Безбедност</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot je zaključan</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio je zaključan</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Dodirnite za otključavanje</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Otključajte ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Otključajte Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Потврдите свој идентитет да бисте наставили</string>
   <string name="auth_banner_title" tools:machine_translated="true">Порука за аутентификацију од %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Порука о аутентификацији:</string>

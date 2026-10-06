@@ -1,0 +1,139 @@
+/*
+ * ConnectBot: simple, powerful, open-source SSH client for Android
+ * Copyright 2026 Kenny Root
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package solutions.ormus.logos.herd
+
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
+import org.connectbot.transport.CommandOutput
+
+/** One workspace on the connect picker; [state] is its most urgent agent state. */
+data class WorkspaceChoice(
+    val workspaceId: String,
+    val number: Int,
+    val label: String,
+    val focused: Boolean,
+    val state: HerdrAgentStatus,
+)
+
+/** What the connect picker answered. */
+sealed interface WorkspacePick {
+    /** The gold key: attach to the workspace that already has focus. */
+    data object Attach : WorkspacePick
+
+    /** Back: attach as before, without a choice. */
+    data object Dismiss : WorkspacePick
+
+    /** A row: focus [workspaceId], then attach. */
+    data class Focus(val workspaceId: String) : WorkspacePick
+}
+
+/**
+ * The workspace picker a Herdr host shows on connect, before its post-login
+ * command attaches: one row per workspace of the running server, so a tap
+ * focuses one first and the attach lands there. Herdr's focus is the server's,
+ * so a new client opens on the focused workspace (measured on Sun, herdr 0.9.0).
+ *
+ * The picker never holds a connection up: no snapshot inside
+ * [SNAPSHOT_WAIT_MS], a stopped server, or one workspace means attach at once.
+ */
+object HerdrWorkspacePicker {
+    /** How long a connect waits for the snapshot before it attaches as before. */
+    const val SNAPSHOT_WAIT_MS = 1_500L
+
+    /** How long a picked workspace's focus may take before the attach goes ahead anyway. */
+    const val FOCUS_WAIT_MS = 3_000L
+
+    /**
+     * Whether [postLogin] attaches Herdr's default session, the one the snapshot
+     * and the focus command talk to. A named session or a remote attach gets no picker.
+     */
+    fun offers(postLogin: String?): Boolean {
+        val command = postLogin ?: return false
+        return command.contains("herdr", ignoreCase = true) && OTHER_SESSION.none { command.contains(it) }
+    }
+
+    /** The rows to offer, by workspace number; null when the connect should attach at once. */
+    fun choices(snapshot: HerdrSessionSnapshot?): List<WorkspaceChoice>? {
+        if (snapshot == null || snapshot.workspaces.size < 2) return null
+        return snapshot.workspaces.sortedBy { it.number }.map { workspace ->
+            val id = workspace.workspaceId
+            val states = snapshot.agents.filter { it.workspaceId == id }.map { it.agentStatus } +
+                snapshot.panes.filter { it.workspaceId == id }.map { it.agentStatus } +
+                workspace.agentStatus
+            WorkspaceChoice(
+                workspaceId = id,
+                number = workspace.number,
+                label = workspace.label,
+                focused = id == snapshot.focusedWorkspaceId,
+                state = mostUrgent(states),
+            )
+        }
+    }
+
+    /** The state a workspace shows: blocked, then working, done, idle; unknown when none says. */
+    fun mostUrgent(states: Iterable<HerdrAgentStatus>): HerdrAgentStatus = states.minByOrNull(::urgency) ?: HerdrAgentStatus.UNKNOWN
+
+    private fun urgency(status: HerdrAgentStatus): Int = when (status) {
+        HerdrAgentStatus.BLOCKED -> 0
+        HerdrAgentStatus.WORKING -> 1
+        HerdrAgentStatus.DONE -> 2
+        HerdrAgentStatus.IDLE -> 3
+        HerdrAgentStatus.UNKNOWN -> 4
+    }
+
+    /**
+     * Fetch the snapshot, [ask] when there are workspaces to choose from, and
+     * focus the picked one. Returns the pick, or null when no picker was shown;
+     * either way the caller sends the post-login next. [run] runs one command
+     * over an exec channel with a timeout and blocks; it may throw. Blocking work
+     * runs in [scope] on [io], so a slow host never holds this up past the waits.
+     */
+    suspend fun offer(
+        scope: CoroutineScope,
+        io: CoroutineDispatcher,
+        run: (command: String, timeoutMs: Long) -> CommandOutput?,
+        ask: suspend (List<WorkspaceChoice>) -> WorkspacePick,
+    ): WorkspacePick? {
+        val out = within(scope, io, SNAPSHOT_WAIT_MS) { run(Herd.snapshotCommand, SNAPSHOT_WAIT_MS) }
+        val snapshot = out?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout?.let(::parseHerdrSnapshot)
+        val choices = choices(snapshot) ?: return null
+        val pick = ask(choices)
+        if (pick is WorkspacePick.Focus) {
+            val focus = HerdrCommands().build(HerdrAction.FocusWorkspace(pick.workspaceId), snapshot) as HerdrInvocation.Cli
+            within(scope, io, FOCUS_WAIT_MS) { run(focus.command, FOCUS_WAIT_MS) }
+        }
+        return pick
+    }
+
+    // The command runs apart from the caller, so a host that never answers costs
+    // the caller [waitMs] and no more; a failure reads as no answer.
+    private suspend fun within(
+        scope: CoroutineScope,
+        io: CoroutineDispatcher,
+        waitMs: Long,
+        block: () -> CommandOutput?,
+    ): CommandOutput? {
+        val result = scope.async(io) { runCatching(block).getOrNull() }
+        return withTimeoutOrNull(waitMs) { result.await() }
+    }
+
+    // Post-login words that attach something other than the default session.
+    private val OTHER_SESSION = listOf("--session", "session attach", "--remote")
+}

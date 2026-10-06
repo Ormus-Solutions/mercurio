@@ -1,0 +1,861 @@
+{
+  "id": "cli:api:snapshot",
+  "result": {
+    "snapshot": {
+      "agents": [
+        {
+          "agent": "claude",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a08ccf-17b3-7bb2-bb7c-24335ce3e9f9"
+          },
+          "agent_status": "working",
+          "cwd": "/home/alice/projects/demo-app",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pB",
+          "revision": 5,
+          "state_change_seq": 12,
+          "tab_id": "w1:tB",
+          "terminal_id": "term_65cb835c9392a2",
+          "terminal_title": "Docs site build, broken links in the nav\u2026 - grok",
+          "terminal_title_stripped": "Docs site build, broken links in the nav\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a09891-9efb-7381-b020-b80887802188"
+          },
+          "agent_status": "blocked",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pC",
+          "revision": 5,
+          "state_change_seq": 9,
+          "tab_id": "w1:tC",
+          "terminal_id": "term_65cb835c939343",
+          "terminal_title": "Lint setup, two config files for the CI - grok",
+          "terminal_title_stripped": "Lint setup, two config files for the CI - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a092b3-670a-7610-8b0b-368783d1f03c"
+          },
+          "agent_status": "idle",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pF",
+          "revision": 5,
+          "state_change_seq": 14,
+          "tab_id": "w1:tF",
+          "terminal_id": "term_65cb835c939464",
+          "terminal_title": "Login form layout pass and its PR review - grok",
+          "terminal_title_stripped": "Login form layout pass and its PR review - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a0a61b-9208-77d3-8bba-6461e3c27424"
+          },
+          "agent_status": "done",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pH",
+          "revision": 5,
+          "state_change_seq": 11,
+          "tab_id": "w1:tH",
+          "terminal_id": "term_65cb835c939525",
+          "terminal_title": "New theme created but not applied on the\u2026 - grok",
+          "terminal_title_stripped": "New theme created but not applied on the\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a0a61b-a916-7101-9904-31e42039f9e2"
+          },
+          "agent_status": "blocked",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pJ",
+          "revision": 5,
+          "state_change_seq": 10,
+          "tab_id": "w1:tJ",
+          "terminal_id": "term_65cb835c9396f6",
+          "terminal_title": "Three flaky tests in the parser suite wi\u2026 - grok",
+          "terminal_title_stripped": "Three flaky tests in the parser suite wi\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a0a636-e53c-7c80-b58e-a0211be1dd30"
+          },
+          "agent_status": "working",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pK",
+          "revision": 5,
+          "state_change_seq": 13,
+          "tab_id": "w1:tK",
+          "terminal_id": "term_65cb835c939787",
+          "terminal_title": "Billing export review and CSV header fix\u2026 - grok",
+          "terminal_title_stripped": "Billing export review and CSV header fix\u2026 - grok",
+          "workspace_id": "w1"
+        }
+      ],
+      "focused_pane_id": "w1:pB",
+      "focused_tab_id": "w1:t1",
+      "focused_workspace_id": "w1",
+      "layouts": [
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:p1",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:p1",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:t1",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:pB",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:pB",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:tB",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:pC",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:pC",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:tC",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:pF",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:pF",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:tF",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:pH",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:pH",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:tH",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:pJ",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:pJ",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:tJ",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w1:pK",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w1:pK",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w1:tK",
+          "workspace_id": "w1",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w3:p1",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w3:p1",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w3:t1",
+          "workspace_id": "w3",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w3:p2",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w3:p2",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w3:t2",
+          "workspace_id": "w3",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w4:p1",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w4:p1",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w4:t1",
+          "workspace_id": "w4",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w4:p2",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w4:p2",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w4:t2",
+          "workspace_id": "w4",
+          "zoomed": false
+        },
+        {
+          "area": {
+            "height": 40,
+            "width": 63,
+            "x": 0,
+            "y": 0
+          },
+          "focused_pane_id": "w5:p1",
+          "panes": [
+            {
+              "focused": true,
+              "pane_id": "w5:p1",
+              "rect": {
+                "height": 40,
+                "width": 63,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "splits": [],
+          "tab_id": "w5:t1",
+          "workspace_id": "w5",
+          "zoomed": false
+        }
+      ],
+      "panes": [
+        {
+          "agent_session": {
+            "agent": "claude",
+            "kind": "id",
+            "source": "herdr:claude",
+            "value": "66df8e9b-f862-4892-b6a8-bd82deace9f4"
+          },
+          "agent_status": "unknown",
+          "cwd": "/home/alice",
+          "focused": true,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:p1",
+          "revision": 9,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:t1",
+          "terminal_id": "term_65cb835c9390b1",
+          "terminal_title": "\u25d0 Pickup demo mobile app",
+          "terminal_title_stripped": "Pickup demo mobile app",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "claude",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a08ccf-17b3-7bb2-bb7c-24335ce3e9f9"
+          },
+          "agent_status": "working",
+          "cwd": "/home/alice/projects/demo-app",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pB",
+          "revision": 5,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:tB",
+          "terminal_id": "term_65cb835c9392a2",
+          "terminal_title": "Docs site build, broken links in the nav\u2026 - grok",
+          "terminal_title_stripped": "Docs site build, broken links in the nav\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a09891-9efb-7381-b020-b80887802188"
+          },
+          "agent_status": "blocked",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pC",
+          "revision": 5,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:tC",
+          "terminal_id": "term_65cb835c939343",
+          "terminal_title": "Lint setup, two config files for the CI - grok",
+          "terminal_title_stripped": "Lint setup, two config files for the CI - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a092b3-670a-7610-8b0b-368783d1f03c"
+          },
+          "agent_status": "idle",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pF",
+          "revision": 5,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:tF",
+          "terminal_id": "term_65cb835c939464",
+          "terminal_title": "Login form layout pass and its PR review - grok",
+          "terminal_title_stripped": "Login form layout pass and its PR review - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a0a61b-9208-77d3-8bba-6461e3c27424"
+          },
+          "agent_status": "done",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pH",
+          "revision": 5,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:tH",
+          "terminal_id": "term_65cb835c939525",
+          "terminal_title": "New theme created but not applied on the\u2026 - grok",
+          "terminal_title_stripped": "New theme created but not applied on the\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a0a61b-a916-7101-9904-31e42039f9e2"
+          },
+          "agent_status": "blocked",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pJ",
+          "revision": 5,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:tJ",
+          "terminal_id": "term_65cb835c9396f6",
+          "terminal_title": "Three flaky tests in the parser suite wi\u2026 - grok",
+          "terminal_title_stripped": "Three flaky tests in the parser suite wi\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent": "grok",
+          "agent_session": {
+            "agent": "grok",
+            "kind": "id",
+            "source": "herdr:grok",
+            "value": "01a0a636-e53c-7c80-b58e-a0211be1dd30"
+          },
+          "agent_status": "working",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w1:pK",
+          "revision": 5,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w1:tK",
+          "terminal_id": "term_65cb835c939787",
+          "terminal_title": "Billing export review and CSV header fix\u2026 - grok",
+          "terminal_title_stripped": "Billing export review and CSV header fix\u2026 - grok",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "unknown",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w3:p1",
+          "revision": 1,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w3:t1",
+          "terminal_id": "term_65cb835c942f98",
+          "terminal_title": "alice@Sun:~",
+          "terminal_title_stripped": "alice@Sun:~",
+          "workspace_id": "w3"
+        },
+        {
+          "agent_status": "unknown",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w3:p2",
+          "revision": 1,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w3:t2",
+          "terminal_id": "term_65cb835c94ce49",
+          "terminal_title": "alice@Sun:~",
+          "terminal_title_stripped": "alice@Sun:~",
+          "workspace_id": "w3"
+        },
+        {
+          "agent_status": "unknown",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w4:p1",
+          "revision": 1,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w4:t1",
+          "terminal_id": "term_65cb835c956e8a",
+          "terminal_title": "alice@Sun:~",
+          "terminal_title_stripped": "alice@Sun:~",
+          "workspace_id": "w4"
+        },
+        {
+          "agent_status": "unknown",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w4:p2",
+          "revision": 1,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w4:t2",
+          "terminal_id": "term_65cb835c960fbb",
+          "terminal_title": "alice@Sun:~",
+          "terminal_title_stripped": "alice@Sun:~",
+          "workspace_id": "w4"
+        },
+        {
+          "agent_status": "unknown",
+          "cwd": "/home/alice",
+          "focused": false,
+          "foreground_cwd": "/home/alice",
+          "pane_id": "w5:p1",
+          "revision": 1,
+          "scroll": {
+            "max_offset_from_bottom": 0,
+            "offset_from_bottom": 0,
+            "viewport_rows": 40
+          },
+          "tab_id": "w5:t1",
+          "terminal_id": "term_65cb835c96f5ac",
+          "terminal_title": "alice@Sun:~",
+          "terminal_title_stripped": "alice@Sun:~",
+          "workspace_id": "w5"
+        }
+      ],
+      "protocol": 22,
+      "tabs": [
+        {
+          "agent_status": "unknown",
+          "focused": true,
+          "label": "1",
+          "number": 1,
+          "pane_count": 1,
+          "tab_id": "w1:t1",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "idle",
+          "focused": false,
+          "label": "2",
+          "number": 11,
+          "pane_count": 1,
+          "tab_id": "w1:tB",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "idle",
+          "focused": false,
+          "label": "3",
+          "number": 12,
+          "pane_count": 1,
+          "tab_id": "w1:tC",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "idle",
+          "focused": false,
+          "label": "4",
+          "number": 15,
+          "pane_count": 1,
+          "tab_id": "w1:tF",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "idle",
+          "focused": false,
+          "label": "5",
+          "number": 17,
+          "pane_count": 1,
+          "tab_id": "w1:tH",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "idle",
+          "focused": false,
+          "label": "6",
+          "number": 18,
+          "pane_count": 1,
+          "tab_id": "w1:tJ",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "idle",
+          "focused": false,
+          "label": "7",
+          "number": 19,
+          "pane_count": 1,
+          "tab_id": "w1:tK",
+          "workspace_id": "w1"
+        },
+        {
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "1",
+          "number": 1,
+          "pane_count": 1,
+          "tab_id": "w3:t1",
+          "workspace_id": "w3"
+        },
+        {
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "2",
+          "number": 2,
+          "pane_count": 1,
+          "tab_id": "w3:t2",
+          "workspace_id": "w3"
+        },
+        {
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "1",
+          "number": 1,
+          "pane_count": 1,
+          "tab_id": "w4:t1",
+          "workspace_id": "w4"
+        },
+        {
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "2",
+          "number": 2,
+          "pane_count": 1,
+          "tab_id": "w4:t2",
+          "workspace_id": "w4"
+        },
+        {
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "1",
+          "number": 1,
+          "pane_count": 1,
+          "tab_id": "w5:t1",
+          "workspace_id": "w5"
+        }
+      ],
+      "version": "0.9.0",
+      "workspaces": [
+        {
+          "active_tab_id": "w1:t1",
+          "agent_status": "idle",
+          "focused": true,
+          "label": "~Demo",
+          "number": 1,
+          "pane_count": 7,
+          "tab_count": 7,
+          "workspace_id": "w1"
+        },
+        {
+          "active_tab_id": "w3:t1",
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "~",
+          "number": 2,
+          "pane_count": 2,
+          "tab_count": 2,
+          "workspace_id": "w3"
+        },
+        {
+          "active_tab_id": "w4:t2",
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "~",
+          "number": 3,
+          "pane_count": 2,
+          "tab_count": 2,
+          "workspace_id": "w4"
+        },
+        {
+          "active_tab_id": "w5:t1",
+          "agent_status": "unknown",
+          "focused": false,
+          "label": "~",
+          "number": 4,
+          "pane_count": 1,
+          "tab_count": 1,
+          "workspace_id": "w5"
+        }
+      ]
+    },
+    "type": "session_snapshot"
+  }
+}

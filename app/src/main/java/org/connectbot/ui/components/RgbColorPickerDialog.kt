@@ -147,7 +147,7 @@ fun RgbColorPickerDialog(
                 ColorSliderRow(
                     label = stringResource(R.string.label_red),
                     value = red,
-                    color = Color.Red,
+                    color = Color(red = 1f, green = 0f, blue = 0f), // the channel itself
                     onValueChange = { red = it },
                 )
 
@@ -155,7 +155,7 @@ fun RgbColorPickerDialog(
                 ColorSliderRow(
                     label = stringResource(R.string.label_green),
                     value = green,
-                    color = Color.Green,
+                    color = Color(red = 0f, green = 1f, blue = 0f), // the channel itself
                     onValueChange = { green = it },
                 )
 
@@ -163,7 +163,7 @@ fun RgbColorPickerDialog(
                 ColorSliderRow(
                     label = stringResource(R.string.label_blue),
                     value = blue,
-                    color = Color.Blue,
+                    color = Color(red = 0f, green = 0f, blue = 1f), // the channel itself
                     onValueChange = { blue = it },
                 )
             }

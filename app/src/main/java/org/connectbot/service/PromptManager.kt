@@ -17,11 +17,16 @@
 
 package org.connectbot.service
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import solutions.ormus.logos.herd.WorkspaceChoice
+import solutions.ormus.logos.herd.WorkspacePick
 
 /**
  * Modern prompt manager using Kotlin coroutines instead of semaphores and blocking.
@@ -140,6 +145,27 @@ class PromptManager {
     }
 
     /**
+     * Offer a Herdr host's workspaces before its post-login attaches. A cancelled
+     * prompt (the session closed under it) reads as [WorkspacePick.Dismiss].
+     */
+    suspend fun requestHerdrWorkspace(choices: List<WorkspaceChoice>): WorkspacePick {
+        val deferred = CompletableDeferred<PromptResponse>()
+        currentDeferred = deferred
+
+        _promptState.update { PromptRequest.HerdrWorkspacePrompt(choices) }
+
+        val response = try {
+            deferred.await()
+        } catch (e: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            null
+        }
+        _promptState.update { null }
+
+        return (response as? PromptResponse.HerdrWorkspaceResponse)?.pick ?: WorkspacePick.Dismiss
+    }
+
+    /**
      * Respond to the current prompt
      */
     fun respond(response: PromptResponse) {
@@ -170,6 +196,11 @@ sealed class PromptRequest {
         val instructions: String?,
         val hint: String?,
         val isPassword: Boolean,
+    ) : PromptRequest()
+
+    /** The connect-time Herdr workspace picker. */
+    data class HerdrWorkspacePrompt(
+        val choices: List<WorkspaceChoice>,
     ) : PromptRequest()
 
     data class BiometricPrompt(
@@ -221,4 +252,5 @@ sealed class PromptResponse {
     data class BooleanResponse(val value: Boolean) : PromptResponse()
     data class StringResponse(val value: String?) : PromptResponse()
     data class BiometricResponse(val success: Boolean) : PromptResponse()
+    data class HerdrWorkspaceResponse(val pick: WorkspacePick) : PromptResponse()
 }

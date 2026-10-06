@@ -17,12 +17,16 @@
   -->
 <resources>
 
-	<color name="primary">#03A9F4</color>
-	<color name="dark_primary">#0288D1</color>
+	<!-- Brand values live in ormus_tokens.xml (generated from the Ormus brand tokens). -->
+	<color name="primary">@color/ormus_gold</color>
+	<color name="dark_primary">@color/ormus_deep</color>
 
-	<color name="accent">#40C4FF</color>
+	<color name="accent">@color/ormus_gold</color>
 
-	<color name="host_red">#F44336</color>
-	<color name="host_green">#4CAF50</color>
-	<color name="host_blue">#03A9F4</color>
+	<!-- Default tile color for hosts without a chosen color, and for their shortcuts. -->
+	<color name="host_blue">@color/ormus_gold</color>
+
+	<!-- Launcher icon: the brand gold radial bloom (gold at 18%) fading to clear. -->
+	<color name="ormus_gold_bloom">#2ED29E3D</color>
+	<color name="ormus_gold_bloom_clear">#00D29E3D</color>
 </resources>

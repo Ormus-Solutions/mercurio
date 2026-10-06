@@ -284,7 +284,6 @@ class SettingsScreenTest {
                     onClearImportError = {},
                     onDefaultProfileChange = onDefaultProfileChange,
                     onLanguageChange = {},
-                    onThemeModeChange = {},
                     onRotationChange = {},
                     onFullscreenChange = {},
                     onTitleBarHideChange = {},

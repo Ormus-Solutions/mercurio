@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.connectbot.data.HostRepository
+import org.connectbot.data.entity.Host
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.terminal.ProgressState
@@ -57,12 +60,19 @@ class ConsoleViewModel @Inject constructor(
     private val dispatchers: CoroutineDispatchers,
     private val prefs: SharedPreferences,
     private val notificationPermissionHelper: NotificationPermissionHelper,
+    private val hostRepository: HostRepository,
+    private val diagnosticsReporter: DiagnosticsReporter,
 ) : ViewModel() {
     private val hostId: Long = savedStateHandle.get<Long>("hostId") ?: -1L
     private var terminalManager: TerminalManager? = null
 
     private val _uiState = MutableStateFlow(ConsoleUiState())
     val uiState: StateFlow<ConsoleUiState> = _uiState.asStateFlow()
+
+    // Every open bridge across all hosts (NOT filtered to this screen's hostId),
+    // for the session drawer. uiState.bridges stays host-scoped for the terminal.
+    private val _allBridges = MutableStateFlow<List<TerminalBridge>>(emptyList())
+    val allBridges: StateFlow<List<TerminalBridge>> = _allBridges.asStateFlow()
 
     private val _networkStatusMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val networkStatusMessages: SharedFlow<String> = _networkStatusMessages.asSharedFlow()
@@ -79,6 +89,7 @@ class ConsoleViewModel @Inject constructor(
             // Observe bridges flow from TerminalManager
             viewModelScope.launch {
                 manager.bridgesFlow.collect { bridges ->
+                    _allBridges.value = bridges
                     updateBridges(bridges)
                     subscribeToActiveBridgeBells(bridges)
                     subscribeToActiveBridgeProgress(bridges)
@@ -110,14 +121,12 @@ class ConsoleViewModel @Inject constructor(
                         val currentIndex = _uiState.value.currentBridgeIndex
                         val currentBridge = _uiState.value.bridges.getOrNull(currentIndex)
 
+                        // Beep only for the on-screen session. When the belling
+                        // session is off-screen or the app is backgrounded, the
+                        // manager raises an agent-attention notification instead
+                        // (TerminalBridge.onBell -> onAgentAttention).
                         if (currentBridge == bridge) {
-                            // The bridge is visible, play the beep
                             terminalManager?.playBeep()
-                        } else {
-                            // The bridge is not visible, send a notification
-                            currentBridge?.host?.let {
-                                terminalManager?.sendActivityNotification(it)
-                            }
                         }
                     }
                 }
@@ -245,12 +254,29 @@ class ConsoleViewModel @Inject constructor(
                 error = null,
             )
         }
+        publishVisibleHost()
     }
 
     fun selectBridge(index: Int) {
         if (index in _uiState.value.bridges.indices) {
             _uiState.update { it.copy(currentBridgeIndex = index) }
+            publishVisibleHost()
         }
+    }
+
+    /**
+     * Tell the manager which session is on screen so it suppresses agent
+     * notifications for the one the user is already watching.
+     */
+    private fun publishVisibleHost() {
+        val current = _uiState.value.bridges.getOrNull(_uiState.value.currentBridgeIndex)
+        terminalManager?.setVisibleHost(current?.host?.id)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Console left the screen — nothing is visible now.
+        terminalManager?.setVisibleHost(null)
     }
 
     /**
@@ -265,8 +291,58 @@ class ConsoleViewModel @Inject constructor(
     /**
      * Request a reconnection for the given bridge.
      */
+
+    /** Secrets-free diagnostics report of [bridge], for "Copy details". */
+    suspend fun diagnosticsReport(bridge: TerminalBridge): String = diagnosticsReporter.build(bridge)
+
     fun reconnect(bridge: TerminalBridge) {
         terminalManager?.requestReconnect(bridge)
         _uiState.update { it.copy(revision = it.revision + 1) }
+    }
+
+    /**
+     * Resolve a quick-connect string to a host id the caller can navigate to
+     * (navigating to console/{id} opens the connection). A bare word matches a
+     * saved host by nickname first (a leading "ssh " is stripped); otherwise
+     * the string is parsed as user@host[:port] and saved as a new SSH host.
+     * Returns null when the input can't be turned into an SSH login.
+     */
+    suspend fun quickConnect(rawInput: String): Long? {
+        val input = rawInput.trim().removePrefix("ssh ").trim()
+        if (input.isEmpty()) return null
+
+        hostRepository.getHosts()
+            .firstOrNull { it.nickname.equals(input, ignoreCase = true) }
+            ?.let { return it.id }
+
+        val parsed = parseQuickConnect(input) ?: return null
+        val (username, hostname, port) = parsed
+        // SSH needs an explicit username; a bare hostname with no saved match
+        // can't form a login, so send the user to the full editor instead.
+        if (username.isBlank()) return null
+
+        val host = Host(
+            nickname = input,
+            protocol = "ssh",
+            username = username,
+            hostname = hostname,
+            port = port.toIntOrNull() ?: 22,
+            lastConnect = System.currentTimeMillis(),
+        )
+        return hostRepository.saveHost(host).id
+    }
+
+    /** user@host[:port] parser, mirroring the host editor's quick-connect field. */
+    private fun parseQuickConnect(value: String): Triple<String, String, String>? {
+        val regex = Regex(
+            "^(?:([^@]+)@)?((?:[0-9a-zA-Z._-]+)|(?:\\[[a-fA-F:0-9]+(?:%[-_.a-zA-Z0-9]+)?\\]))(?::(\\d+))?$",
+        )
+        val match = regex.find(value) ?: return null
+        val (username, hostname, port) = match.destructured
+        val isValid = hostname.isNotBlank() && (
+            (hostname.startsWith("[") && hostname.endsWith("]")) ||
+                hostname.all { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }
+            )
+        return if (isValid) Triple(username, hostname, port) else null
     }
 }

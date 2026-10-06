@@ -3,7 +3,6 @@ androidGradlePlugin = "9.2.1"
 
 kotlin = "2.3.21"
 spotless = "8.6.0"
-easylauncher = "6.4.1"
 pythonUv = "0.4.13"
 appVersioning = "1.6.0"
 room = "2.8.4"
@@ -28,7 +27,9 @@ playServicesBasement = "18.10.0"
 playFeatureDelivery = "2.1.0"
 conscrypt = "2.5.3"
 conscryptOpenJdk = "2.5.2"
+unifiedpush = "3.3.5"
 coroutines = "1.11.0"
+kotlinxSerialization = "1.11.0"
 timber = "5.0.1"
 
 recyclerview = "1.4.0"
@@ -61,6 +62,7 @@ termlib = { module = "org.connectbot:termlib", version.ref = "termlib" }
 play-services-basement = { module = "com.google.android.gms:play-services-basement", version.ref = "playServicesBasement" }
 play-feature-delivery = { module = "com.google.android.play:feature-delivery-ktx", version.ref = "playFeatureDelivery" }
 conscrypt-android = { module = "org.conscrypt:conscrypt-android", version.ref = "conscrypt" }
+unifiedpush-connector = { module = "org.unifiedpush.android:connector", version.ref = "unifiedpush" }
 
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -84,6 +86,8 @@ mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 conscrypt-openjdk-uber = { module = "org.conscrypt:conscrypt-openjdk-uber", version.ref = "conscryptOpenJdk" }
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -121,8 +125,8 @@ ksp-gradle-plugin = { module = "com.google.devtools.ksp:symbol-processing-gradle
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
-easylauncher = { id = "com.starter.easylauncher", version.ref = "easylauncher" }
 python-uv = { id = "com.pswidersk.python-uv-plugin", version.ref = "pythonUv" }
 app-versioning = { id = "io.github.reactivecircus.app-versioning", version.ref = "appVersioning"}
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

@@ -27,9 +27,11 @@ import android.view.ViewGroup
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -60,6 +62,7 @@ import org.connectbot.terminal.TerminalDimensions
 import org.connectbot.terminal.TerminalEmulator
 import org.connectbot.terminal.TerminalEmulatorFactory
 import org.connectbot.ui.LocalTerminalManager
+import org.connectbot.ui.screens.console.CONSOLE_TITLE_TAG
 import org.connectbot.ui.screens.console.ConsoleScreen
 import org.connectbot.ui.screens.console.ConsoleUiState
 import org.connectbot.ui.screens.console.ConsoleViewModel
@@ -287,23 +290,38 @@ class ConsoleScreenTest {
     }
 
     @Test
+    fun consoleScreen_tappingTheHostNameOpensTheSessionDrawer_andThereIsNoHamburger() {
+        setContent()
+        navigateToConsoleScreen()
+
+        composeTestRule.onAllNodesWithContentDescription("Sessions").assertCountEquals(0)
+        composeTestRule.onNodeWithTag(CONSOLE_TITLE_TAG).performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Host list").assertIsDisplayed()
+    }
+
+    @Test
     fun consoleScreen_displaysTextInputButton() {
         setContent()
         navigateToConsoleScreen()
 
         composeTestRule
-            .onNodeWithContentDescription("Text input")
+            .onNodeWithContentDescription("Review draft")
             .assertIsDisplayed()
     }
 
     @Test
-    fun consoleScreen_displaysPasteButton() {
+    fun consoleScreen_topBarHasNoSearchOrPaste_searchLivesInTheMenu() {
         setContent()
         navigateToConsoleScreen()
 
-        composeTestRule
-            .onNodeWithContentDescription("Paste")
-            .assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Paste").assertCountEquals(0)
+        composeTestRule.onAllNodesWithContentDescription("Search everything").assertCountEquals(0)
+        composeTestRule.onNodeWithContentDescription("More options").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Search everything").assertIsDisplayed()
     }
 
     @Test
@@ -418,6 +436,7 @@ class ConsoleScreenTest {
 
         `when`(mockViewModel.uiState).thenReturn(uiStateFlow)
         `when`(mockViewModel.networkStatusMessages).thenReturn(networkStatusMessages)
+        `when`(mockViewModel.allBridges).thenReturn(MutableStateFlow<List<TerminalBridge>>(emptyList()))
         `when`(mockViewModel.shouldShowNotificationWarning()).thenReturn(false)
 
         setContent(mockConsoleViewModel = mockViewModel)
@@ -451,6 +470,7 @@ class ConsoleScreenTest {
 
         `when`(mockViewModel.uiState).thenReturn(uiStateFlow)
         `when`(mockViewModel.networkStatusMessages).thenReturn(networkStatusMessages)
+        `when`(mockViewModel.allBridges).thenReturn(MutableStateFlow<List<TerminalBridge>>(emptyList()))
         `when`(mockViewModel.shouldShowNotificationWarning()).thenReturn(false)
 
         setContent(mockConsoleViewModel = mockViewModel)
@@ -484,6 +504,7 @@ class ConsoleScreenTest {
 
         `when`(mockViewModel.uiState).thenReturn(uiStateFlow)
         `when`(mockViewModel.networkStatusMessages).thenReturn(networkStatusMessages)
+        `when`(mockViewModel.allBridges).thenReturn(MutableStateFlow<List<TerminalBridge>>(emptyList()))
         `when`(mockViewModel.shouldShowNotificationWarning()).thenReturn(false)
 
         setContent(mockConsoleViewModel = mockViewModel)

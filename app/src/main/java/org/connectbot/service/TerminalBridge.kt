@@ -56,8 +56,15 @@ import org.connectbot.terminal.UrlScanScope
 import org.connectbot.transport.AbsTransport
 import org.connectbot.transport.SSH
 import org.connectbot.transport.TransportFactory
+import org.connectbot.usage.UsageActions
 import org.connectbot.util.HostConstants
 import org.connectbot.util.PreferenceConstants
+import org.connectbot.util.TerminalText
+import solutions.ormus.logos.herd.Herd
+import solutions.ormus.logos.herd.HerdSession
+import solutions.ormus.logos.herd.HerdrDrop
+import solutions.ormus.logos.herd.HerdrWorkspacePicker
+import solutions.ormus.logos.herd.WorkspacePick
 import timber.log.Timber
 import java.io.IOException
 import java.nio.charset.Charset
@@ -202,6 +209,41 @@ class TerminalBridge {
     private val _progressState = MutableStateFlow<ProgressInfo?>(null)
     val progressState: StateFlow<ProgressInfo?> = _progressState.asStateFlow()
 
+    // Rolling preview of the latest non-blank line printed in this session,
+    // shown in the session drawer so each row hints at what is going on (e.g.
+    // what Claude / Grok / Codex is doing). Fed from the decoded output stream
+    // in Relay; escape and control sequences are stripped to a plain line.
+    private val _activityPreview = MutableStateFlow("")
+    val activityPreview: StateFlow<String> = _activityPreview.asStateFlow()
+    private val activityBuffer = StringBuilder()
+
+    // Rolling plain-text transcript of the same decoded output (last
+    // TranscriptBuffer.DEFAULT_MAX_LINES lines), for the full-screen output reader.
+    private val transcript = TranscriptBuffer()
+
+    // The lines this bridge printed for the current connection attempt
+    // ("Connecting to…", host key, auth methods tried, errors). Kept after the
+    // session opens, unlike localOutput, so "Copy details" can include them.
+    private val connectionLog = TranscriptBuffer(maxLines = CONNECTION_LOG_MAX_LINES, maxChars = CONNECTION_LOG_MAX_CHARS)
+
+    /** First exception seen on the current connection attempt, for diagnostics. */
+    @Volatile
+    var lastFailure: Throwable? = null
+        private set
+
+    /** Epoch millis of the most recent disconnect, or null while never disconnected. */
+    @Volatile
+    var disconnectedAt: Long? = null
+        private set
+
+    // Agent-attention detection: why a session wants the user's eyes.
+    enum class AttentionReason { IDLE, BELL }
+
+    // Output seen since the last IDLE attention fired; gates idle so trivial
+    // blips (key echo, a prompt redraw) don't ping. Guarded by activityBuffer.
+    private var bytesSinceAttention = 0L
+    private var idleJob: Job? = null
+
     var disconnected = false
         private set
     var connecting = false
@@ -245,6 +287,13 @@ class TerminalBridge {
 
     val promptManager = PromptManager()
 
+    /**
+     * The Herdr side of this session (live agent snapshot, command sheet actions)
+     * when the host's post-login command runs Herdr over SSH; null otherwise.
+     */
+    var herd: HerdSession? = null
+        private set
+
     private val disconnectListeners = CopyOnWriteArrayList<BridgeDisconnectedListener>()
 
     /**
@@ -277,6 +326,12 @@ class TerminalBridge {
         // Store encoding and font family from profile for later use
         encoding = profile.encoding
         fontFamily = profile.fontFamily
+
+        // Every SSH session gets a Herdr side: it polls once the session is up, and a
+        // host counts as running Herdr as soon as a snapshot answers, whatever its
+        // post-login command says. Where Herdr is missing, the monitor backs off to
+        // about one try a minute.
+        herd = if (host.protocol == "ssh") newHerdSession() else null
 
         // Store force size from profile
         profileForceSizeRows = profile.forceSizeRows
@@ -317,7 +372,10 @@ class TerminalBridge {
                 scope.launch {
                     _bellEvents.emit(Unit)
                 }
-                manager.sendActivityNotification(host)
+                // The bell almost always means "your turn" from an agent — route
+                // it to the manager, which decides whether to notify (gated on the
+                // app being away / this session not being on screen).
+                manager.onAgentAttention(this@TerminalBridge, AttentionReason.BELL)
             },
             onResize = {
                 transportOperations.trySend(
@@ -494,6 +552,9 @@ class TerminalBridge {
             return
         }
         connecting = true
+        connectionLog.clear()
+        lastFailure = null
+        manager.onSessionConnecting(this)
 
         transport = newTransport
         newTransport.bridge = this
@@ -530,6 +591,7 @@ class TerminalBridge {
                 newTransport.connect()
             } catch (e: Exception) {
                 Timber.e(e, "Connection failed for ${host.nickname}")
+                recordFailure(e)
                 manager.reportError(
                     ServiceError.ConnectionFailed(
                         hostNickname = host.nickname,
@@ -537,6 +599,11 @@ class TerminalBridge {
                         reason = e.message ?: "Connection failed",
                     ),
                 )
+                // A transport that throws (telnet refused, a bad address) would otherwise leave
+                // the console at "Connecting to ..." with nothing to act on. Say why and close,
+                // so the disconnect overlay offers Reconnect and Copy fix prompt, as SSH does.
+                outputLine(manager.res.getString(R.string.terminal_connect_failed, e.message ?: e.javaClass.simpleName))
+                dispatchDisconnect(DisconnectReason.IO_ERROR)
             }
         }
     }
@@ -580,6 +647,7 @@ class TerminalBridge {
                 val s = processedLine + "\r\n"
 
                 localOutput.add(s)
+                connectionLog.append(processedLine + "\n")
 
                 terminalEmulator.writeInput(s.encodeToByteArray())
             }
@@ -671,14 +739,73 @@ class TerminalBridge {
         setFontSize(fontSizeSp)
 
         // finally send any post-login string, if requested
-        injectString(host.postLogin)
+        sendPostLogin()
+
+        startHerd()
 
         // Capture network state after successful connection
         captureNetworkState()
 
+        manager.onSessionOpened(this)
+
         // Notify manager so the UI recomposes with updated connection state
         manager.notifyBridgeStateChanged()
     }
+
+    /**
+     * Send the post-login command. When it attaches Herdr and the server has two or
+     * more workspaces, offer them first ([HerdrWorkspacePicker]); every other case,
+     * a slow or failed snapshot included, sends it at once as before.
+     */
+    private fun sendPostLogin() {
+        val ssh = transport as? SSH
+        if (ssh == null || !HerdrWorkspacePicker.offers(host.postLogin)) {
+            injectString(host.postLogin)
+            return
+        }
+        scope.launch {
+            val pick = HerdrWorkspacePicker.offer(
+                scope = scope,
+                io = dispatchers.io,
+                run = { command, timeoutMs -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) },
+                ask = { choices ->
+                    manager.logUsage(UsageActions.HERDR_PICKER_SHOW)
+                    promptManager.requestHerdrWorkspace(choices)
+                },
+            )
+            when (pick) {
+                null -> Unit
+                WorkspacePick.Attach -> manager.logUsage(UsageActions.HERDR_PICKER_ATTACH)
+                WorkspacePick.Dismiss -> manager.logUsage(UsageActions.HERDR_PICKER_DISMISS)
+                is WorkspacePick.Focus -> manager.logUsage(UsageActions.HERDR_PICKER_PICK)
+            }
+            injectString(host.postLogin)
+        }
+    }
+
+    /** Poll Herdr beside the PTY while a Herdr session is up; see [herd]. */
+    private fun startHerd() {
+        if (transport is SSH) herd?.start()
+    }
+
+    /**
+     * Whether this session runs Herdr: its post-login command launches Herdr, or a Herdr
+     * snapshot has answered on its host (a host where Herdr runs without a post-login
+     * command).
+     */
+    val runsHerdr: Boolean
+        get() = Herd.runsHerdr(host) || herd?.snapshot?.value != null
+
+    private fun newHerdSession(): HerdSession = HerdSession(
+        hostName = host.nickname,
+        // Null (never ran) until an SSH session is up.
+        runner = { command -> (transport as? SSH)?.takeIf { it.isConnected() }?.execDetailed(command) },
+        sendKeys = { injectString(it) },
+        scope = scope,
+        io = dispatchers.io,
+        isOnScreen = { manager.isOnScreen(this) },
+        onNotices = { manager.onHerdNotices(this, it) },
+    )
 
     /**
      * @return whether a session is open or not
@@ -715,13 +842,16 @@ class TerminalBridge {
 
             disconnected = true
             connecting = false
+            disconnectedAt = System.currentTimeMillis()
             if (disconnectReason == DisconnectReason.UNKNOWN) {
                 disconnectReason = reason
             }
         }
+        manager.onSessionClosed(this, reason)
 
         // Cancel any pending prompts
         promptManager.cancelPrompt()
+        herd?.stop()
 
         // disconnection request hangs if we havent really connected to a host yet
         // temporary fix is to just spawn disconnection into a thread
@@ -909,6 +1039,7 @@ class TerminalBridge {
         inGracePeriod = false
 
         profileObservationJob?.cancel()
+        herd?.stop()
         transportOperations.close()
         scope.cancel()
     }
@@ -1139,11 +1270,122 @@ class TerminalBridge {
         setFontSize(fontSizeSp - FONT_SIZE_STEP, false)
     }
 
+    /**
+     * Feed decoded terminal output to the activity preview. Keeps a small
+     * rolling tail, strips escape/control sequences, and publishes the last
+     * non-blank line. Called from [Relay] on the IO thread as data arrives.
+     */
+    fun recordOutput(text: CharSequence) {
+        if (text.isEmpty()) return
+        watchForHerdrDrop(text)
+        transcript.append(text)
+        synchronized(activityBuffer) {
+            activityBuffer.append(text)
+            val overflow = activityBuffer.length - ACTIVITY_BUFFER_CHARS
+            if (overflow > 0) activityBuffer.delete(0, overflow)
+            latestLine(activityBuffer)?.let { _activityPreview.value = it }
+            bytesSinceAttention += text.length
+        }
+        armIdleDetector()
+    }
+
+    // The tail of the previous output, so a Herdr drop split across reads is still seen.
+    private var herdrDropCarry = ""
+    private var lastHerdrReattach = 0L
+
+    /**
+     * The Herdr client quit with "lost connection to server" (its output to this session
+     * backed up, for one) while the SSH session stayed open: run `herdr` again, at most
+     * once a minute. The server kept every pane and agent.
+     */
+    private fun watchForHerdrDrop(text: CharSequence) {
+        val window = herdrDropCarry + text
+        herdrDropCarry = window.takeLast(HerdrDrop.CARRY_CHARS)
+        if (!HerdrDrop.dropped(window) || !runsHerdr) return
+        herdrDropCarry = ""
+        val now = System.currentTimeMillis()
+        if (now - lastHerdrReattach < HERDR_REATTACH_COOLDOWN_MS) return
+        lastHerdrReattach = now
+        Timber.i("Herdr client dropped on ${host.nickname}; attaching again")
+        scope.launch {
+            delay(HERDR_REATTACH_DELAY_MS)
+            if (transport?.isSessionOpen() == true) injectString("herdr\r")
+        }
+    }
+
+    /** Recent output of this session as plain text, oldest line first. */
+    fun transcriptText(): String = transcript.text()
+
+    /** What this bridge printed for the current connection attempt, oldest line first. */
+    fun connectionLogText(): String = connectionLog.text()
+
+    /**
+     * Remember why the current connection attempt failed. Only the first
+     * failure is kept: later ones (relay read errors after the socket closed)
+     * are usually consequences of it.
+     */
+    fun recordFailure(t: Throwable) {
+        if (lastFailure == null) lastFailure = t
+    }
+
+    /**
+     * Fire an IDLE attention once output has streamed and then gone quiet for
+     * [IDLE_QUIET_MS] — the shape of an agent finishing its turn and waiting on
+     * the user. Re-armed on every chunk so only the trailing lull fires, and
+     * gated on a minimum byte count so cursor blinks / echoes don't trigger it.
+     */
+    private fun armIdleDetector() {
+        idleJob?.cancel()
+        idleJob = scope.launch {
+            delay(IDLE_QUIET_MS)
+            val enough = synchronized(activityBuffer) {
+                if (bytesSinceAttention >= MIN_OUTPUT_FOR_IDLE) {
+                    bytesSinceAttention = 0
+                    true
+                } else {
+                    false
+                }
+            }
+            if (enough && isSessionOpen && !disconnected) {
+                manager.onAgentAttention(this@TerminalBridge, AttentionReason.IDLE)
+            }
+        }
+    }
+
+    /** Strip escape/control sequences and return the last non-blank line, clamped. */
+    private fun latestLine(raw: CharSequence): String? {
+        // Treat carriage returns as line breaks so in-place redraws (spinners,
+        // progress bars) resolve to their final rendered state.
+        val cleaned = TerminalText.stripSequences(raw).replace('\r', '\n')
+        val line = cleaned.split('\n')
+            .lastOrNull { candidate -> candidate.any { !it.isISOControl() && !it.isWhitespace() } }
+            ?: return null
+        val printable = line.filter { !it.isISOControl() }.trim()
+        return printable.ifEmpty { null }?.take(ACTIVITY_PREVIEW_CHARS)
+    }
+
     companion object {
+        /** Wait for the shell prompt after Herdr quits, then attach again. */
+        private const val HERDR_REATTACH_DELAY_MS = 800L
+
+        /** At most one automatic reattach a minute, so a host that keeps dropping cannot loop. */
+        private const val HERDR_REATTACH_COOLDOWN_MS = 60_000L
         const val TAG = "CB.TerminalBridge"
 
         private const val DEFAULT_FONT_SIZE_SP = 10
         private const val FONT_SIZE_STEP = 2
+
+        private const val ACTIVITY_BUFFER_CHARS = 2048
+        private const val ACTIVITY_PREVIEW_CHARS = 80
+
+        // Output must be quiet this long after a burst before we call it "the
+        // agent is waiting", and the burst must exceed this many bytes to count.
+        private const val IDLE_QUIET_MS = 4000L
+        private const val MIN_OUTPUT_FOR_IDLE = 40
+
+        // A connection attempt prints a few dozen lines; a large auth banner fits too.
+        private const val CONNECTION_LOG_MAX_LINES = 400
+        private const val CONNECTION_LOG_MAX_CHARS = 64 * 1024
     }
 }
 

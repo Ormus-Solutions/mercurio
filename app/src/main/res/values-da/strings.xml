@@ -144,7 +144,7 @@
   <string name="no">Nej</string>
   <string name="yes">Ja</string>
   <string name="menu_colors_reset">Nulstil</string>
-  <string name="app_is_running">ConnectBot kører</string>
+  <string name="app_is_running">Mercurio kører</string>
   <string name="app_copyright" tools:machine_translated="true">Copyright © Kenny Root</string>
   <string name="title_eula" tools:machine_translated="true">Licens</string>
   <string name="title_color_picker" tools:machine_translated="true">Vælg en farve</string>
@@ -212,10 +212,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Systemets standardindstilling</string>
   <string name="pref_language_download" tools:machine_translated="true">Download sprogpakke</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Download mislykkedes, tryk for at forsøge igen.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Tema</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Systemets standardindstilling</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Lyst tema</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Mørk</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">Skjul titellinjen automatisk</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">Tryk på konsollen for at vise titellinjen og få adgang til menuen.</string>
   <string name="pref_alwaysvisible_title" tools:machine_translated="true">Vis altid specialtasterne</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Tekstindtastning</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Tekstindtastning</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Indtast tekst, der skal sendes til terminalen</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Ændr størrelse</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Tekstindtastning</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Indtast tekst, der skal sendes til terminalen</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Tekstindtastning</string>
   <string name="button_send" tools:machine_translated="true">Send</string>
   <string name="button_ok" tools:machine_translated="true">Okay</string>
   <string name="button_close" tools:machine_translated="true">Luk</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Indhold af privat nøgle</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Indsæt fra udklipsholder</string>
   <string name="notification_permission_title" tools:machine_translated="true">Oprethold forbindelsen i baggrunden</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot har brug for tilladelse til at sende notifikationer for at opretholde dine forbindelser, når du skifter mellem apps. Uden denne tilladelse kan systemet afbryde dine forbindelser for at spare batteri.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio har brug for tilladelse til at sende notifikationer for at opretholde dine forbindelser, når du skifter mellem apps. Uden denne tilladelse kan systemet afbryde dine forbindelser for at spare batteri.</string>
   <string name="grant_permission" tools:machine_translated="true">Tillad</string>
   <string name="connect_anyway" tools:machine_translated="true">Fortsæt alligevel</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Tilladelse til notifikationer påkrævet</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">For at opretholde dine forbindelser, selv når appen kører i baggrunden, skal du aktivere notifikationer for ConnectBot i systemindstillingerne.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">For at opretholde dine forbindelser, selv når appen kører i baggrunden, skal du aktivere notifikationer for Mercurio i systemindstillingerne.</string>
   <string name="open_settings" tools:machine_translated="true">Åbn indstillinger</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Forbindelserne kan afbrydes, hvis tilladelse til notifikationer ikke er givet.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Forbindelsen kan afbrydes, når appen kører i baggrunden</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Programlogfiler</string>
   <string name="copy_logs" tools:machine_translated="true">Kopiér logfiler</string>
   <string name="logs_copied" tools:machine_translated="true">Logfiler kopieret til udklipsholderen</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">For at rapportere en fejl, skal du kopiere disse logfiler og oprette en ny sag på https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">For at rapportere en fejl, skal du kopiere disse logfiler og oprette en ny sag på https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Ingen logfiler tilgængelige</string>
   <string name="help_section_about" tools:machine_translated="true">Om</string>
   <string name="title_contact" tools:machine_translated="true">Kontakt og support</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Godkendelse ved opstart</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Kræv brug af fingeraftryk, ansigtsgenkendelse eller enhedens PIN-kode, når appen åbnes.</string>
   <string name="pref_security_category" tools:machine_translated="true">Sikkerhed</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot er låst</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio er låst</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Tryk for at låse op</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Lås ConnectBot op</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Lås Mercurio op</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Bekræft din identitet for at fortsætte</string>
   <string name="auth_banner_title" tools:machine_translated="true">Autentificeringsbesked fra %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Godkendelsesmeddelelse:</string>

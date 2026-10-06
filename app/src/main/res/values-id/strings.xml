@@ -151,7 +151,7 @@
   <string name="no">Tidak</string>
   <string name="yes">Ya</string>
   <string name="menu_colors_reset">Atur ulang</string>
-  <string name="app_is_running">ConnectBot sedang berjalan</string>
+  <string name="app_is_running">Mercurio sedang berjalan</string>
   <string name="colors_fg_label">WD: %1$d</string>
   <string name="color_bg_label">WB: %1$d</string>
   <string name="image_description_connected">Tersambung.</string>
@@ -217,10 +217,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Pengaturan bawaan sistem</string>
   <string name="pref_language_download" tools:machine_translated="true">Unduh paket bahasa</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Pengunduhan gagal, ketuk untuk mencoba lagi.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Tema</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Pengaturan bawaan sistem</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Terang</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Gelap</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">Sembunyikan bilah judul secara otomatis</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">Ketuk konsol untuk menampilkan bilah judul dan mengakses menu</string>
   <string name="pref_alwaysvisible_title" tools:machine_translated="true">Tombol khusus selalu terlihat</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Input teks</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Input Teks</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Masukkan teks yang akan dikirim ke terminal</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Ubah ukuran</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Input teks</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Masukkan teks yang akan dikirim ke terminal</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Input teks</string>
   <string name="button_send" tools:machine_translated="true">Kirim</string>
   <string name="button_ok" tools:machine_translated="true">Oke</string>
   <string name="button_close" tools:machine_translated="true">Tutup</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Isi kunci pribadi</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Tempel dari papan klip</string>
   <string name="notification_permission_title" tools:machine_translated="true">Tetap terhubung di latar belakang</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot memerlukan izin notifikasi agar koneksi Anda tetap aktif saat Anda beralih aplikasi. Jika tidak, sistem mungkin memutuskan koneksi Anda untuk menghemat baterai.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio memerlukan izin notifikasi agar koneksi Anda tetap aktif saat Anda beralih aplikasi. Jika tidak, sistem mungkin memutuskan koneksi Anda untuk menghemat baterai.</string>
   <string name="grant_permission" tools:machine_translated="true">Izinkan</string>
   <string name="connect_anyway" tools:machine_translated="true">Lanjutkan koneksi meskipun tanpa memberikan izin notifikasi</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Izin notifikasi diperlukan</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">Untuk menjaga agar koneksi Anda tetap aktif di latar belakang, silakan aktifkan notifikasi untuk ConnectBot di pengaturan sistem.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">Untuk menjaga agar koneksi Anda tetap aktif di latar belakang, silakan aktifkan notifikasi untuk Mercurio di pengaturan sistem.</string>
   <string name="open_settings" tools:machine_translated="true">Buka pengaturan</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Koneksi dapat terputus tanpa izin notifikasi</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Koneksi mungkin terputus saat aplikasi berjalan di latar belakang.</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Log Aplikasi</string>
   <string name="copy_logs" tools:machine_translated="true">Salin Log</string>
   <string name="logs_copied" tools:machine_translated="true">Log telah disalin ke papan klip</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">Untuk melaporkan bug, salin log ini dan buka laporan baru di https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">Untuk melaporkan bug, salin log ini dan buka laporan baru di https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Tidak ada log yang tersedia</string>
   <string name="help_section_about" tools:machine_translated="true">Tentang</string>
   <string name="title_contact" tools:machine_translated="true">Hubungi Kami &amp; Dukungan</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Autentikasi saat aplikasi dimulai</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Wajib menggunakan sidik jari, pengenalan wajah, atau PIN perangkat saat membuka aplikasi.</string>
   <string name="pref_security_category" tools:machine_translated="true">Keamanan</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot terkunci</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio terkunci</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Ketuk untuk membuka kunci</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Buka ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Buka Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Verifikasi identitas Anda untuk melanjutkan</string>
   <string name="auth_banner_title" tools:machine_translated="true">Pesan autentikasi dari %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Pesan autentikasi:</string>

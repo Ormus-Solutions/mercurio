@@ -25,6 +25,8 @@
 	<uses-permission android:name="android.permission.VIBRATE" />
 	<uses-permission android:name="android.permission.WAKE_LOCK" />
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
 
@@ -94,6 +96,15 @@
 			android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
 			android:description="@string/service_desc"
 			android:foregroundServiceType="remoteMessaging"/>
+
+		<!-- UnifiedPush events from the distributor (the ntfy app); bound by the connector library only. -->
+		<service
+			android:name="solutions.ormus.logos.push.MercurioPushService"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+			</intent-filter>
+		</service>
 
 		<service
 			android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"

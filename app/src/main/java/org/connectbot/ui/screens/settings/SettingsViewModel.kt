@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,6 @@ import org.connectbot.util.LanguagePackManager
 import org.connectbot.util.LocalFontProvider
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.TerminalFontProvider
-import org.connectbot.util.ThemeMode
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -84,7 +83,6 @@ data class SettingsUiState(
     val fontImportInProgress: Boolean = false,
     val fontImportError: String? = null,
     val fontDownloadInProgress: Boolean = false,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val language: String = "",
     val languageDownloadStates: Map<String, LanguageDownloadState> = emptyMap(),
     val installedLanguages: Set<String> = emptySet(),
@@ -216,7 +214,6 @@ class SettingsViewModel @Inject constructor(
             customFonts = customFonts,
             customTerminalTypes = customTerminalTypes,
             localFonts = localFonts,
-            themeMode = ThemeMode.fromString(prefs.getString(PreferenceConstants.THEME_MODE, null)),
             language = currentLanguage,
             defaultProfileId = prefs.getLong("defaultProfileId", 0L),
         )
@@ -353,10 +350,6 @@ class SettingsViewModel @Inject constructor(
 
     fun updateRotation(value: String) {
         updateStringPref(PreferenceConstants.ROTATION, value) { copy(rotation = value) }
-    }
-
-    fun updateThemeMode(mode: ThemeMode) {
-        updateStringPref(PreferenceConstants.THEME_MODE, mode.name) { copy(themeMode = mode) }
     }
 
     fun updateLanguage(languageTag: String) {

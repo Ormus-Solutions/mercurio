@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,13 +71,14 @@ class ColorSchemeRepositoryTest {
     fun getAllSchemes_Initial_ContainsBuiltInSchemes() = runBlocking {
         val schemes = repository.getAllSchemes()
 
-        // Should have: Default + 7 built-in presets
-        assertTrue("Should have at least 8 schemes", schemes.size >= 8)
+        // Should have: Default + 8 built-in presets
+        assertTrue("Should have at least 9 schemes", schemes.size >= 9)
 
         // Check Default scheme exists
         val defaultScheme = schemes.find { it.id == -1L }
         assertNotNull("Should have Default scheme", defaultScheme)
-        assertEquals("Default", defaultScheme?.name)
+        // The built-in default scheme is the Ormus brand palette.
+        assertEquals("Ormus Fusion", defaultScheme?.name)
         assertTrue("Default should be built-in", defaultScheme?.isBuiltIn == true)
 
         // Check some preset schemes exist
@@ -196,9 +197,20 @@ class ColorSchemeRepositoryTest {
 
     @Test
     fun schemeNameExists_ExistingBuiltIn_ReturnsTrue() = runBlocking {
-        val exists = repository.schemeNameExists("Default")
+        val exists = repository.schemeNameExists("Ormus Fusion")
 
-        assertTrue("Should find Default scheme", exists)
+        assertTrue("Should find the built-in Ormus Fusion scheme", exists)
+    }
+
+    @Test
+    fun aurum_StaysSelectableAfterTheOtherPresets() = runBlocking {
+        val schemes = repository.getAllSchemes()
+        val aurum = schemes.find { it.name == "Aurum" }
+
+        assertNotNull("Aurum should stay selectable", aurum)
+        assertTrue("Aurum should be built-in", aurum?.isBuiltIn == true)
+        // Appended last, so the IDs of every earlier preset stay where saved profiles expect them.
+        assertEquals(-ColorSchemePresets.builtInSchemes.size.toLong(), aurum?.id)
     }
 
     @Test
@@ -260,7 +272,8 @@ class ColorSchemeRepositoryTest {
     fun getSchemeDefaults_Default_ReturnsCorrectValues() = runBlocking {
         val (fg, bg) = repository.getSchemeDefaults(-1)
 
-        assertEquals("Default FG should be 7", HostConstants.DEFAULT_FG_COLOR, fg)
+        // The built-in default scheme carries its own defaults (Ormus Fusion: ink on codeBg).
+        assertEquals("Default FG is the preset's", ColorSchemePresets.default.defaultFg, fg)
         assertEquals("Default BG should be 0", HostConstants.DEFAULT_BG_COLOR, bg)
     }
 

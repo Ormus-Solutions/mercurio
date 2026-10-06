@@ -276,15 +276,6 @@
 	<!-- Description of error icon shown on language pack list item when download failed. -->
 	<string name="pref_language_download_failed">Download failed, tap to retry</string>
 
-	<!-- Title of the theme mode selector preference in the User Interface settings section -->
-	<string name="pref_theme_title">Theme</string>
-	<!-- Theme option: follow the OS light/dark setting -->
-	<string name="pref_theme_system">System default</string>
-	<!-- Theme option: always use the light theme regardless of OS setting -->
-	<string name="pref_theme_light">Light</string>
-	<!-- Theme option: always use the dark theme regardless of OS setting -->
-	<string name="pref_theme_dark">Dark</string>
-
 	<!-- Name for the rotation mode preference -->
 	<string name="pref_rotation_title">"Rotation mode"</string>
 
@@ -587,6 +578,10 @@
 
 	<!-- Button to reconnect to a disconnected host. -->
 	<string name="console_menu_reconnect">Reconnect</string>
+	<!-- Button on the connection-lost overlay, the console overflow menu and the host list menu. One tap copies a prompt for a coding agent: what Mercurio is, what failed, what to do, then a diagnostic report (app, device, network, host, failure, connection log, recent output; never passwords or keys). -->
+	<string name="copy_details">Copy fix prompt</string>
+	<!-- Short confirmation shown after "Copy details" put the diagnostic report on the clipboard. -->
+	<string name="copy_details_copied">Copied</string>
 	<!-- Button to close the disconnected terminal window. -->
 	<string name="console_menu_close">"Close"</string>
 	<!-- Button to paste from the clipboard to the terminal. -->
@@ -696,6 +691,8 @@
 	<string name="terminal_sucess">"Verified host '%1$s' key: %2$s"</string>
 	<!-- Error message shown in terminal when host key verification fails -->
 	<string name="terminal_failed">"Host key verification failed."</string>
+	<!-- Printed in the terminal when the connection could not be opened at all (for example, refused). %1$s is the error. -->
+	<string name="terminal_connect_failed">"Could not connect: %1$s"</string>
 
 	<!-- Displayed on the terminal describing the cryptographic algorithm names -->
 	<string name="terminal_using_s2c_algorithm">"Server-to-client algorithm: %1$s %2$s"</string>
@@ -860,7 +857,7 @@
 	<string name="dialog_message_reset_all">"This will reset all 256 colors to their default values. This action cannot be undone."</string>
 
 	<!-- Displayed in the notification bar that connections are active -->
-	<string name="app_is_running">"ConnectBot is running"</string>
+	<string name="app_is_running">"Mercurio is running"</string>
 
 	<!-- RGB color picker labels -->
 	<!-- Label for the red color component slider (0-255) in the RGB color picker -->
@@ -982,17 +979,19 @@
 	<!-- Button in virtual keyboard that opens text input dialog for composing longer text with full IME support -->
 	<string name="terminal_keyboard_text_input_button">Text input</string>
 
-	<!-- Title for the floating text input dialog where users can type longer text with full keyboard/IME support -->
-	<string name="terminal_text_input_dialog_title">Text Input</string>
 
 	<!-- Label for the text field in the floating text input dialog where users compose their text -->
 	<string name="terminal_text_input_dialog_label">Enter text to send to terminal</string>
 
-	<!-- Content description for the resize handle in the floating text input dialog -->
-	<string name="terminal_text_input_resize_handle">Resize</string>
 
-	<!-- Menu item in console toolbar to open floating text input dialog -->
-	<string name="console_menu_text_input">Text input</string>
+	<!-- Console top bar and palette: open the draft view, the whole dictation draft large before it is sent -->
+	<string name="console_menu_text_input">Review draft</string>
+	<!-- Draft view: micro-label title -->
+	<string name="draft_title">Draft</string>
+	<!-- Draft view: length of the draft. %1$d is the number of characters -->
+	<string name="draft_count">%1$d characters</string>
+	<!-- Draft view: empty the draft -->
+	<string name="draft_clear">Clear</string>
 
 	<!-- Send button in floating text input dialog -->
 	<string name="button_send">Send</string>
@@ -1031,6 +1030,8 @@
 	<!-- Empty state messages -->
 	<!-- Message shown when no hosts have been configured yet -->
 	<string name="empty_hosts_message">No hosts configured</string>
+	<!-- Hint under "No hosts configured" on the host list: a post-login command of herdr turns on the Herdr features for that host -->
+	<string name="empty_hosts_herdr_hint">Set a host\'s post-login command to herdr to get its Herdr panel.</string>
 	<!-- Message shown when no public keys have been generated or imported yet -->
 	<string name="empty_pubkeys_message">No keys found.</string>
 	<!-- Message shown when no port forwards have been configured for a host -->
@@ -1041,6 +1042,309 @@
 	<!-- Console screen messages -->
 	<!-- Default title for console screen when no specific host is connected -->
 	<string name="console_default_title">Console</string>
+
+	<!-- Agent attention notifications -->
+	<string name="notification_agent_channel">Agent needs you</string>
+	<!-- Name of the notification channel for AI agents in Herdr that finished their turn (shown in Android settings) -->
+	<string name="notification_finished_channel">Agent finished</string>
+	<!-- Notification title when a Herdr agent waits for the user; %1$s is the agent (claude, grok...), %2$s the host name -->
+	<string name="notification_herd_needs_you">%1$s needs you on %2$s</string>
+	<!-- Notification title when a Herdr agent finished its turn; %1$s is the agent, %2$s the host name -->
+	<string name="notification_herd_finished">%1$s finished on %2$s</string>
+	<!-- Action on a "Needs you" notification: presses Enter in the agent's pane, which takes the highlighted option -->
+	<string name="notification_herd_approve">Approve</string>
+	<!-- Action on a "Needs you" notification: presses Esc in the agent's pane, which declines -->
+	<string name="notification_herd_deny">Deny</string>
+	<!-- Notification title after Approve or Deny found the agent no longer waiting; %1$s is the agent, %2$s the host name -->
+	<string name="notification_herd_not_waiting">%1$s on %2$s is no longer waiting</string>
+	<string name="notification_herd_nothing_sent">Nothing was sent.</string>
+	<!-- Notification title when Approve or Deny could not reach the agent; %1$s is the agent, %2$s the host name -->
+	<string name="notification_herd_answer_failed">Could not answer %1$s on %2$s</string>
+	<!-- Why Approve or Deny failed with no live session: logging in would ask for a password, passphrase, fingerprint or key confirmation; %1$s is the host name -->
+	<string name="notification_herd_needs_app">Logging in to %1$s needs you. Open Mercurio to answer.</string>
+	<!-- Why Approve or Deny failed with no live session: the host's SSH key is not the saved one; %1$s is the host name -->
+	<string name="notification_herd_host_key">The host key of %1$s is new or changed. Open Mercurio to check it.</string>
+	<!-- Why Approve or Deny failed with no live session: the host refused the saved SSH key; %1$s is the host name -->
+	<string name="notification_herd_keys_refused">%1$s refused the saved key. Open Mercurio to answer.</string>
+	<!-- Why Approve or Deny failed with no live session: no connection; %1$s is the host name, %2$s the error in one line -->
+	<string name="notification_herd_unreachable">Could not reach %1$s: %2$s</string>
+	<!-- %1$s is the session/host name -->
+	<string name="notification_agent_waiting">%1$s is waiting for you</string>
+	<string name="notification_agent_bell">%1$s rang the bell</string>
+
+	<!-- Herdr control row above the dictation field: key that jumps to the AI agent waiting for the user -->
+	<string name="herdr_key_needs_you">Needs you</string>
+	<!-- Herdr control row: key that opens Herdr's searchable list of workspaces, tabs and panes -->
+	<string name="herdr_key_goto">Goto</string>
+	<!-- Herdr control row: key that enters Herdr copy mode so the terminal can scroll back through agent output -->
+	<string name="herdr_key_scroll">Scroll</string>
+	<!-- Compose bar row 1: description of the ↑ key, which scrolls one page up (keep very short) -->
+	<string name="herdr_key_page_up">PgUp</string>
+	<!-- Compose bar row 1: description of the ↓ key, which scrolls one page down (keep very short) -->
+	<string name="herdr_key_page_down">PgDn</string>
+
+	<!-- Herdr control row: key that opens the sheet with every Herdr command (keep very short; Herdr is a product name) -->
+	<string name="herdr_key_commands">Herdr</string>
+	<!-- Compose bar: content description of the ⋯ key that opens or closes the tray of less used keys -->
+	<string name="compose_bar_more_keys">More keys</string>
+	<!-- Compose bar tray: short label of the key that pastes the phone's latest screenshot into the field (keep very short) -->
+	<string name="compose_bar_paste">paste</string>
+	<!-- Compose bar tray: label of the key that opens the full-screen output reader (keep very short) -->
+	<string name="compose_bar_read">Read</string>
+	<!-- Compose bar tray: description of the key that jumps to the latest output -->
+	<string name="compose_bar_bottom">Jump to bottom</string>
+	<!-- Compose bar tray: key that wipes the line typed at the prompt (Ctrl+U); keep very short -->
+	<string name="compose_bar_clear_line">Clear</string>
+	<!-- Compose bar tray: description of the link key that copies the latest URL from the chat to this phone -->
+	<string name="compose_bar_copy_url">Copy latest URL</string>
+	<!-- Toast after the link key copied a URL. %1$s is the URL -->
+	<string name="compose_bar_url_copied">Copied %1$s</string>
+	<!-- Toast when the recent output holds no URL -->
+	<string name="compose_bar_no_url">No URL in the recent output</string>
+	<!-- Compose bar tray: description of the key that copies the agent's last reply to this phone -->
+	<string name="compose_bar_copy_reply">Copy last reply</string>
+	<!-- Toast after the reply was copied. %1$d is its length in characters -->
+	<string name="compose_bar_reply_copied">Copied the last reply (%1$d characters)</string>
+	<!-- Toast when no reply was found to copy -->
+	<string name="compose_bar_no_reply">No reply to copy yet</string>
+	<!-- Compose bar: content description of the ⏎ key when the field is empty, so a tap sends a bare Enter to the terminal (with text in the field it reads as Send) -->
+	<string name="compose_bar_enter">Enter</string>
+	<!-- Compose bar tray: description of the ↑ arrow key, which moves up in a menu -->
+	<string name="compose_bar_up">Up</string>
+	<!-- Compose bar tray: description of the ↓ arrow key, which moves down in a menu -->
+	<string name="compose_bar_down">Down</string>
+	<!-- Compose bar tray: description of the ← arrow key -->
+	<string name="compose_bar_left">Left</string>
+	<!-- Compose bar tray: description of the → arrow key -->
+	<string name="compose_bar_right">Right</string>
+	<!-- Herdr panel: short tab label for the workspaces group, so all five group tabs fit a phone's width -->
+	<string name="herdr_section_workspaces">Spaces</string>
+	<!-- Compose bar tray: content description of the paste key; uploads the latest screenshot and adds its path to the field -->
+	<string name="compose_bar_paste_screenshot">Paste latest screenshot</string>
+
+	<!-- Herd screen: title of the full-screen list of AI agents running in Herdr -->
+	<string name="herd_title">Herd</string>
+	<!-- Session drawer: item that opens the Herd screen listing every AI agent and its state -->
+	<string name="drawer_herd">Herd (agents)</string>
+	<!-- Herd screen: content description of the back button that closes the screen -->
+	<string name="herd_close">Close herd</string>
+	<!-- Herd screen: content description of the button that reloads the agent list now -->
+	<string name="herd_refresh">Refresh agents</string>
+	<!-- Herd screen: content description of the button that opens the Herdr command sheet -->
+	<string name="herd_commands">Herdr commands</string>
+	<!-- Herd screen header: counts of agents per state; %1$d blocked agents waiting for the user, %2$d finished, %3$d working, %4$d idle -->
+	<string name="herd_counts">%1$d need you · %2$d done · %3$d working · %4$d idle</string>
+	<!-- Herd screen: shown before the first agent list arrives from Herdr -->
+	<string name="herd_loading">Reading agents from Herdr…</string>
+	<!-- Herd screen: shown when Herdr reports no AI agents -->
+	<string name="herd_empty">No agents are running in Herdr.</string>
+	<!-- Herd screen: shown when no UnifiedPush distributor is installed; ntfy is the push app's name -->
+	<string name="herd_push_off">Install ntfy to get alerts while Mercurio sleeps.</string>
+	<!-- Herd screen card: where the agent lives; %1$s is the workspace name, %2$s is the tab name -->
+	<string name="herd_place">%1$s / %2$s</string>
+	<!-- Herd card status chip: the agent is waiting for the user's answer or approval -->
+	<string name="herd_status_blocked">Needs you</string>
+	<!-- Herd card status chip: the agent finished its turn -->
+	<string name="herd_status_done">Done</string>
+	<!-- Herd card status chip: the agent is working -->
+	<string name="herd_status_working">Working</string>
+	<!-- Herd card status chip: the agent is idle -->
+	<string name="herd_status_idle">Idle</string>
+	<!-- Herd card status chip: Herdr cannot tell what the agent is doing -->
+	<string name="herd_status_unknown">Unknown</string>
+	<!-- Herd card: shown instead of the agent name when Herdr did not name it -->
+	<string name="herd_agent_unnamed">agent</string>
+
+	<!-- Herdr command sheet: group of actions on AI agents -->
+	<string name="herdr_group_agents">Agents</string>
+	<!-- Herdr command sheet: group of actions on panes (terminal splits) -->
+	<string name="herdr_group_panes">Panes</string>
+	<!-- Herdr command sheet: group of actions on tabs -->
+	<string name="herdr_group_tabs">Tabs</string>
+	<!-- Herdr command sheet: group of actions on the Herdr session and its client -->
+	<string name="herdr_group_session">Session</string>
+	<!-- Herdr command sheet: jumps to the next agent waiting for the user -->
+	<string name="herdr_action_next_blocked">Next waiting agent</string>
+	<!-- Herdr command sheet: starts an AI agent in the focused pane; %1$s is the agent (claude, codex or grok) -->
+	<string name="herdr_action_start">Start %1$s</string>
+	<!-- Herdr command sheet: shows why Herdr does or does not see an agent in the focused pane -->
+	<string name="herdr_action_explain">Explain detection</string>
+	<!-- Herdr command sheet: splits the focused pane with a new pane on the right -->
+	<string name="herdr_action_split_right">Split right</string>
+	<!-- Herdr command sheet: splits the focused pane with a new pane below -->
+	<string name="herdr_action_split_down">Split down</string>
+	<!-- Herdr command sheet: makes the focused pane fill the tab, or undoes that -->
+	<string name="herdr_action_zoom">Zoom</string>
+	<!-- Herdr command sheet: label before the four arrows that move focus to a neighbouring pane -->
+	<string name="herdr_action_focus">Focus</string>
+	<!-- Herdr command sheet: label before the four arrows that swap the focused pane with a neighbour -->
+	<string name="herdr_action_swap">Swap</string>
+	<!-- Herdr command sheet: renames the focused pane -->
+	<string name="herdr_action_rename_pane">Rename pane</string>
+	<!-- Herdr command sheet: closes the focused pane -->
+	<string name="herdr_action_close_pane">Close pane</string>
+	<!-- Herdr command sheet: opens a new tab -->
+	<string name="herdr_action_new_tab">New tab</string>
+	<!-- Herdr command sheet: renames the focused tab -->
+	<string name="herdr_action_rename_tab">Rename tab</string>
+	<!-- Herdr command sheet: closes the focused tab -->
+	<string name="herdr_action_close_tab">Close tab</string>
+	<!-- Herdr command sheet: opens a new workspace -->
+	<string name="herdr_action_new_workspace">New workspace</string>
+	<!-- Herdr command sheet: renames the focused workspace -->
+	<string name="herdr_action_rename_workspace">Rename workspace</string>
+	<!-- Herdr command sheet: closes the focused workspace -->
+	<string name="herdr_action_close_workspace">Close workspace</string>
+	<!-- Herdr command sheet: enters copy mode to scroll back through the output -->
+	<string name="herdr_action_copy_mode">Copy mode</string>
+	<!-- Herdr command sheet: opens Herdr's searchable list of workspaces, tabs and panes -->
+	<string name="herdr_action_goto">Goto</string>
+	<!-- Herdr command sheet: jumps to whatever Herdr's latest notification points at -->
+	<string name="herdr_action_open_notification">Open notification</string>
+	<!-- Herdr command sheet: detaches the terminal from Herdr, leaving it running -->
+	<string name="herdr_action_detach">Detach</string>
+	<!-- Herdr command sheet: reloads Herdr's config file -->
+	<string name="herdr_action_reload_config">Reload config</string>
+	<!-- Herdr command sheet: shows Herdr's keybinding help -->
+	<string name="herdr_action_help">Help</string>
+	<!-- Herdr panel and compose bar tray: show or hide Herdr's side panel (keep short) -->
+	<string name="herdr_action_toggle_sidebar">Sidebar</string>
+	<!-- Herdr panel: workspace navigation, focus moves into the side panel's workspace list (keep short) -->
+	<string name="herdr_action_navigate_workspaces">Navigate</string>
+	<!-- Herdr command sheet: stops the whole Herdr session -->
+	<string name="herdr_action_stop_session">Stop session</string>
+	<!-- Herdr command sheet: content description of an arrow; %1$s is the action (Focus or Swap), %2$s the direction word -->
+	<string name="herdr_direction_action">%1$s %2$s</string>
+	<!-- Herdr command sheet: direction word for an arrow pointing left -->
+	<string name="herdr_direction_left">left</string>
+	<!-- Herdr command sheet: direction word for an arrow pointing right -->
+	<string name="herdr_direction_right">right</string>
+	<!-- Herdr command sheet: direction word for an arrow pointing up -->
+	<string name="herdr_direction_up">up</string>
+	<!-- Herdr command sheet: direction word for an arrow pointing down -->
+	<string name="herdr_direction_down">down</string>
+	<!-- Herdr command sheet: label above the row of tabs in the current workspace to jump to -->
+	<string name="herdr_jump_tabs">Jump to tab</string>
+	<!-- Herdr command sheet: label over the session keys naming the Herdr prefix key Mercurio sends first; %1$s is Herdr's spelling of the key, such as ctrl+b -->
+	<string name="herdr_prefix_label">Prefix %1$s</string>
+	<!-- Herdr command sheet: label above the list of workspaces to jump to -->
+	<string name="herdr_jump_workspaces">Jump to workspace</string>
+	<!-- Herdr command sheet: a workspace in the jump list; %1$d is its number, %2$s its name -->
+	<string name="herdr_workspace_entry">%1$d · %2$s</string>
+	<!-- Herdr connect picker: label above the list of the server's workspaces, shown before the app attaches -->
+	<string name="herdr_picker_title">Herdr workspaces</string>
+	<!-- Herdr connect picker: main button that attaches to the workspace Herdr has in focus; %1$s is its name -->
+	<string name="herdr_picker_attach_to">Attach · %1$s</string>
+	<!-- Herdr connect picker: main button when no workspace has focus -->
+	<string name="herdr_picker_attach">Attach</string>
+	<!-- Herdr command sheet: label of the one-line field for a new name (pane, tab or workspace) -->
+	<string name="herdr_name_label">New name</string>
+	<!-- Herdr command sheet: button that runs the rename with the typed name -->
+	<string name="herdr_name_run">Rename</string>
+	<!-- Herdr command sheet: button that cancels a rename or a close -->
+	<string name="herdr_cancel">Cancel</string>
+	<!-- Herdr command sheet: asks before closing the focused pane -->
+	<string name="herdr_confirm_close_pane">Close this pane? What runs in it stops.</string>
+	<!-- Herdr command sheet: asks before closing the focused tab -->
+	<string name="herdr_confirm_close_tab">Close this tab and every pane in it?</string>
+	<!-- Herdr command sheet: asks before closing the focused workspace -->
+	<string name="herdr_confirm_close_workspace">Close this workspace and every tab in it?</string>
+	<!-- Herdr command sheet: asks before stopping the whole Herdr session -->
+	<string name="herdr_confirm_stop_session">Stop the Herdr session? Every agent and pane in it stops.</string>
+	<!-- Herdr command sheet: button that confirms a close or stop -->
+	<string name="herdr_confirm">Yes, do it</string>
+	<!-- Herdr command sheet result line: a command is running; %1$s is the action name -->
+	<string name="herdr_result_running">%1$s…</string>
+	<!-- Herdr command sheet result line: a command worked; %1$s is the action name -->
+	<string name="herdr_result_ok">%1$s: done</string>
+	<!-- Herdr command sheet result line: a command failed; %1$s is the action name, %2$s Herdr's error -->
+	<string name="herdr_result_failed">%1$s failed: %2$s</string>
+	<!-- Herdr panel: micro-label while the first Herdr snapshot has not come back yet -->
+	<string name="herdr_waiting">Waiting for Herdr</string>
+	<!-- Herdr panel: micro-label when Herdr commands fail on this host -->
+	<string name="herdr_not_answering">Herdr not answering</string>
+	<!-- Herdr panel: try the Herdr snapshot again -->
+	<string name="herdr_retry">Retry</string>
+	<!-- Herdr command sheet result line: nothing to act on yet (no focused pane, no waiting agent, or an empty name) -->
+	<string name="herdr_result_unavailable">%1$s: nothing to act on yet</string>
+	<!-- Herdr panel, Session group: opens the form for a key of the user's own (a label and a key sent after the Herdr prefix); also the form's title (keep short) -->
+	<string name="herdr_key_add">Add key</string>
+	<!-- Herdr panel, Session group: brings back hidden keys and removes the user's own keys, after a confirmation (keep short) -->
+	<string name="herdr_key_restore">Restore defaults</string>
+	<!-- Herdr panel, a key's long-press menu: change the key's label and the key it sends; also the form's title (keep short) -->
+	<string name="herdr_key_edit">Edit key</string>
+	<!-- Herdr panel, a key's long-press menu: removes a built-in key from the panel until Restore defaults (keep short) -->
+	<string name="herdr_key_hide">Hide</string>
+	<!-- Herdr panel, a key's long-press menu: deletes a key the user added (keep short) -->
+	<string name="herdr_key_remove">Remove</string>
+	<!-- Herdr panel, key form: field for the text shown on the key -->
+	<string name="herdr_key_label">Label</string>
+	<!-- Herdr panel, key form: field for the key sent after the Herdr prefix, written the way Herdr's config writes keys -->
+	<string name="herdr_key_spec">Key</string>
+	<!-- Herdr panel, key form: hint under the key field with examples of Herdr's key spelling -->
+	<string name="herdr_key_spec_hint">Sent after the prefix: z, shift+r, alt+x</string>
+	<!-- Herdr panel, key form: the typed key is one a terminal cannot send; %1$s is what was typed -->
+	<string name="herdr_key_cannot_send">A terminal cannot send %1$s</string>
+	<!-- Herdr panel, key form: saves the key -->
+	<string name="herdr_key_save">Save</string>
+	<!-- Herdr panel: asks before Restore defaults -->
+	<string name="herdr_confirm_restore">Bring back hidden keys and drop the keys you added or changed?</string>
+
+	<!-- Output reader: content description of the console button that opens a full-screen reader of recent output -->
+	<string name="reader_open">Read output</string>
+	<!-- Output reader: content description of the back button that closes the reader -->
+	<string name="reader_close">Close reader</string>
+	<!-- Output reader: content description of the button that reloads the output -->
+	<string name="reader_refresh">Refresh</string>
+	<!-- Output reader: content description of the button that jumps to the oldest output -->
+	<string name="reader_jump_top">Jump to top</string>
+	<!-- Output reader: content description of the button that jumps to the newest output -->
+	<string name="reader_jump_bottom">Jump to bottom</string>
+	<!-- Output reader: content description of the button that scrolls up one screen -->
+	<string name="reader_page_up">Page up</string>
+	<!-- Output reader: content description of the button that scrolls down one screen -->
+	<string name="reader_page_down">Page down</string>
+	<!-- Output reader: content description of the button that makes the text smaller -->
+	<string name="reader_text_smaller">Smaller text</string>
+	<!-- Output reader: content description of the button that makes the text larger -->
+	<string name="reader_text_larger">Larger text</string>
+	<!-- Output reader: subtitle when the text is the session's own recent terminal output -->
+	<string name="reader_transcript_subtitle">Recent output from this session</string>
+	<!-- Output reader: shown when there is no output to read yet -->
+	<string name="reader_empty">No output yet</string>
+	<!-- Output reader: warning when reading the agent pane from Herdr failed; %1$s is the error message -->
+	<string name="reader_herdr_failed">Could not read from Herdr (%1$s). Showing this session\'s output instead.</string>
+
+	<!-- Session drawer -->
+	<string name="drawer_sessions_title">Sessions</string>
+	<string name="drawer_host_list">Host list</string>
+	<string name="drawer_quick_connect_label">Quick connect</string>
+	<string name="drawer_quick_connect_hint">sun or root@192.168.1.1:22</string>
+	<string name="drawer_quick_connect_failed">Couldn\'t connect. Try a saved host name or user@host:port.</string>
+	<!-- Disconnect button content description; %1$s is the session/host name -->
+	<string name="drawer_session_disconnect">Disconnect %1$s</string>
+
+	<!-- Machines: Tailscale machines listed in the session drawer and on the host list -->
+	<!-- Heading of the list of machines on the user's Tailscale network -->
+	<string name="machines_title">Machines</string>
+	<!-- Refresh button content description for the Machines list -->
+	<string name="machines_refresh">Refresh machines</string>
+	<!-- Under the Machines heading; %1$s is a relative time such as "5 minutes ago" -->
+	<string name="machines_last_updated">Last updated %1$s</string>
+	<!-- Shown in the Machines list before it has ever been fetched -->
+	<string name="machines_empty_hint">Connect to a machine running Tailscale to list your tailnet here.</string>
+	<!-- Shown when the tailnet was read but has no machines to list -->
+	<string name="machines_none_found">No machines found.</string>
+	<!-- Shown when refreshing the Machines list failed or no SSH session was connected -->
+	<string name="machines_refresh_failed">Couldn\'t read Tailscale status. Connect to a machine running Tailscale and try again.</string>
+	<!-- Content description of the status dot of a machine that is online -->
+	<string name="machines_status_online">Online</string>
+	<!-- Content description of the status dot of a machine that is offline -->
+	<string name="machines_status_offline">Offline</string>
+	<!-- Title of the dialog asking for a username before connecting to a new machine; %1$s is the machine name -->
+	<string name="machines_connect_title">Connect to %1$s</string>
+	<!-- Confirm button of the dialog that saves and connects to a new machine -->
+	<string name="machines_connect_confirm">Connect</string>
 
 	<!-- Host editor screen labels -->
 	<!-- Label for quick connect input field -->
@@ -1163,7 +1467,7 @@
 
 	<!-- Explanation message shown in permission dialog when user tries to connect to a host.
 	     Explains why notification permission is needed and what happens without it. -->
-	<string name="notification_permission_message">"ConnectBot needs notification permission to keep your connections active when you switch apps. Without it, the system may drop your connections to save battery."</string>
+	<string name="notification_permission_message">"Mercurio needs notification permission to keep your connections active when you switch apps. Without it, the system may drop your connections to save battery."</string>
 
 	<!-- Button text to grant notification permission in the permission explanation dialog. -->
 	<string name="grant_permission">"Allow"</string>
@@ -1177,7 +1481,7 @@
 
 	<!-- Message explaining that user must enable notification permission in app settings.
 	     Shown when notification permission was previously denied and user tries to enable persist connections. -->
-	<string name="notification_permission_denied_message">"To keep your connections active in the background, please enable notifications for ConnectBot in the system settings."</string>
+	<string name="notification_permission_denied_message">"To keep your connections active in the background, please enable notifications for Mercurio in the system settings."</string>
 
 	<!-- Button text to open ConnectBot app settings page where user can grant notification permission. -->
 	<string name="open_settings">"Open settings"</string>
@@ -1279,7 +1583,7 @@
 	<!-- Confirmation message shown when logs are copied to clipboard -->
 	<string name="logs_copied">Logs copied to clipboard</string>
 	<!-- Instruction text for reporting bugs with logs -->
-	<string name="logs_bug_report_info">To report a bug, copy these logs and open a new issue at https://connectbot.org/bug</string>
+	<string name="logs_bug_report_info">To report a bug, copy these logs and open a new issue at https://github.com/Ormus-Solutions/mercurio/issues</string>
 	<!-- Message shown when no logs are available -->
 	<string name="no_logs_available">No logs available</string>
 
@@ -1293,16 +1597,16 @@
 	<string name="help_section_contact">Contact &amp; Support</string>
 	<!-- Label for the official website link in the Help screen. -->
 	<string name="help_website">Website</string>
-	<!-- URL for the official ConnectBot website. -->
-	<string name="help_website_url" translatable="false">https://connectbot.org/</string>
+	<!-- URL for the Mercurio help page (the project README). -->
+	<string name="help_website_url" translatable="false">https://github.com/Ormus-Solutions/mercurio#readme</string>
 	<!-- Label for the GitHub repository link in the Help screen. -->
 	<string name="help_github">Source Code</string>
-	<!-- URL for the ConnectBot GitHub repository. -->
-	<string name="help_github_url" translatable="false">https://github.com/connectbot/connectbot</string>
+	<!-- URL for the Mercurio GitHub repository. -->
+	<string name="help_github_url" translatable="false">https://github.com/Ormus-Solutions/mercurio</string>
 	<!-- Label for the bug report/issue tracker link in the Help screen. -->
 	<string name="help_report_bug">Report a Bug</string>
-	<!-- URL for the ConnectBot issue tracker. -->
-	<string name="help_report_bug_url" translatable="false">https://connectbot.org/bug</string>
+	<!-- URL for the Mercurio issue tracker. -->
+	<string name="help_report_bug_url" translatable="false">https://github.com/Ormus-Solutions/mercurio/issues</string>
 	<!-- Section title for the "Help" screen showing donation options. -->
 	<string name="help_section_donate">Support Development</string>
 	<!-- Label for the GitHub Sponsors donation link in the Help screen. -->
@@ -1416,11 +1720,219 @@
 	<!-- Category title for security preferences in settings -->
 	<string name="pref_security_category">Security</string>
 	<!-- Title shown on the authentication lock screen -->
-	<string name="auth_screen_title">ConnectBot is locked</string>
+	<string name="auth_screen_title">Mercurio is locked</string>
 	<!-- Button text to trigger authentication on the lock screen -->
 	<string name="auth_screen_unlock_button">Tap to unlock</string>
 	<!-- Title shown in the biometric/device credential authentication prompt -->
-	<string name="auth_prompt_title">Unlock ConnectBot</string>
+	<string name="auth_prompt_title">Unlock Mercurio</string>
 	<!-- Subtitle shown in the biometric/device credential authentication prompt -->
 	<string name="auth_prompt_subtitle">Verify your identity to continue</string>
+
+	<!-- Wish list: menu item (console overflow menu and host list menu) that opens a one-field dialog for writing down a wish about the app -->
+	<string name="wish_menu_item">Wish</string>
+	<!-- Wish list: title of the dialog where the user types or dictates a wish -->
+	<string name="wish_dialog_title">Make a wish</string>
+	<!-- Wish list: placeholder inside the wish text field -->
+	<string name="wish_dialog_hint">What should Mercurio do better? Type or dictate.</string>
+	<!-- Wish list: button that saves the wish -->
+	<string name="wish_save">Save</string>
+	<!-- Wish list: short confirmation shown after a wish is saved -->
+	<string name="wish_saved">Saved to the wish list</string>
+	<!-- Wish list: button on the disconnected-session overlay that saves the connection report to the wish list -->
+	<string name="wish_send_error">Send to wish list</string>
+	<!-- Wish list: short confirmation shown after a connection report is saved to the wish list -->
+	<string name="wish_error_saved">Error saved to the wish list</string>
+
+	<!-- Settings: heading of the section for the on-device usage log and the wish list -->
+	<string name="pref_usage_category">Usage and wish list</string>
+	<!-- Settings: switch that turns the on-device usage log on or off -->
+	<string name="pref_usage_record_title">Record my usage</string>
+	<!-- Settings: explanation under the "Record my usage" switch -->
+	<string name="pref_usage_record_summary">Count which controls you use, on this phone. Uploaded only to a usage host you set. Never what you type or say.</string>
+	<!-- Settings: item that shows (and can copy) a summary of the usage log -->
+	<string name="pref_usage_summary_title">Copy usage summary</string>
+	<!-- Settings: explanation under "Copy usage summary" -->
+	<string name="pref_usage_summary_summary">Top, least-used and never-used controls, per screen and host type</string>
+	<!-- Settings: item that deletes the recorded usage -->
+	<string name="pref_usage_clear_title">Clear usage</string>
+	<!-- Settings: explanation under "Clear usage" -->
+	<string name="pref_usage_clear_summary">Delete the usage recorded on this phone. Wishes stay.</string>
+	<!-- Settings: confirmation question before clearing the usage log -->
+	<string name="pref_usage_clear_confirm">Delete all usage recorded on this phone? The wish list stays.</string>
+	<!-- Settings: item that uploads usage and the wish list to the usage host over the open SSH session -->
+	<string name="pref_usage_upload_title">Upload now</string>
+	<!-- Settings: status under "Upload now". %1$s is when the last upload happened (for example "5 minutes ago" or "never"), %2$d how many wish-list changes wait to upload -->
+	<string name="pref_usage_upload_summary">Last upload: %1$s. Wish list changes waiting: %2$d.</string>
+	<!-- Settings: word used in the upload status when nothing was ever uploaded -->
+	<string name="pref_usage_upload_never">never</string>
+	<!-- Settings: shown while an upload to the usage host runs -->
+	<string name="pref_usage_uploading">Uploading…</string>
+	<!-- Settings: result after an upload. %1$d is the number of usage records sent, %2$d the number of wish-list entries the usage host now holds -->
+	<string name="pref_usage_upload_done">Uploaded. Usage records sent: %1$d. Wish list entries on the host: %2$d.</string>
+	<!-- Settings: result when no SSH session to a usage host is open (or none is set) -->
+	<string name="pref_usage_upload_no_sun">Set a usage host below, connect to it, then upload.</string>
+	<!-- Settings: result when the connected host's key does not match the pinned usage host key, or none is pinned -->
+	<string name="pref_usage_upload_refused">The host\'s key does not match the pinned usage host key, or none is set. Nothing was sent.</string>
+	<!-- Settings: result when the upload failed. %1$s is a short error class name -->
+	<string name="pref_usage_upload_failed">Upload failed (%1$s). Nothing is lost; it retries next time.</string>
+	<!-- Settings: item listing which hosts receive the usage upload (hostnames or nicknames, comma separated) -->
+	<string name="pref_usage_sun_hosts_title">Usage hosts</string>
+	<!-- Settings: shown under "Usage hosts" when none is set -->
+	<string name="pref_usage_sun_hosts_none">None. Usage and wishes stay on this phone.</string>
+	<!-- Settings: item holding the usage host's pinned SSH host key fingerprint -->
+	<string name="pref_usage_sun_key_title">Usage host key</string>
+	<!-- Settings: shown under "Usage host key" when none is set -->
+	<string name="pref_usage_sun_key_none">None. Paste the host\'s SHA256 fingerprint.</string>
+	<!-- Settings: heading of the section for the tailnet Machines list -->
+	<string name="pref_machines_category">Machines</string>
+	<!-- Settings: item holding one name=user line per tailnet machine, used to connect without a username prompt -->
+	<string name="pref_machine_users_title">Machine usernames</string>
+	<!-- Settings: shown under "Machine usernames" when none is set -->
+	<string name="pref_machine_users_none">None. One name=user line per machine skips the username prompt.</string>
+	<!-- Settings: placeholder in the "Machine usernames" editor; a machine name, "=", and the SSH user -->
+	<string name="pref_machine_users_hint">laptop=alice</string>
+	<!-- Settings: item that opens the wish list -->
+	<string name="pref_wishes_title">Wish list</string>
+	<!-- Settings: status under "Wish list". %1$d is how many entries are open, %2$d how many changes wait to upload to the usage host -->
+	<string name="pref_wishes_summary">Open: %1$d. Waiting to upload: %2$d.</string>
+	<!-- Usage summary dialog: title -->
+	<string name="usage_summary_title">Usage summary</string>
+	<!-- Usage summary dialog: button that copies the summary to the clipboard -->
+	<string name="usage_summary_copy">Copy</string>
+	<!-- Wish list screen: shown when the list is empty -->
+	<string name="wishes_empty">No wishes yet. Add one from the console or host list menu.</string>
+	<!-- Wish list screen: label for an entry the user wrote as a wish -->
+	<string name="wishes_kind_wish">Wish</string>
+	<!-- Wish list screen: label for an entry that holds a connection error report -->
+	<string name="wishes_kind_error">Error</string>
+	<!-- Wish list screen: label for an entry marked done -->
+	<string name="wishes_done">Done</string>
+	<!-- Wish list screen: label for an entry whose latest change has not reached the usage host yet -->
+	<string name="wishes_waiting">Waiting to upload</string>
+	<!-- Wish list screen: content description of the button that marks an entry done -->
+	<string name="wishes_mark_done">Mark done</string>
+	<!-- Wish list screen: content description of the button that reopens a done entry -->
+	<string name="wishes_reopen">Reopen</string>
+	<!-- Wish list screen: content description of the edit button, and title of the edit dialog -->
+	<string name="wishes_edit">Edit wish</string>
+	<!-- Wish list screen: content description of the delete button -->
+	<string name="wishes_delete">Delete</string>
+	<!-- Heading above the saved hosts on the host list, shown as a small uppercase label -->
+	<string name="host_list_section">Hosts</string>
+	<!-- Status chip on a host card while its session is connected -->
+	<string name="host_status_connected">Connected</string>
+	<!-- Status chip on a host card whose session dropped after having been connected -->
+	<string name="host_status_disconnected">Disconnected</string>
+	<!-- Agent name (product name, not translated): Anthropic's coding agent, shown on the slash menu's agent picker -->
+	<string name="agent_claude" translatable="false">Claude Code</string>
+	<!-- Agent name (product name, not translated): OpenAI's coding agent, shown on the slash menu's agent picker -->
+	<string name="agent_codex" translatable="false">Codex</string>
+	<!-- Agent name (product name, not translated): xAI's coding agent, shown on the slash menu's agent picker -->
+	<string name="agent_grok" translatable="false">Grok</string>
+	<!-- Slash menu: title of the bottom sheet listing the agent's slash commands, and the content description of the "/" key and the console menu entry that open it -->
+	<string name="slash_menu_title">Slash commands</string>
+	<!-- Slash menu: placeholder of the search field at the top of the sheet -->
+	<string name="slash_search_hint">Search commands</string>
+	<!-- Slash menu: small label on the agent picker when the agent was read from the focused Herdr pane -->
+	<string name="slash_detected">In the focused pane</string>
+	<!-- Slash menu: heading above the commands that ship with the agent, shown as a small uppercase label -->
+	<string name="slash_group_builtin">Built-in</string>
+	<!-- Slash menu: heading above the user's own commands and skills read from the host, shown as a small uppercase label -->
+	<string name="slash_group_own">Yours</string>
+	<!-- Slash menu: content description of the button that reads the user's own commands from the host again -->
+	<string name="slash_refresh">Read my commands again</string>
+	<!-- Slash menu: shown under "Yours" while the user's commands are being read from the host -->
+	<string name="slash_own_reading">Reading your commands from this host…</string>
+	<!-- Slash menu: shown under "Yours" before the user's commands were ever read from this host -->
+	<string name="slash_own_never">Your commands have not been read from this host yet.</string>
+	<!-- Slash menu: shown under "Yours" when reading the user's commands from the host failed -->
+	<string name="slash_own_failed">Could not read your commands from this host. Connect, then refresh.</string>
+	<!-- Slash menu: shown under "Yours" when the host has no commands or skills of the user's for this agent -->
+	<string name="slash_own_empty">No commands or skills of yours for this agent.</string>
+	<!-- Slash menu: shown under "Yours" with when the list was read; %1$s is a relative time such as "5 minutes ago" -->
+	<string name="slash_own_read_at">Read %1$s. Long press a command to edit it before sending.</string>
+	<!-- Slash menu: shown when no command matches the search -->
+	<string name="slash_no_match">No command matches.</string>
+	<!-- Slash menu: content description of the mark on a command that runs as soon as it is tapped -->
+	<string name="slash_runs_now">Runs at once</string>
+	<!-- Slash menu: content description of the mark on a command that goes to the dictation field so the rest can be dictated -->
+	<string name="slash_to_field">Goes to the dictation field</string>
+	<!-- Slash menu: tag on a command from the user's ~/.claude/commands folder -->
+	<string name="slash_source_command">command</string>
+	<!-- Slash menu: tag on a skill (a SKILL.md folder) -->
+	<string name="slash_source_skill">skill</string>
+	<!-- Slash menu: tag on a command of the project in the session's working directory -->
+	<string name="slash_source_project">project</string>
+	<!-- Command palette: content description of the search icon in the console top bar that opens the palette -->
+	<string name="palette_open">Search everything</string>
+	<!-- Command palette: placeholder of its one search field -->
+	<string name="palette_search_hint">Keys, commands, hosts, screens</string>
+	<!-- Command palette: shown when nothing matches the search -->
+	<string name="palette_empty">Nothing matches.</string>
+	<!-- Command palette: group label for the compose bar keys, shown as a small uppercase label -->
+	<string name="palette_group_keys">Keys</string>
+	<!-- Command palette: group label for the current agent's slash commands, shown as a small uppercase label -->
+	<string name="palette_group_agent">Agent commands</string>
+	<!-- Command palette: group label for Herdr actions, shown as a small uppercase label (Herdr is a product name) -->
+	<string name="palette_group_herdr">Herdr</string>
+	<!-- Command palette: group label for the open sessions, shown as a small uppercase label -->
+	<string name="palette_group_sessions">Open sessions</string>
+	<!-- Command palette: group label for the saved hosts, shown as a small uppercase label -->
+	<string name="palette_group_hosts">Hosts</string>
+	<!-- Command palette: group label for the tailnet machines, shown as a small uppercase label -->
+	<string name="palette_group_machines">Machines</string>
+	<!-- Command palette: group label for console screens and tools, shown as a small uppercase label -->
+	<string name="palette_group_screens">Console</string>
+	<!-- Command palette: group label for app screens and settings, shown as a small uppercase label -->
+	<string name="palette_group_settings">Settings</string>
+	<!-- Command palette: result that sends the Up arrow key -->
+	<string name="palette_key_up">Up</string>
+	<!-- Command palette: result that sends the Down arrow key -->
+	<string name="palette_key_down">Down</string>
+	<!-- Command palette: result that sends the Left arrow key -->
+	<string name="palette_key_left">Left</string>
+	<!-- Command palette: result that sends the Right arrow key -->
+	<string name="palette_key_right">Right</string>
+	<!-- Command palette: result that sends the Enter key -->
+	<string name="palette_key_enter">Enter</string>
+	<!-- Command palette: result that sends the Escape key -->
+	<string name="palette_key_escape">Escape</string>
+	<!-- Command palette: result that sends Shift+Tab, which cycles an agent's mode (plan, auto-accept) -->
+	<string name="palette_key_mode">Mode (Shift+Tab)</string>
+	<!-- Command palette: result that sends Ctrl+C to stop the running command or agent turn -->
+	<string name="palette_key_stop">Stop (Ctrl+C)</string>
+	<!-- Command palette: result that sends the Tab key -->
+	<string name="palette_key_tab">Tab</string>
+	<!-- Command palette: result that types the letter y, to answer yes to a prompt -->
+	<string name="palette_key_yes">y (yes)</string>
+	<!-- Command palette: result that types the letter n, to answer no to a prompt -->
+	<string name="palette_key_no">n (no)</string>
+	<!-- Command palette: result that sends Herdr's previous-tab key -->
+	<string name="palette_key_prev_tab">Previous tab</string>
+	<!-- Command palette: result that sends Herdr's next-tab key -->
+	<string name="palette_key_next_tab">Next tab</string>
+	<!-- Hint over the terminal after a two-finger swipe across moved Herdr's focus to the pane on the left -->
+	<string name="swipe_hint_pane_left">Pane left</string>
+	<!-- Hint over the terminal after a two-finger swipe across moved Herdr's focus to the pane on the right -->
+	<string name="swipe_hint_pane_right">Pane right</string>
+	<!-- Hint over the terminal after a two-finger swipe down moved to the previous Herdr workspace -->
+	<string name="swipe_hint_prev_workspace">Previous workspace</string>
+	<!-- Hint over the terminal after a two-finger swipe up moved to the next Herdr workspace -->
+	<string name="swipe_hint_next_workspace">Next workspace</string>
+	<!-- Command palette: subtitle of a key result -->
+	<string name="palette_subtitle_key">Compose bar key</string>
+	<!-- Command palette: subtitle of a slash command result; %1$s is the agent name, %2$s says where it comes from (built-in, command, skill, project) -->
+	<string name="palette_subtitle_slash">%1$s · %2$s</string>
+	<!-- Command palette: subtitle part for a slash command that ships with the agent -->
+	<string name="palette_slash_builtin">built-in</string>
+	<!-- Command palette: subtitle of a saved host result; tapping opens its console -->
+	<string name="palette_subtitle_host">Connect</string>
+	<!-- Command palette: subtitle of an open session result; tapping shows its console -->
+	<string name="palette_subtitle_session">Switch to this session</string>
+	<!-- Command palette: subtitle of a tailnet machine result; %1$s is online or offline -->
+	<string name="palette_subtitle_machine">Tailnet machine, %1$s</string>
+	<!-- Command palette: subtitle of a settings category result; tapping opens Settings -->
+	<string name="palette_subtitle_settings">Opens Settings</string>
+	<!-- Command palette: subtitle of the slash menu result -->
+	<string name="palette_subtitle_slash_menu">Every command of the agent in this session</string>
 </resources>

@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,10 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.terminal.ProgressState
@@ -64,6 +66,8 @@ class ConsoleViewModelTest {
     private lateinit var bridgesFlow: MutableStateFlow<List<TerminalBridge>>
     private lateinit var prefs: SharedPreferences
     private lateinit var notificationPermissionHelper: NotificationPermissionHelper
+    private lateinit var hostRepository: HostRepository
+    private lateinit var diagnosticsReporter: DiagnosticsReporter
 
     @Before
     fun setUp() {
@@ -73,6 +77,8 @@ class ConsoleViewModelTest {
         savedStateHandle = mock()
         prefs = mock()
         notificationPermissionHelper = mock()
+        hostRepository = mock()
+        diagnosticsReporter = mock()
         bridgesFlow = MutableStateFlow(emptyList())
         whenever(terminalManager.bridgesFlow).thenReturn(bridgesFlow)
         whenever(terminalManager.hostStatusChangedFlow).thenReturn(MutableSharedFlow())
@@ -87,7 +93,7 @@ class ConsoleViewModelTest {
     @Test
     fun initialState_IsLoading() {
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         val state = viewModel.uiState.value
@@ -102,7 +108,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = emptyList()
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -118,7 +124,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -137,7 +143,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge1, mockBridge2, mockBridge3)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -156,7 +162,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge1, mockBridge2)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -174,7 +180,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -194,7 +200,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -214,7 +220,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -233,7 +239,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -257,7 +263,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge1, mockBridge2, mockBridge3)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -282,7 +288,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge1, mockBridge2, mockBridge3)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -306,7 +312,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -329,7 +335,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -353,7 +359,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -379,7 +385,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -404,7 +410,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -434,7 +440,7 @@ class ConsoleViewModelTest {
         bridgesFlow.value = listOf(mockBridge1, mockBridge2)
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
         viewModel.setTerminalManager(terminalManager)
 
         advanceUntilIdle()
@@ -465,7 +471,7 @@ class ConsoleViewModelTest {
         whenever(savedStateHandle.get<Long>("hostId")).thenReturn(-1L)
         whenever(prefs.contains(eq(PreferenceConstants.NOTIFICATION_PERMISSION_DENIED))).thenReturn(false)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
 
         assertFalse("Should not show warning before permission has ever been requested", viewModel.shouldShowNotificationWarning())
     }
@@ -477,7 +483,7 @@ class ConsoleViewModelTest {
         whenever(prefs.getBoolean(eq(PreferenceConstants.CONNECTION_PERSIST), any())).thenReturn(false)
         whenever(notificationPermissionHelper.isGranted()).thenReturn(true)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
 
         assertTrue("Should show warning when connPersist is false", viewModel.shouldShowNotificationWarning())
     }
@@ -489,7 +495,7 @@ class ConsoleViewModelTest {
         whenever(prefs.getBoolean(eq(PreferenceConstants.CONNECTION_PERSIST), any())).thenReturn(true)
         whenever(notificationPermissionHelper.isGranted()).thenReturn(false)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
 
         assertTrue("Should show warning when permission denied", viewModel.shouldShowNotificationWarning())
     }
@@ -501,7 +507,7 @@ class ConsoleViewModelTest {
         whenever(prefs.getBoolean(eq(PreferenceConstants.CONNECTION_PERSIST), any())).thenReturn(true)
         whenever(notificationPermissionHelper.isGranted()).thenReturn(true)
 
-        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper)
+        val viewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
 
         assertFalse("Should not show warning when connPersist is true and permission granted", viewModel.shouldShowNotificationWarning())
     }

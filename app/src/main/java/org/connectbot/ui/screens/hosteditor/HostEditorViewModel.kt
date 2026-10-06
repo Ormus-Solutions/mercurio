@@ -395,8 +395,9 @@ class HostEditorViewModel @Inject constructor(
                     id = existingHost?.id ?: 0L,
                     nickname = nickname,
                     protocol = state.protocol,
-                    username = state.username,
-                    hostname = state.hostname,
+                    // A keyboard autocomplete can leave a trailing space; SSH sends it as typed.
+                    username = state.username.trim(),
+                    hostname = state.hostname.trim(),
                     port = state.port.toIntOrNull() ?: getDefaultPort(state.protocol).toIntOrNull() ?: 22,
                     color = state.color.takeIf { it != "gray" },
                     pubkeyId = state.pubkeyId,

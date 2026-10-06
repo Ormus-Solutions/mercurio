@@ -50,11 +50,27 @@ spotless {
         licenseHeaderFile("spotless/license-header.txt")
     }
 
+    // Files copied from Termish keep their MIT header (see NOTICE), so they get
+    // ktlint but not the project's Apache header.
+    val termishCopies =
+        listOf("HerdrModels", "HerdrApi", "AgentStateMachine", "HerdrMonitor", "HerdrProbe").map {
+            "app/src/main/java/solutions/ormus/logos/herd/$it.kt"
+        } +
+            listOf("HerdrApiTest", "HerdrModelsTest", "HerdrProbeTest", "HerdrMonitorTest").map {
+                "app/src/test/kotlin/solutions/ormus/logos/herd/$it.kt"
+            }
+
     kotlin {
         target("app/src/**/*.kt")
+        targetExclude(termishCopies)
         ktlint("1.8.0")
             .customRuleSets(listOf("io.nlopez.compose.rules:ktlint:0.6.0"))
         licenseHeaderFile("spotless/license-header.txt")
+    }
+
+    format("kotlinTermish", com.diffplug.gradle.spotless.KotlinExtension::class.java) {
+        target(termishCopies)
+        ktlint("1.8.0")
     }
 
     kotlinGradle {

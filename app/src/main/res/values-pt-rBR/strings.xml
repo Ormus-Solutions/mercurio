@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Interface do usuário</string>
   <string name="pref_language_title">Idioma</string>
   <string name="pref_language_system_default">Padrão do sistema</string>
-  <string name="pref_theme_title">Tema</string>
-  <string name="pref_theme_system">Padrão do sistema</string>
-  <string name="pref_theme_light">Leve</string>
-  <string name="pref_theme_dark">Escuro</string>
   <string name="pref_rotation_title">Rotação da tela</string>
   <string name="pref_titlebarhide_title">Esconder automaticamente a barra de título</string>
   <string name="pref_titlebarhide_summary">Pressione console para mostrar a barra de título e o menu de acesso</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Editar Cor %1$d</string>
   <string name="dialog_title_reset_all">Reiniciar todas as cores?</string>
   <string name="dialog_message_reset_all">Isso irá reiniciar todos os 256 cores para seus valores padrão. Esta ação não pode ser desfeita.</string>
-  <string name="app_is_running">ConnectBot está executando</string>
+  <string name="app_is_running">Mercurio está executando</string>
   <string name="label_red">Vermelho</string>
   <string name="label_green">Verde</string>
   <string name="label_blue">Azul</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Entrada de texto</string>
-  <string name="terminal_text_input_dialog_title">Entrada de Texto</string>
-  <string name="terminal_text_input_dialog_label">Digite o texto para enviar ao terminal</string>
-  <string name="terminal_text_input_resize_handle">Redimensionar</string>
-  <string name="console_menu_text_input">Entrada de texto</string>
+    <string name="terminal_text_input_dialog_label">Digite o texto para enviar ao terminal</string>
+    <string name="console_menu_text_input">Entrada de texto</string>
   <string name="button_send">Enviar</string>
   <string name="button_ok">OK</string>
   <string name="button_close">Fechar</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Configuração do host</string>
   <string name="pubkey_import_existing">Inportar chaves publica existente</string>
   <string name="notification_permission_title">Mantenha a conexão em segundo plano</string>
-  <string name="notification_permission_message">O ConnectBot precisa de permissão para enviar notificações, a fim de manter suas conexões ativas quando você alternar entre aplicativos. Caso contrário, o sistema poderá interromper suas conexões para economizar bateria.</string>
+  <string name="notification_permission_message">O Mercurio precisa de permissão para enviar notificações, a fim de manter suas conexões ativas quando você alternar entre aplicativos. Caso contrário, o sistema poderá interromper suas conexões para economizar bateria.</string>
   <string name="grant_permission">Permitir</string>
   <string name="connect_anyway">Conectar de qualquer forma</string>
   <string name="notification_permission_denied_title">É necessária a permissão de notificação</string>
-  <string name="notification_permission_denied_message">Para manter suas conexões ativas em segundo plano, ative as notificações do ConnectBot nas configurações do sistema.</string>
+  <string name="notification_permission_denied_message">Para manter suas conexões ativas em segundo plano, ative as notificações do Mercurio nas configurações do sistema.</string>
   <string name="open_settings">Abrir configurações</string>
   <string name="notification_permission_denied_snackbar">As conexões podem ser interrompidas sem aviso prévio</string>
   <string name="notification_permission_console_warning">A conexão pode ser interrompida quando o aplicativo estiver em segundo plano</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Registros do Aplicativo</string>
   <string name="copy_logs">Copiar Registros</string>
   <string name="logs_copied">Registros copiados para a área de transferência</string>
-  <string name="logs_bug_report_info">Para relatar um bug, copie esses registros e abra uma nova questão em https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Para relatar um bug, copie esses registros e abra uma nova questão em https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">Nenhum log disponível</string>
   <string name="help_section_about">Sobre</string>
   <string name="title_contact">Contato e suporte</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Autenticação ao iniciar</string>
   <string name="pref_auth_on_launch_summary">Exija impressão digital, reconhecimento facial ou PIN do dispositivo ao abrir o aplicativo</string>
   <string name="pref_security_category">Segurança</string>
-  <string name="auth_screen_title">O ConnectBot está bloqueado</string>
+  <string name="auth_screen_title">O Mercurio está bloqueado</string>
   <string name="auth_screen_unlock_button">Toque para desbloquear</string>
-  <string name="auth_prompt_title">Desbloqueie o ConnectBot</string>
+  <string name="auth_prompt_title">Desbloqueie o Mercurio</string>
   <string name="auth_prompt_subtitle">Verifique sua identidade para continuar</string>
   <string name="pref_language_download" tools:machine_translated="true">Baixar pacote de idiomas</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">O download falhou, toque para tentar novamente.</string>

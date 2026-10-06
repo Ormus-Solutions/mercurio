@@ -4,9 +4,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.app.versioning)
-    alias(libs.plugins.easylauncher)
     alias(libs.plugins.spotless)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kover)
@@ -36,7 +36,7 @@ android {
             .toInt()
 
     defaultConfig {
-        applicationId = "org.connectbot"
+        applicationId = "solutions.ormus.logos"
 
         minSdk =
             libs.versions.minSdk
@@ -48,11 +48,6 @@ android {
                 .toInt()
 
         vectorDrawables.useSupportLibrary = true
-
-        ndk {
-            abiFilters.addAll(listOf("x86", "x86_64", "armeabi-v7a", "arm64-v8a"))
-            debugSymbolLevel = "full"
-        }
 
         testApplicationId = "org.connectbot.tests"
         testInstrumentationRunner = "org.connectbot.HiltTestRunner"
@@ -127,16 +122,6 @@ android {
             // No Google Play Services available for downloadable fonts
             buildConfigField("Boolean", "HAS_DOWNLOADABLE_FONTS", "false")
         }
-
-        // This product flavor uses the Google Play Services library for
-        // ProviderInstaller. It uses Conscrypt under-the-hood, but the
-        // Google Play Services SDK itself is not open source.
-        create("google") {
-            dimension = "license"
-            versionNameSuffix = ""
-            // Google Play Services available for downloadable fonts
-            buildConfigField("Boolean", "HAS_DOWNLOADABLE_FONTS", "true")
-        }
     }
 
     testOptions {
@@ -155,9 +140,6 @@ android {
         getByName("testOss") {
             kotlin.directories.add("src/sharedTest/kotlin")
         }
-        getByName("testGoogle") {
-            kotlin.directories.add("src/sharedTest/kotlin")
-        }
         getByName("androidTest") {
             kotlin.directories.add("src/sharedTest/kotlin")
         }
@@ -173,12 +155,6 @@ android {
         resources.excludes.add("META-INF/LICENSE.txt")
         resources.excludes.add("LICENSE.txt")
         resources.excludes.add("**/*.gwt.xml")
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("CMakeLists.txt")
-        }
     }
 
     compileOptions {
@@ -388,13 +364,14 @@ tasks
 dependencies {
     implementation(libs.sshlib)
     implementation(libs.termlib)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.media3.common.ktx)
     implementation(libs.androidx.navigation.testing)
     implementation(libs.androidx.ui)
-    "googleImplementation"(libs.play.services.basement)
-    "googleImplementation"(libs.play.feature.delivery)
     testImplementation(libs.play.feature.delivery)
     "ossImplementation"(libs.conscrypt.android)
+    // UnifiedPush (Apache-2.0): push through the user's own distributor (the ntfy app); no Google services.
+    implementation(libs.unifiedpush.connector)
 
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.appcompat)
@@ -459,9 +436,113 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.androidx.room.testing)
 
     testCompileOnly(libs.conscrypt.openjdk.uber)
     testRuntimeOnly(libs.conscrypt.android)
     testImplementation(libs.conscrypt.openjdk.uber)
+}
+
+// Ormus brand tokens. app/brand/ormus-tokens.json is a vendored copy of
+// ormus-brand/tokens.json (the brand's single source of truth). This task turns it
+// into OrmusTokens.kt and res/values/ormus_tokens.xml so no brand hex is typed by
+// hand. Refresh: copy the new tokens.json over the vendored file, run
+// `./gradlew :app:generateOrmusTokens`, commit both outputs. OrmusTokensTest fails
+// when the generated Kotlin drifts from the vendored JSON.
+abstract class GenerateOrmusTokens : DefaultTask() {
+    @get:InputFile
+    abstract val tokens: RegularFileProperty
+
+    @get:InputFile
+    abstract val licenseHeader: RegularFileProperty
+
+    @get:OutputFile
+    abstract val kotlinOut: RegularFileProperty
+
+    @get:OutputFile
+    abstract val xmlOut: RegularFileProperty
+
+    private fun argb(value: String): String {
+        val v = value.trim()
+        if (v.startsWith("#")) return "FF" + v.drop(1).uppercase()
+        val parts = v.substringAfter("(").substringBefore(")").split(",").map { it.trim() }
+        val alpha = Math.round(parts[3].toDouble() * 255).toInt()
+        return "%02X%02X%02X%02X".format(alpha, parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+    }
+
+    private fun pascal(key: String) = key.replaceFirstChar { it.uppercase() }
+
+    private fun snake(key: String) = key.replace(Regex("([A-Z])"), "_$1").lowercase()
+
+    private fun rem(value: String, base: Double = 16.0) = value.removeSuffix("rem").toDouble() * base
+
+    private fun em(value: String) = if (value == "0") 0.0 else value.removeSuffix("em").toDouble()
+
+    @TaskAction
+    fun generate() {
+        @Suppress("UNCHECKED_CAST")
+        val json = groovy.json.JsonSlurper().parse(tokens.get().asFile) as Map<String, Any>
+
+        @Suppress("UNCHECKED_CAST")
+        fun group(name: String) = (json[name] as Map<String, Any>).filterKeys { !it.startsWith("$") }
+        val header = licenseHeader.get().asFile.readText().replace("\$YEAR", "2026")
+        val kt = StringBuilder(header)
+        kt.append("\n// Generated by :app:generateOrmusTokens from app/brand/ormus-tokens.json. Do not edit.\n\n")
+        kt.append("package org.connectbot.ui.theme\n\n")
+        kt.append("import androidx.compose.animation.core.CubicBezierEasing\n")
+        kt.append("import androidx.compose.ui.graphics.Color\n\n")
+        kt.append("/** Ormus brand tokens (ormus-brand tokens.json version ${json["version"]}). */\n")
+        kt.append("object OrmusTokens {\n")
+        kt.append("    const val VERSION = \"${json["version"]}\"\n\n")
+        group("color").forEach { (k, v) -> kt.append("    val ${pascal(k)} = Color(0x${argb(v.toString())})\n") }
+        listOf("canvas", "print").forEach { g ->
+            kt.append("\n    object ${pascal(g)} {\n")
+            group(g).forEach { (k, v) -> kt.append("        val ${pascal(k)} = Color(0x${argb(v.toString())})\n") }
+            kt.append("    }\n")
+        }
+        val radius = json["radius"].toString().removeSuffix("px")
+        kt.append("\n    /** The brand's single corner radius, in dp (CSS px). */\n")
+        kt.append("    const val RADIUS_DP = ${radius}f\n")
+
+        @Suppress("UNCHECKED_CAST")
+        val ease = ((json["motion"] as Map<String, Any>)["easeRevealPoints"] as List<Number>).joinToString { "${it.toFloat()}f" }
+        kt.append("\n    /** cubic-bezier reveal curve used for every transition. */\n")
+        kt.append("    val EaseReveal = CubicBezierEasing($ease)\n")
+        kt.append("\n    /** Brand type scale in sp (1rem = 16sp); line heights resolved to sp. */\n")
+        kt.append("    object TypeScale {\n")
+        group("typeScale").forEach { (k, v) ->
+            @Suppress("UNCHECKED_CAST")
+            val s = v as Map<String, Any>
+            val size = rem(s["size"].toString())
+            val lh = s["lineHeight"].toString().let { if (it.endsWith("rem")) rem(it) else it.toDouble() * size }
+            kt.append(
+                "        val ${pascal(k)} = OrmusTypeToken(font = \"${s["font"]}\", sizeSp = ${size.toFloat()}f, " +
+                    "lineHeightSp = ${lh.toFloat()}f, weight = ${s["weight"]}, trackingEm = ${em(s["tracking"].toString()).toFloat()}f)\n",
+            )
+        }
+        kt.append("    }\n}\n\n")
+        kt.append("/** One brand type-scale entry; [font] names a family in tokens.json (display, sans, mono). */\n")
+        kt.append("data class OrmusTypeToken(\n")
+        kt.append("    val font: String,\n    val sizeSp: Float,\n    val lineHeightSp: Float,\n    val weight: Int,\n    val trackingEm: Float,\n)\n")
+        kotlinOut.get().asFile.apply { parentFile.mkdirs() }.writeText(kt.toString())
+
+        val xml = StringBuilder("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+        xml.append(
+            "<!-- Generated by :app:generateOrmusTokens from app/brand/ormus-tokens.json. Do not edit. -->\n" +
+                "<resources xmlns:tools=\"http://schemas.android.com/tools\" tools:ignore=\"UnusedResources\">\n",
+        )
+        group("color").forEach { (k, v) -> xml.append("\t<color name=\"ormus_${snake(k)}\">#${argb(v.toString())}</color>\n") }
+        xml.append("</resources>\n")
+        xmlOut.get().asFile.apply { parentFile.mkdirs() }.writeText(xml.toString())
+    }
+}
+
+tasks.register<GenerateOrmusTokens>("generateOrmusTokens") {
+    group = "ormus"
+    description = "Generates OrmusTokens.kt and ormus_tokens.xml from the vendored brand tokens."
+    tokens.set(layout.projectDirectory.file("brand/ormus-tokens.json"))
+    licenseHeader.set(rootProject.layout.projectDirectory.file("spotless/license-header.txt"))
+    kotlinOut.set(layout.projectDirectory.file("src/main/java/org/connectbot/ui/theme/OrmusTokens.kt"))
+    xmlOut.set(layout.projectDirectory.file("src/main/res/values/ormus_tokens.xml"))
 }

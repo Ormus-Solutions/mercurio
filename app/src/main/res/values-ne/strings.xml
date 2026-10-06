@@ -113,10 +113,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">सिस्टमको पूर्वनिर्धारित विकल्प</string>
   <string name="pref_language_download" tools:machine_translated="true">भाषा प्याक डाउनलोड गर्नुहोस्</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">डाउनलोड गर्न सकेन, फेरि प्रयास गर्न ट्याप गर्नुहोस्।</string>
-  <string name="pref_theme_title" tools:machine_translated="true">थीम</string>
-  <string name="pref_theme_system" tools:machine_translated="true">सिस्टमको पूर्वनिर्धारित सेटिङ</string>
-  <string name="pref_theme_light" tools:machine_translated="true">हल्का</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">अँध्यारो</string>
   <string name="pref_rotation_title" tools:machine_translated="true">घुमाउने मोड</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">टाइटल बारलाई स्वतः लुकाउने विकल्प</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">टाइटल बार देखाउन र मेनु खोल्न कन्सोलमा ट्याप गर्नुहोस्।</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">एफ ११</string>
   <string name="button_key_f12" tools:machine_translated="true">एफ १२</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">पाठ प्रविष्ट गर्नुहोस्</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">पाठ प्रविष्ट गर्नुहोस्</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">टर्मिनलमा पठाउनका लागि पाठ प्रविष्ट गर्नुहोस्।</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">आकार परिवर्तन गर्नुहोस्</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">पाठ प्रविष्ट गर्नुहोस्</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">टर्मिनलमा पठाउनका लागि पाठ प्रविष्ट गर्नुहोस्।</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">पाठ प्रविष्ट गर्नुहोस्</string>
   <string name="button_send" tools:machine_translated="true">पठाउनुहोस्</string>
   <string name="button_ok" tools:machine_translated="true">ठीक छ</string>
   <string name="button_close" tools:machine_translated="true">बन्द गर्नुहोस्</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">एप्लिकेसन लगहरू</string>
   <string name="copy_logs" tools:machine_translated="true">लॉगहरू प्रतिलिपि गर्नुहोस्</string>
   <string name="logs_copied" tools:machine_translated="true">लॉगहरू क्लिपबोर्डमा प्रतिलिपि गरियो।</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">त्रुटि रिपोर्ट गर्न, यी लगहरू प्रतिलिपि गर्नुहोस् र https://connectbot.org/bug मा नयाँ मुद्दा खोल्नुहोस्।</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">त्रुटि रिपोर्ट गर्न, यी लगहरू प्रतिलिपि गर्नुहोस् र https://github.com/Ormus-Solutions/mercurio/issues मा नयाँ मुद्दा खोल्नुहोस्।</string>
   <string name="no_logs_available" tools:machine_translated="true">कुनै पनि लग उपलब्ध छैन।</string>
   <string name="help_section_about" tools:machine_translated="true">कार्यक्रमको बारेमा</string>
   <string name="title_contact" tools:machine_translated="true">सम्पर्क र सहयोग</string>

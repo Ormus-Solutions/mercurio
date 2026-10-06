@@ -27,7 +27,11 @@
 		<item name="windowActionBar">false</item>
 		<item name="windowNoTitle">true</item>
 
-		<item name="android:statusBarColor">@color/dark_primary</item>
+		<item name="android:windowBackground">@color/ormus_deep</item>
+		<item name="android:colorBackground">@color/ormus_deep</item>
+		<item name="android:textColorPrimary">@color/ormus_ink</item>
+		<item name="android:statusBarColor">@color/ormus_deep</item>
+		<item name="android:navigationBarColor">@color/ormus_deep</item>
 	</style>
 
 	<style name="AlertDialogTheme" parent="Theme.AppCompat.Dialog.Alert">

@@ -89,6 +89,6 @@ object PreferenceConstants {
     const val FONT_FAMILY_DEFAULT: String = "SYSTEM_DEFAULT"
     const val CUSTOM_FONTS: String = "customFonts"
 
-    /* Theme */
+    /* Theme: retired, the app is dark only. AppViewModel removes a saved value at launch. */
     const val THEME_MODE: String = "themeMode"
 }

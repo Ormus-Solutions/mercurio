@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,6 @@ import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
-import org.connectbot.util.ThemeMode
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -91,17 +90,6 @@ class AppViewModel @Inject constructor(
     val authOnLaunchEnabled: Boolean
         get() = prefs.getBoolean(PreferenceConstants.AUTH_ON_LAUNCH, false)
 
-    private fun currentThemeMode() = ThemeMode.fromString(prefs.getString(PreferenceConstants.THEME_MODE, null))
-
-    private val _themeMode = MutableStateFlow(currentThemeMode())
-    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
-
-    private val themePrefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PreferenceConstants.THEME_MODE) {
-            _themeMode.value = currentThemeMode()
-        }
-    }
-
     private val _pendingConnectionUri = MutableStateFlow<Uri?>(null)
     val pendingConnectionUri: StateFlow<Uri?> = _pendingConnectionUri.asStateFlow()
 
@@ -112,7 +100,10 @@ class AppViewModel @Inject constructor(
     val finishActivity = _finishActivity.receiveAsFlow()
 
     init {
-        prefs.registerOnSharedPreferenceChangeListener(themePrefListener)
+        // The app is dark only now; drop a theme saved by an older version (it may say LIGHT).
+        if (prefs.contains(PreferenceConstants.THEME_MODE)) {
+            prefs.edit { remove(PreferenceConstants.THEME_MODE) }
+        }
         checkAndMigrate()
 
         viewModelScope.launch {
@@ -142,11 +133,6 @@ class AppViewModel @Inject constructor(
                 _uiState.value = newState
             }
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        prefs.unregisterOnSharedPreferenceChangeListener(themePrefListener)
     }
 
     private fun checkAndMigrate() {

@@ -310,6 +310,29 @@ class HostEditorViewModelTest {
     }
 
     @Test
+    fun testSaveHost_trimsUsernameAndHostname() = runTest {
+        // Issue #84: a keyboard autocomplete left a trailing space and Tailscale SSH refused the login.
+        `when`(repository.saveHost(any(Host::class.java) ?: Host())).thenAnswer { invocation ->
+            invocation.arguments[0] as Host
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateUsername("alice ")
+        viewModel.updateHostname(" example.com ")
+        advanceUntilIdle()
+
+        viewModel.saveHost(useExpandedMode = true)
+        advanceUntilIdle()
+
+        val hostCaptor = ArgumentCaptor.forClass(Host::class.java)
+        verify(repository).saveHost(hostCaptor.capture() ?: Host())
+        assertEquals("alice", hostCaptor.value.username)
+        assertEquals("example.com", hostCaptor.value.hostname)
+    }
+
+    @Test
     fun testSaveHost_customNickname_doesNotSync() = runTest {
         val hostId = 42L
         val existingHost = Host(

@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""Wake Mercurio when a Herdr agent needs you.
+
+Follows one Herdr session's event stream over its API socket. When a pane's
+agent turns blocked (and, with --states blocked,done, done), it POSTs a small
+JSON message to every push endpoint in the endpoints file. The phone's
+UnifiedPush distributor (the ntfy app) delivers it and wakes Mercurio, which
+then reads the pane over SSH itself. The message never carries pane text.
+
+Endpoints file: ${XDG_CONFIG_HOME:-~/.config}/mercurio/push-endpoints, one URL
+per line, '#' comments allowed. It is read again on every push, so the app can
+add or replace its URL without a restart. See docs/PUSH.md.
+
+Python 3 standard library only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import socket
+import sys
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Iterable
+from urllib.parse import urlsplit
+
+# Herdr only streams agent status per pane id (and refuses a subscription that
+# names a closed pane), so any of these events means: snapshot and resubscribe.
+STRUCTURE_EVENTS = ("pane.created", "pane.closed")
+MAX_BACKOFF = 60.0
+
+
+def log(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
+def config_home() -> str:
+    return os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+
+
+def herdr_socket(session: str | None) -> str:
+    """Same lookup Herdr uses: named sessions live under herdr/sessions/<name>."""
+    base = os.path.join(config_home(), "herdr")
+    if session and session != "default":
+        return os.path.join(base, "sessions", session, "herdr.sock")
+    return os.environ.get("HERDR_SOCKET_PATH") or os.path.join(base, "herdr.sock")
+
+
+def read_endpoints(path: str) -> list[str]:
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = [line.strip() for line in f]
+    except FileNotFoundError:
+        return []
+    return [u for u in lines if u and not u.startswith("#") and urlsplit(u).scheme in ("http", "https")]
+
+
+def post_json(url: str, body: bytes, timeout: float = 5.0) -> int:
+    req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status
+
+
+def herdr_request(sock_path: str, method: str, params: dict) -> dict:
+    """One request per connection, as Herdr's API socket expects."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.settimeout(10)
+        s.connect(sock_path)
+        s.sendall((json.dumps({"id": "push-watch", "method": method, "params": params}) + "\n").encode())
+        line = s.makefile(encoding="utf-8").readline()
+    reply = json.loads(line)
+    if "error" in reply:
+        raise RuntimeError(f"{method}: {reply['error'].get('code')}")
+    return reply["result"]
+
+
+class Watcher:
+    def __init__(
+        self,
+        sock_path: str,
+        session: str,
+        host: str,
+        states: Iterable[str],
+        debounce: float,
+        endpoints_path: str,
+        post: Callable[[str, bytes], int] = post_json,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.sock_path = sock_path
+        self.session = session
+        self.host = host
+        self.states = set(states)
+        self.debounce = debounce
+        self.endpoints_path = endpoints_path
+        self.post = post
+        self.clock = clock
+        self.status: dict[str, str] = {}
+        self.agent: dict[str, str | None] = {}
+        self.last_push: dict[str, float] = {}
+        self.synced = False
+        self.down = False
+        self.backoff = 1.0
+
+    def snapshot(self) -> dict:
+        return herdr_request(self.sock_path, "session.snapshot", {})["snapshot"]
+
+    def observe(self, pane_id: str, status: str, agent: str | None, notify: bool = True) -> None:
+        previous = self.status.get(pane_id)
+        self.status[pane_id] = status
+        if agent:
+            self.agent[pane_id] = agent
+        if not notify or status == previous or status not in self.states:
+            return
+        now = self.clock()
+        last = self.last_push.get(pane_id)
+        if last is not None and now - last < self.debounce:
+            log(f"{pane_id} {status}: debounced")
+            return
+        self.last_push[pane_id] = now
+        self.push(pane_id, status)
+
+    def payload(self, pane_id: str, status: str) -> dict:
+        message = {
+            "v": 1,
+            "event": "pane.agent_status_changed",
+            "state": status,
+            "host": self.host,
+            "session": self.session,
+            "pane_id": pane_id,
+            "agent": self.agent.get(pane_id),
+            "workspace_id": None,
+            "workspace": None,
+            "tab_id": None,
+            "tab": None,
+            "ts": int(time.time()),
+        }
+        try:
+            snap = self.snapshot()
+        except (OSError, ValueError, RuntimeError):
+            return message
+        pane = next((p for p in snap.get("panes", []) if p.get("pane_id") == pane_id), None)
+        if pane:
+            message["workspace_id"] = pane.get("workspace_id")
+            message["tab_id"] = pane.get("tab_id")
+            message["agent"] = pane.get("agent") or message["agent"]
+        for w in snap.get("workspaces", []):
+            if w.get("workspace_id") == message["workspace_id"]:
+                message["workspace"] = w.get("label")
+        for t in snap.get("tabs", []):
+            if t.get("tab_id") == message["tab_id"]:
+                message["tab"] = t.get("label")
+        return message
+
+    def push(self, pane_id: str, status: str) -> None:
+        endpoints = read_endpoints(self.endpoints_path)
+        if not endpoints:
+            log(f"{pane_id} {status}: no endpoints in {self.endpoints_path}")
+            return
+        body = json.dumps(self.payload(pane_id, status), separators=(",", ":")).encode()
+        for url in endpoints:
+            where = urlsplit(url).netloc
+            try:
+                code = self.post(url, body)
+                log(f"{pane_id} {status}: pushed to {where} ({code})")
+            except (OSError, urllib.error.URLError) as e:
+                log(f"{pane_id} {status}: push to {where} failed: {e}")
+
+    def apply_snapshot(self, snap: dict) -> set[str]:
+        panes = snap.get("panes", [])
+        for p in panes:
+            self.observe(p["pane_id"], p.get("agent_status", "unknown"), p.get("agent"), notify=self.synced)
+        ids = {p["pane_id"] for p in panes}
+        for gone in set(self.status) - ids:
+            self.status.pop(gone, None)
+            self.agent.pop(gone, None)
+            self.last_push.pop(gone, None)
+        return ids
+
+    def follow(self) -> None:
+        """Subscribe, sync, then read events until the pane set changes or Herdr goes away."""
+        ids = sorted(p["pane_id"] for p in self.snapshot().get("panes", []))
+        subs = [{"type": t} for t in STRUCTURE_EVENTS]
+        subs += [{"type": "pane.agent_status_changed", "pane_id": i} for i in ids]
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.connect(self.sock_path)
+            s.sendall(
+                (
+                    json.dumps({"id": "push-watch", "method": "events.subscribe", "params": {"subscriptions": subs}})
+                    + "\n"
+                ).encode()
+            )
+            stream = s.makefile(encoding="utf-8")
+            started = json.loads(stream.readline() or "{}")
+            if started.get("result", {}).get("type") != "subscription_started":
+                raise RuntimeError(f"subscribe: {started.get('error', {}).get('code', 'closed')}")
+            self.backoff = 1.0
+            if self.down:
+                log("herdr is back")
+                self.down = False
+            # A change between the first snapshot and the subscribe shows up here.
+            if self.apply_snapshot(self.snapshot()) != set(ids):
+                self.synced = True
+                return
+            if not self.synced:
+                log(f"watching {len(ids)} panes on {self.sock_path}")
+            self.synced = True
+            for line in stream:
+                event = json.loads(line)
+                if event.get("event") == "pane.agent_status_changed":
+                    d = event.get("data", {})
+                    self.observe(d.get("pane_id", ""), d.get("agent_status", "unknown"), d.get("agent"))
+                else:
+                    return  # pane created or closed: resubscribe with the new set
+        raise ConnectionError("herdr closed the event stream")
+
+    def run(self) -> int:
+        if not os.path.isdir(os.path.dirname(self.sock_path)):
+            log(f"no Herdr here ({os.path.dirname(self.sock_path)} missing); nothing to watch")
+            return 0
+        while True:
+            try:
+                self.follow()
+            except (OSError, ValueError, RuntimeError) as e:
+                if not self.down:
+                    log(f"herdr unavailable ({e}); retrying with backoff")
+                    self.down = True
+                time.sleep(self.backoff)
+                self.backoff = min(self.backoff * 2, MAX_BACKOFF)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Push Herdr agent alerts to Mercurio.")
+    parser.add_argument("--session", help="Herdr session name (default: the default session)")
+    parser.add_argument("--states", default="blocked", help="comma list of states to push (default: blocked)")
+    parser.add_argument("--debounce", type=float, default=20.0, help="seconds between pushes for one pane")
+    parser.add_argument("--endpoints", default=os.path.join(config_home(), "mercurio", "push-endpoints"))
+    args = parser.parse_args(argv)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    watcher = Watcher(
+        herdr_socket(args.session),
+        args.session or "default",
+        socket.gethostname(),
+        [s.strip() for s in args.states.split(",") if s.strip()],
+        args.debounce,
+        args.endpoints,
+    )
+    try:
+        return watcher.run()
+    except KeyboardInterrupt:
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,12 +81,13 @@ import org.connectbot.ui.ObservePermissionOnResume
 import org.connectbot.ui.PreviewScreen
 import org.connectbot.ui.common.getLocalizedFontDisplayName
 import org.connectbot.ui.components.FontDownloadProgressDialog
+import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.machines.MachineUsernamesSetting
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.util.LanguageDownloadState
 import org.connectbot.util.LocalFontProvider
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.TerminalFont
-import org.connectbot.util.ThemeMode
 import org.connectbot.util.isNotificationPermissionGranted
 import org.xmlpull.v1.XmlPullParser
 import java.util.Locale
@@ -184,7 +185,6 @@ fun SettingsScreen(
         onClearImportError = viewModel::clearFontImportError,
         onDefaultProfileChange = viewModel::updateDefaultProfile,
         onLanguageChange = viewModel::requestLanguage,
-        onThemeModeChange = viewModel::updateThemeMode,
         onRotationChange = viewModel::updateRotation,
         onFullscreenChange = viewModel::updateFullscreen,
         onTitleBarHideChange = viewModel::updateTitleBarHide,
@@ -203,6 +203,8 @@ fun SettingsScreen(
         onBellVibrateChange = viewModel::updateBellVibrate,
         onBellNotificationChange = viewModel::updateBellNotification,
         modifier = modifier,
+        machinesSection = { MachineUsernamesSetting() },
+        usageSection = { UsageSettingsSection() },
     )
 }
 
@@ -228,7 +230,6 @@ fun SettingsScreenContent(
     onClearImportError: () -> Unit,
     onDefaultProfileChange: (Long) -> Unit,
     onLanguageChange: (String) -> Unit,
-    onThemeModeChange: (ThemeMode) -> Unit,
     onRotationChange: (String) -> Unit,
     onFullscreenChange: (Boolean) -> Unit,
     onTitleBarHideChange: (Boolean) -> Unit,
@@ -248,6 +249,8 @@ fun SettingsScreenContent(
     onBellNotificationChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     highlightItem: String? = null,
+    machinesSection: @Composable () -> Unit = {},
+    usageSection: @Composable () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -463,24 +466,6 @@ fun SettingsScreenContent(
                 )
             }
 
-            item {
-                ListPreference(
-                    title = stringResource(R.string.pref_theme_title),
-                    summary = when (uiState.themeMode) {
-                        ThemeMode.SYSTEM -> stringResource(R.string.pref_theme_system)
-                        ThemeMode.LIGHT -> stringResource(R.string.pref_theme_light)
-                        ThemeMode.DARK -> stringResource(R.string.pref_theme_dark)
-                    },
-                    value = uiState.themeMode.name,
-                    entries = listOf(
-                        stringResource(R.string.pref_theme_system) to ThemeMode.SYSTEM.name,
-                        stringResource(R.string.pref_theme_light) to ThemeMode.LIGHT.name,
-                        stringResource(R.string.pref_theme_dark) to ThemeMode.DARK.name,
-                    ),
-                    onValueChange = { onThemeModeChange(ThemeMode.fromString(it)) },
-                )
-            }
-
 //            item {
 //                ListPreference(
 //                    title = stringResource(R.string.pref_rotation_title),
@@ -689,6 +674,10 @@ fun SettingsScreenContent(
                     onCheckedChange = onBellNotificationChange,
                 )
             }
+
+            item { machinesSection() }
+
+            item { usageSection() }
         }
     }
 
@@ -729,12 +718,14 @@ private fun PreferenceCategory(
     title: String,
     modifier: Modifier = Modifier,
 ) {
+    // Lab-log section label: "/ TERMINAL", gold, over a hairline.
     Column(modifier = modifier) {
-        Text(
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        MonoLabel(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
         )
     }
 }
@@ -1582,7 +1573,6 @@ private fun SettingsScreenPreview() {
             onClearImportError = {},
             onDefaultProfileChange = {},
             onLanguageChange = {},
-            onThemeModeChange = {},
             onRotationChange = {},
             onFullscreenChange = {},
             onTitleBarHideChange = {},

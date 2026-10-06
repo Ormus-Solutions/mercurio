@@ -113,10 +113,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">系統預設</string>
   <string name="pref_language_download" tools:machine_translated="true">下載語言套件</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">下載失敗，點擊以重新嘗試。</string>
-  <string name="pref_theme_title" tools:machine_translated="true">主題</string>
-  <string name="pref_theme_system" tools:machine_translated="true">系統預設</string>
-  <string name="pref_theme_light" tools:machine_translated="true">淺色主題</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">深色</string>
   <string name="pref_rotation_title" tools:machine_translated="true">旋轉模式</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">自動隱藏標題欄</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">點擊控制台以顯示標題欄並開啟選單。</string>
@@ -346,7 +342,7 @@
   <string name="dialog_title_edit_color" tools:machine_translated="true">編輯顏色 %1$d</string>
   <string name="dialog_title_reset_all" tools:machine_translated="true">是否重設所有顏色？</string>
   <string name="dialog_message_reset_all" tools:machine_translated="true">這將會將所有 256 種顏色重設為其預設值。此操作無法撤銷。</string>
-  <string name="app_is_running" tools:machine_translated="true">ConnectBot 正在執行。</string>
+  <string name="app_is_running" tools:machine_translated="true">Mercurio 正在執行。</string>
   <string name="label_red" tools:machine_translated="true">紅色</string>
   <string name="label_green" tools:machine_translated="true">綠色</string>
   <string name="label_blue" tools:machine_translated="true">藍色</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">文字輸入</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">文字輸入</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">輸入文字以傳送到終端機</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">調整大小</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">文字輸入</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">輸入文字以傳送到終端機</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">文字輸入</string>
   <string name="button_send" tools:machine_translated="true">發送</string>
   <string name="button_ok" tools:machine_translated="true">確定</string>
   <string name="button_close" tools:machine_translated="true">關閉</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">私鑰內容</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">從剪貼簿貼上</string>
   <string name="notification_permission_title" tools:machine_translated="true">在背景中保持連線。</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot 需要通知權限，以便在您切換應用程式時，保持您的連線處於活躍狀態。如果沒有此權限，系統可能會中斷您的連線，以節省電池電力。</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio 需要通知權限，以便在您切換應用程式時，保持您的連線處於活躍狀態。如果沒有此權限，系統可能會中斷您的連線，以節省電池電力。</string>
   <string name="grant_permission" tools:machine_translated="true">允許</string>
   <string name="connect_anyway" tools:machine_translated="true">繼續連接</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">需要通知權限。</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">為了讓您的連線在背景中保持啟動狀態，請在系統設定中啟用 ConnectBot 的通知功能。</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">為了讓您的連線在背景中保持啟動狀態，請在系統設定中啟用 Mercurio 的通知功能。</string>
   <string name="open_settings" tools:machine_translated="true">開啟設定</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">如果未授權通知權限，連接可能會中斷。</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">應用程式在背景執行時，連接可能會中斷。</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">應用程式日誌</string>
   <string name="copy_logs" tools:machine_translated="true">複製日誌</string>
   <string name="logs_copied" tools:machine_translated="true">日誌已複製到剪貼簿。</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">如要報告錯誤，請複製這些日誌，然後在 https://connectbot.org/bug 開啟一個新的問題。</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">如要報告錯誤，請複製這些日誌，然後在 https://github.com/Ormus-Solutions/mercurio/issues 開啟一個新的問題。</string>
   <string name="no_logs_available" tools:machine_translated="true">沒有可用的日誌。</string>
   <string name="help_section_about" tools:machine_translated="true">關於</string>
   <string name="title_contact" tools:machine_translated="true">聯絡我們及支援</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">啟動時的驗證</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">開啟應用程式時，需要使用指紋、面部識別或裝置密碼進行驗證。</string>
   <string name="pref_security_category" tools:machine_translated="true">安全性</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot 已鎖定。</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio 已鎖定。</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">點擊以解鎖</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">解鎖 ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">解鎖 Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">請驗證您的身份以繼續。</string>
   <string name="auth_banner_title" tools:machine_translated="true">來自 %1$s 的驗證訊息。</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] 驗證訊息：</string>

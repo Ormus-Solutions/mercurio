@@ -18,14 +18,12 @@
 package org.connectbot.ui
 
 import androidx.compose.ui.tooling.preview.PreviewDynamicColors
-import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 
 /**
  * Multipreview annotation for ConnectBot screens.
- * Combines screen sizes, light/dark themes, and dynamic colors.
+ * Combines screen sizes and dynamic colors. The app is dark only, so there is no light preview.
  */
 @PreviewScreenSizes
-@PreviewLightDark
 @PreviewDynamicColors
 annotation class PreviewScreen

@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Gebruikers interface</string>
   <string name="pref_language_title">Taal</string>
   <string name="pref_language_system_default">Standaard systeeminstelling</string>
-  <string name="pref_theme_title">Thema</string>
-  <string name="pref_theme_system">Standaard systeeminstelling</string>
-  <string name="pref_theme_light">Licht</string>
-  <string name="pref_theme_dark">Donker</string>
   <string name="pref_rotation_title">Rotatie mode</string>
   <string name="pref_titlebarhide_title">Titelbalk automatisch verbergen</string>
   <string name="pref_titlebarhide_summary">Tik op de console om de titelbalk weer te geven en het menu te openen.</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Kleur bewerken %1$d</string>
   <string name="dialog_title_reset_all">Alle kleuren terugzetten?</string>
   <string name="dialog_message_reset_all">Dit zal alle 256 kleuren terugzetten naar hun standaardwaarden. Deze actie kan niet ongedaan worden gemaakt.</string>
-  <string name="app_is_running">ConnectBot werkt (Connecties zijn actief)</string>
+  <string name="app_is_running">Mercurio werkt (Connecties zijn actief)</string>
   <string name="label_red">Rood</string>
   <string name="label_green">Groen</string>
   <string name="label_blue">Blauw</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Tekstinvoer</string>
-  <string name="terminal_text_input_dialog_title">Tekstinvoer</string>
-  <string name="terminal_text_input_dialog_label">Voer de tekst in die naar de terminal moet worden verzonden</string>
-  <string name="terminal_text_input_resize_handle">Grootte wijzigen</string>
-  <string name="console_menu_text_input">Tekstinvoer</string>
+    <string name="terminal_text_input_dialog_label">Voer de tekst in die naar de terminal moet worden verzonden</string>
+    <string name="console_menu_text_input">Tekstinvoer</string>
   <string name="button_send">Versturen</string>
   <string name="button_ok">OK</string>
   <string name="button_close">Sluiten</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Hostinstellingen</string>
   <string name="pubkey_import_existing">Bestaande publieke sleutel importeren</string>
   <string name="notification_permission_title">Blijf op de achtergrond verbonden</string>
-  <string name="notification_permission_message">ConnectBot heeft toestemming voor meldingen nodig om je verbindingen actief te houden wanneer je van app wisselt. Zonder deze toestemming kan het systeem je verbindingen verbreken om batterij te besparen.</string>
+  <string name="notification_permission_message">Mercurio heeft toestemming voor meldingen nodig om je verbindingen actief te houden wanneer je van app wisselt. Zonder deze toestemming kan het systeem je verbindingen verbreken om batterij te besparen.</string>
   <string name="grant_permission">Toestaan</string>
   <string name="connect_anyway">Maak toch verbinding</string>
   <string name="notification_permission_denied_title">Toestemming voor meldingen vereist</string>
-  <string name="notification_permission_denied_message">Om ervoor te zorgen dat uw verbindingen op de achtergrond actief blijven, schakelt u de meldingen voor ConnectBot in de systeeminstellingen in.</string>
+  <string name="notification_permission_denied_message">Om ervoor te zorgen dat uw verbindingen op de achtergrond actief blijven, schakelt u de meldingen voor Mercurio in de systeeminstellingen in.</string>
   <string name="open_settings">Open instellingen</string>
   <string name="notification_permission_denied_snackbar">Verbindingen kunnen onverwachts verbreken zonder dat de gebruiker hierover wordt geïnformeerd</string>
   <string name="notification_permission_console_warning">De verbinding kan in de achtergrond worden verbroken</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Applicatielogbestanden</string>
   <string name="copy_logs">Logbestanden kopiëren</string>
   <string name="logs_copied">Logbestanden naar het klembord gekopieerd</string>
-  <string name="logs_bug_report_info">Om een bug te melden, kopieer deze logbestanden en open een nieuw issue op https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Om een bug te melden, kopieer deze logbestanden en open een nieuw issue op https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">Er zijn geen logbestanden beschikbaar.</string>
   <string name="help_section_about">Over</string>
   <string name="title_contact">Contact en ondersteuning</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Authenticatie bij het opstarten</string>
   <string name="pref_auth_on_launch_summary">Vraag om een vingerafdruk, gezichtsherkenning of een apparaat-pincode bij het openen van de app.</string>
   <string name="pref_security_category">Beveiliging</string>
-  <string name="auth_screen_title">ConnectBot is vergrendeld</string>
+  <string name="auth_screen_title">Mercurio is vergrendeld</string>
   <string name="auth_screen_unlock_button">Tik om te ontgrendelen</string>
-  <string name="auth_prompt_title">Ontgrendel ConnectBot</string>
+  <string name="auth_prompt_title">Ontgrendel Mercurio</string>
   <string name="auth_prompt_subtitle">Verifieer uw identiteit om verder te gaan</string>
   <string name="pref_language_download" tools:machine_translated="true">Taalpakket downloaden</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Het downloaden is mislukt, tik om het opnieuw te proberen.</string>

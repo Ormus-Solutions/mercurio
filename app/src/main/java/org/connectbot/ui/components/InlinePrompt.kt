@@ -75,6 +75,8 @@ import androidx.compose.ui.unit.dp
 import org.connectbot.R
 import org.connectbot.service.PromptRequest
 import org.connectbot.service.PromptResponse
+import org.connectbot.ui.theme.OrmusCornerShape
+import org.connectbot.ui.theme.OrmusMono
 import org.connectbot.ui.theme.terminal
 
 /**
@@ -135,6 +137,13 @@ fun InlinePrompt(
                 )
             }
 
+            is PromptRequest.HerdrWorkspacePrompt -> {
+                HerdrWorkspacePromptContent(
+                    choices = promptRequest.choices,
+                    onPick = { onResponse(PromptResponse.HerdrWorkspaceResponse(it)) },
+                )
+            }
+
             is PromptRequest.HostKeyFingerprintPrompt -> {
                 HostKeyFingerprintPromptContent(
                     prompt = promptRequest,
@@ -163,32 +172,42 @@ private fun BooleanPromptContent(
         modifier = Modifier
             .fillMaxWidth()
             .background(terminalColors.overlayBackground)
+            .ormusPanelTop()
             .padding(16.dp),
     ) {
-        if (!instructions.isNullOrEmpty()) {
+        // The body scrolls in a short window (soft keyboard up, landscape) while
+        // the answer buttons below it always stay on screen.
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            if (!instructions.isNullOrEmpty()) {
+                Text(
+                    text = instructions,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = terminalColors.overlayText,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+
             Text(
-                text = instructions,
-                style = MaterialTheme.typography.bodyMedium,
+                text = message,
+                style = MaterialTheme.typography.bodyLarge,
                 color = terminalColors.overlayText,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = 16.dp),
             )
         }
-
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = terminalColors.overlayText,
-            modifier = Modifier.padding(bottom = 16.dp),
-        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onNo) {
+            TextButton(onClick = onNo, shape = OrmusCornerShape) {
                 Text(stringResource(R.string.button_no), color = terminalColors.overlayText)
             }
             Button(
+                shape = OrmusCornerShape,
                 onClick = onYes,
                 modifier = Modifier.padding(start = 8.dp),
             ) {
@@ -218,45 +237,54 @@ private fun StringPromptContent(
         modifier = Modifier
             .fillMaxWidth()
             .background(terminalColors.overlayBackground)
+            .ormusPanelTop()
             .padding(16.dp),
     ) {
-        if (!instructions.isNullOrEmpty()) {
-            Text(
-                text = instructions,
-                style = MaterialTheme.typography.bodyMedium,
-                color = terminalColors.overlayText,
-                modifier = Modifier.padding(bottom = 8.dp),
+        // The body scrolls in a short window (soft keyboard up, landscape) while
+        // the answer buttons below it always stay on screen.
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            if (!instructions.isNullOrEmpty()) {
+                Text(
+                    text = instructions,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = terminalColors.overlayText,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = hint?.let { { Text(it, color = terminalColors.overlayTextSecondary) } },
+                visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done,
+                    keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Unspecified,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        onSubmit(text)
+                    },
+                ),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = terminalColors.overlayText,
+                    unfocusedTextColor = terminalColors.overlayText,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    cursorColor = terminalColors.overlayText,
+                    focusedIndicatorColor = terminalColors.overlayTextSecondary,
+                    unfocusedIndicatorColor = terminalColors.overlayTextSecondary.copy(alpha = 0.5f),
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
             )
         }
-
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = hint?.let { { Text(it, color = terminalColors.overlayTextSecondary) } },
-            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done,
-                keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Unspecified,
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    onSubmit(text)
-                },
-            ),
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedTextColor = terminalColors.overlayText,
-                unfocusedTextColor = terminalColors.overlayText,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                cursorColor = terminalColors.overlayText,
-                focusedIndicatorColor = terminalColors.overlayTextSecondary,
-                unfocusedIndicatorColor = terminalColors.overlayTextSecondary.copy(alpha = 0.5f),
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-        )
 
         Row(
             modifier = Modifier
@@ -264,10 +292,11 @@ private fun StringPromptContent(
                 .padding(top = 8.dp),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onCancel) {
+            TextButton(onClick = onCancel, shape = OrmusCornerShape) {
                 Text(stringResource(R.string.delete_neg), color = terminalColors.overlayText)
             }
             Button(
+                shape = OrmusCornerShape,
                 onClick = { onSubmit(text) },
                 modifier = Modifier.padding(start = 8.dp),
             ) {
@@ -302,128 +331,138 @@ private fun HostKeyFingerprintPromptContent(
         modifier = Modifier
             .fillMaxWidth()
             .background(terminalColors.overlayBackground)
+            .ormusPanelTop()
             .padding(16.dp),
     ) {
-        Text(
-            text = stringResource(R.string.host_key_verification_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = terminalColors.overlayText,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-
-        Text(
-            text = prompt.hostname,
-            style = MaterialTheme.typography.bodyLarge,
-            color = terminalColors.overlayTextSecondary,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = stringResource(R.string.host_key_type_and_size, prompt.keyType, prompt.keySize),
-            style = MaterialTheme.typography.bodyMedium,
-            color = terminalColors.overlayText,
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Display selected fingerprint with copy button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.SpaceBetween,
+        // The body scrolls in a short window (soft keyboard up, landscape) while
+        // the answer buttons below it always stay on screen.
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
         ) {
             Text(
-                text = formats[selectedFormatIndex].second,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
+                text = stringResource(R.string.host_key_verification_title),
+                style = MaterialTheme.typography.headlineSmall,
                 color = terminalColors.overlayText,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp)
-                    .heightIn(max = 200.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.padding(bottom = 8.dp),
             )
 
-            IconButton(
-                onClick = {
-                    clipboardManager.setText(AnnotatedString(formats[selectedFormatIndex].second))
-                },
+            Text(
+                text = prompt.hostname,
+                style = MaterialTheme.typography.bodyLarge,
+                color = terminalColors.overlayTextSecondary,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = stringResource(R.string.host_key_type_and_size, prompt.keyType, prompt.keySize),
+                style = MaterialTheme.typography.bodyMedium,
+                color = terminalColors.overlayText,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Display selected fingerprint with copy button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.ContentCopy,
-                    contentDescription = stringResource(R.string.fingerprint_copy_description),
-                    tint = terminalColors.overlayTextSecondary,
+                Text(
+                    text = formats[selectedFormatIndex].second,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = OrmusMono,
+                    ),
+                    color = terminalColors.overlayText,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                        .heightIn(max = 200.dp)
+                        .verticalScroll(rememberScrollState()),
                 )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Fingerprint format selector
-        ExposedDropdownMenuBox(
-            expanded = dropdownExpanded,
-            onExpandedChange = { dropdownExpanded = it },
-        ) {
-            TextField(
-                value = formats[selectedFormatIndex].first,
-                onValueChange = {},
-                readOnly = true,
-                textStyle = MaterialTheme.typography.bodySmall,
-                label = {
-                    Text(stringResource(R.string.fingerprint_format_header))
-                },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
-                colors = TextFieldDefaults.colors(
-                    focusedTextColor = terminalColors.overlayText,
-                    unfocusedTextColor = terminalColors.overlayText,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = terminalColors.overlayTextSecondary,
-                    unfocusedIndicatorColor = terminalColors.overlayTextSecondary.copy(alpha = 0.5f),
-                    focusedLabelColor = terminalColors.overlayTextSecondary,
-                    unfocusedLabelColor = terminalColors.overlayTextSecondary,
-                ),
-                modifier = Modifier
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-            )
-
-            ExposedDropdownMenu(
-                expanded = dropdownExpanded,
-                onDismissRequest = { dropdownExpanded = false },
-            ) {
-                formats.forEachIndexed { index, (label, _) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = {
-                            selectedFormatIndex = index
-                            dropdownExpanded = false
-                        },
+                IconButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(formats[selectedFormatIndex].second))
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ContentCopy,
+                        contentDescription = stringResource(R.string.fingerprint_copy_description),
+                        tint = terminalColors.overlayTextSecondary,
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Fingerprint format selector
+            ExposedDropdownMenuBox(
+                expanded = dropdownExpanded,
+                onExpandedChange = { dropdownExpanded = it },
+            ) {
+                TextField(
+                    value = formats[selectedFormatIndex].first,
+                    onValueChange = {},
+                    readOnly = true,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    label = {
+                        Text(stringResource(R.string.fingerprint_format_header))
+                    },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = terminalColors.overlayText,
+                        unfocusedTextColor = terminalColors.overlayText,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = terminalColors.overlayTextSecondary,
+                        unfocusedIndicatorColor = terminalColors.overlayTextSecondary.copy(alpha = 0.5f),
+                        focusedLabelColor = terminalColors.overlayTextSecondary,
+                        unfocusedLabelColor = terminalColors.overlayTextSecondary,
+                    ),
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                )
+
+                ExposedDropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                ) {
+                    formats.forEachIndexed { index, (label, _) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                selectedFormatIndex = index
+                                dropdownExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = stringResource(R.string.prompt_continue_connecting),
+                style = MaterialTheme.typography.bodyLarge,
+                color = terminalColors.overlayText,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = stringResource(R.string.prompt_continue_connecting),
-            style = MaterialTheme.typography.bodyLarge,
-            color = terminalColors.overlayText,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onReject) {
+            TextButton(onClick = onReject, shape = OrmusCornerShape) {
                 Text(stringResource(R.string.button_no), color = terminalColors.overlayText)
             }
             Button(
+                shape = OrmusCornerShape,
                 onClick = onAccept,
                 modifier = Modifier.padding(start = 8.dp),
             ) {

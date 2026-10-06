@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,8 +109,40 @@ class ColorSchemePresetsTest {
     }
 
     @Test
-    fun builtInSchemes_Contains8Schemes() {
-        assertEquals("Should have 8 built-in schemes", 8, ColorSchemePresets.builtInSchemes.size)
+    fun builtInSchemes_Contains9Schemes() {
+        assertEquals("Should have 9 built-in schemes", 9, ColorSchemePresets.builtInSchemes.size)
+    }
+
+    @Test
+    fun default_IsOrmusFusionAndAurumIsLast() {
+        assertEquals("Ormus Fusion", ColorSchemePresets.default.name)
+        assertEquals(ColorSchemePresets.default, ColorSchemePresets.builtInSchemes.first())
+        assertEquals(ColorSchemePresets.aurum, ColorSchemePresets.builtInSchemes.last())
+    }
+
+    @Test
+    fun ormusFusion_EveryColorReadsOnTheBackground() {
+        val scheme = ColorSchemePresets.default
+        val background = scheme.colors[scheme.defaultBg]
+        scheme.colors.forEachIndexed { index, color ->
+            if (index == scheme.defaultBg) return@forEachIndexed
+            val ratio = contrast(color, background)
+            assertTrue("Ormus Fusion index $index reads $ratio:1, needs 4.2", ratio >= 4.2)
+        }
+    }
+
+    private fun luminance(argb: Int): Double {
+        fun channel(shift: Int): Double {
+            val c = ((argb shr shift) and 0xFF) / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+    }
+
+    private fun contrast(a: Int, b: Int): Double {
+        val la = luminance(a)
+        val lb = luminance(b)
+        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
     }
 
     @Test
@@ -124,6 +156,7 @@ class ColorSchemePresetsTest {
         assertTrue("Should contain Gruvbox Dark", schemes.contains(ColorSchemePresets.gruvboxDark))
         assertTrue("Should contain Monokai", schemes.contains(ColorSchemePresets.monokai))
         assertTrue("Should contain Tomorrow Night", schemes.contains(ColorSchemePresets.tomorrowNight))
+        assertTrue("Should contain Aurum", schemes.contains(ColorSchemePresets.aurum))
     }
 
     @Test

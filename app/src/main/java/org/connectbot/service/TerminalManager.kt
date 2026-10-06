@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.connectbot.R
 import org.connectbot.data.ColorSchemeRepository
 import org.connectbot.data.HostRepository
@@ -58,11 +62,22 @@ import org.connectbot.data.PubkeyRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.data.entity.Pubkey
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.transport.HeadlessSsh
+import org.connectbot.transport.SSH
 import org.connectbot.transport.TransportFactory
+import org.connectbot.usage.SshSunLink
+import org.connectbot.usage.SunSync
+import org.connectbot.usage.UsageActions
+import org.connectbot.usage.UsageTracker
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.ProviderLoader
 import org.connectbot.util.ProviderLoaderListener
 import org.connectbot.util.PubkeyUtils
+import solutions.ormus.logos.herd.HerdAnswer
+import solutions.ormus.logos.herd.HerdAnswerOutcome
+import solutions.ormus.logos.herd.HerdAttention
+import solutions.ormus.logos.herd.HerdSession
+import solutions.ormus.logos.push.PushEndpoints
 import timber.log.Timber
 import java.io.IOException
 import java.lang.ref.WeakReference
@@ -151,6 +166,15 @@ class TerminalManager :
     @Inject
     internal lateinit var securePasswordStorage: org.connectbot.util.SecurePasswordStorage
 
+    @Inject
+    internal lateinit var usageTracker: UsageTracker
+
+    @Inject
+    internal lateinit var sunSync: SunSync
+
+    @Inject
+    internal lateinit var pushEndpoints: PushEndpoints
+
     private val binder: IBinder = TerminalBinder()
 
     internal lateinit var connectivityMonitor: ConnectivityMonitor
@@ -160,6 +184,9 @@ class TerminalManager :
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var idleJob: Job? = null
+
+    // Loads the "unlock at startup" keys; an answer from a notification waits for it.
+    private var startupKeys: Job? = null
     private val idleTimeout: Long = 300000 // 5 minutes
 
     private var vibrator: Vibrator? = null
@@ -171,6 +198,17 @@ class TerminalManager :
 
     @Volatile
     private var isUiBound = false
+
+    // Host id of the session currently on screen, set by the console UI. Used to
+    // suppress agent-attention notifications for the session the user is already
+    // looking at. Null when no console is visible.
+    @Volatile
+    private var visibleHostId: Long? = null
+
+    /** Called by the console UI to mark which session (if any) is on screen. */
+    fun setVisibleHost(hostId: Long?) {
+        visibleHostId = hostId
+    }
 
     private var resizeAllowed = true
 
@@ -192,7 +230,7 @@ class TerminalManager :
 
         // load all marked pubkeys into memory
         updateSavingKeys()
-        scope.launch(dispatchers.io) {
+        startupKeys = scope.launch(dispatchers.io) {
             try {
                 val pubkeys = pubkeyRepository.getStartupKeys()
                 val encryptedPending = mutableListOf<Pubkey>()
@@ -253,6 +291,13 @@ class TerminalManager :
         connectivityMonitor.init()
 
         ProviderLoader.load(this, this)
+
+        // A new push endpoint goes to every Herdr host that is connected now.
+        scope.launch {
+            pushEndpoints.endpoint.drop(1).collect {
+                synchronized(_bridges) { _bridges.toList() }.forEach(::syncPushEndpoint)
+            }
+        }
     }
 
     private fun updateSavingKeys() {
@@ -737,6 +782,7 @@ class TerminalManager :
         isUiBound = true
         keepServiceAlive()
         setResizeAllowed(true)
+        reconnectDroppedBridges()
         return binder
     }
 
@@ -749,11 +795,61 @@ class TerminalManager :
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ConnectionNotifier.ACTION_HERD_ANSWER) answerHerd(intent)
         /*
          * We want this service to continue running until it is explicitly
          * stopped, so return sticky.
          */
         return START_STICKY
+    }
+
+    /**
+     * Approve or Deny on a "Needs you" notification (the unlock already passed): send
+     * the key over that host's live Herdr side, or, with none, over a short background
+     * login ([answerOffline]); then clear or replace the notification.
+     */
+    private fun answerHerd(intent: Intent) {
+        val hostId = intent.getLongExtra(ConnectionNotifier.EXTRA_HERD_HOST, 0L)
+        val paneId = intent.getStringExtra(ConnectionNotifier.EXTRA_HERD_PANE) ?: return
+        val agentKind = intent.getStringExtra(ConnectionNotifier.EXTRA_HERD_AGENT)
+        val answer = HerdAnswer.entries.firstOrNull { it.name == intent.getStringExtra(ConnectionNotifier.EXTRA_HERD_ANSWER) } ?: return
+        usageTracker.log(if (answer == HerdAnswer.APPROVE) UsageActions.NOTIFY_APPROVE else UsageActions.NOTIFY_DENY)
+        val bridge = synchronized(_bridges) { _bridges.firstOrNull { it.host.id == hostId && it.herd != null && !it.isDisconnected } }
+        scope.launch {
+            val host = bridge?.host ?: hostRepository.findHostById(hostId) ?: return@launch
+            val live = bridge?.herd
+            val outcome = when (val plan = HerdOfflineAnswer.plan(live != null, host) { offlineKeys(host) }) {
+                HerdOfflineAnswer.Plan.UseSession -> checkNotNull(live).answer(paneId, answer)
+                is HerdOfflineAnswer.Plan.Connect -> answerOffline(host, plan.keys, paneId, answer)
+                HerdOfflineAnswer.Plan.NeedsApp -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_needs_app, host.nickname))
+            }
+            connectionNotifier.showHerdAnswer(this@TerminalManager, host, paneId, agentKind, outcome)
+            // Started only for this tap, with nothing to keep alive.
+            if (bridge == null && !isUiBound) stopNow()
+        }
+    }
+
+    /** The keys [host] logs in with without a prompt, once the startup keys are loaded. */
+    private suspend fun offlineKeys(host: Host): List<KeyPair> {
+        startupKeys?.join()
+        val stored = if (host.pubkeyId >= 0) pubkeyRepository.getById(host.pubkeyId) else null
+        return HerdOfflineAnswer.keys(host, loadedKeypairs, stored) { PubkeyUtils.convertToKeyPair(it, null) }
+    }
+
+    /**
+     * Log in to [host] with [keys] and no terminal, answer through a throwaway Herdr side
+     * (which checks the pane is still blocked), and log out. Nothing goes to any PTY.
+     */
+    private suspend fun answerOffline(host: Host, keys: List<KeyPair>, paneId: String, answer: HerdAnswer): HerdAnswerOutcome = withContext(dispatchers.io) {
+        usageTracker.log(UsageActions.NOTIFY_ANSWER_CONNECT)
+        HeadlessSsh(host, SSH(host, null, this@TerminalManager).HostKeyVerifier(host)).use { ssh ->
+            when (val login = ssh.login(keys)) {
+                HeadlessSsh.Login.Ok -> HerdSession(host.nickname, ssh::exec, sendKeys = {}, scope, dispatchers.io).answer(paneId, answer)
+                HeadlessSsh.Login.HostKeyRefused -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_host_key, host.nickname))
+                HeadlessSsh.Login.KeysRefused -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_keys_refused, host.nickname))
+                is HeadlessSsh.Login.Failed -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_unreachable, host.nickname, login.message))
+            }
+        }
     }
 
     override fun onRebind(intent: Intent) {
@@ -765,6 +861,7 @@ class TerminalManager :
         isUiBound = true
         keepServiceAlive()
         setResizeAllowed(true)
+        reconnectDroppedBridges()
     }
 
     override fun onUnbind(intent: Intent): Boolean {
@@ -857,15 +954,44 @@ class TerminalManager :
     }
 
     /**
-     * Send system notification to user for a certain host. When user selects
-     * the notification, it will bring them directly to the ConsoleActivity
-     * displaying the host.
-     *
-     * @param host
+     * A session wants the user's attention — an agent finished a turn (IDLE) or
+     * rang the bell (BELL). Notify only when the user is away from it: the app is
+     * backgrounded, or a different session is on screen. Tapping the notification
+     * jumps straight to that host's console.
      */
-    fun sendActivityNotification(host: Host) {
-        if (!isUiBound && prefs.getBoolean(PreferenceConstants.BELL_NOTIFICATION, false)) {
-            connectionNotifier.showActivityNotification(this, host)
+    fun onAgentAttention(bridge: TerminalBridge, reason: TerminalBridge.AttentionReason) {
+        // A Herdr session notifies from Herdr's own status instead (onHerdNotices).
+        if (HerdAttention.bellMayNotify(bridge.host, away = !isOnScreen(bridge))) {
+            connectionNotifier.showAgentNotification(this, bridge.host, reason)
+        }
+    }
+
+    /** Whether [bridge]'s console is what the user is looking at right now. */
+    fun isOnScreen(bridge: TerminalBridge): Boolean = isUiBound && bridge.host.id == visibleHostId
+
+    /**
+     * Herdr says an agent needs the user or finished (see HerdAttention, which
+     * already left out the agent the user is looking at). Called off the main thread.
+     */
+    fun onHerdNotices(bridge: TerminalBridge, notices: List<HerdAttention.Notice>) {
+        notices.forEach { connectionNotifier.showHerdNotification(this, bridge.host, it) }
+    }
+
+    /**
+     * Reconnect sessions that dropped while the app was away (network change,
+     * device sleep), so returning to the foreground finds them live again.
+     * User-closed sessions are left alone.
+     */
+    private fun reconnectDroppedBridges() {
+        synchronized(_bridges) {
+            for (bridge in _bridges) {
+                if (bridge.isDisconnected &&
+                    bridge.isUsingNetwork() &&
+                    bridge.disconnectReason != DisconnectReason.USER_REQUESTED
+                ) {
+                    requestReconnect(bridge)
+                }
+            }
         }
     }
 
@@ -1000,6 +1126,41 @@ class TerminalManager :
         }
     }
 
+    /** Usage log and Sun upload hooks; no-ops when the service was built without injection (tests). */
+    internal fun onSessionConnecting(bridge: TerminalBridge) {
+        if (::usageTracker.isInitialized) usageTracker.sessionConnecting(bridge, bridge.runsHerdr)
+    }
+
+    internal fun onSessionOpened(bridge: TerminalBridge) {
+        if (::usageTracker.isInitialized) usageTracker.sessionOpened(bridge, bridge.runsHerdr)
+        if (::sunSync.isInitialized) sunSync.onSessionOpen(bridge, bridge.host, (bridge.transport as? SSH)?.let(::SshSunLink))
+        if (::pushEndpoints.isInitialized) syncPushEndpoint(bridge)
+    }
+
+    /**
+     * Write this phone's push endpoint into [bridge]'s host once Herdr answers there
+     * (a host without Herdr never pushes), over an exec channel beside the PTY.
+     */
+    private fun syncPushEndpoint(bridge: TerminalBridge) {
+        val herd = bridge.herd ?: return
+        scope.launch(dispatchers.io) {
+            withTimeoutOrNull(PUSH_SYNC_WAIT_MS) { herd.snapshot.first { it != null } } ?: return@launch
+            val ssh = (bridge.transport as? SSH)?.takeIf { it.isConnected() } ?: return@launch
+            if (pushEndpoints.endpoint.value == null && pushEndpoints.previous == null) return@launch
+            if (pushEndpoints.syncTo(bridge.host.nickname, ssh::execDetailed)) usageTracker.log(UsageActions.PUSH_HOST_SYNCED)
+        }
+    }
+
+    /** Log a control a session raised itself (the Herdr connect picker). */
+    internal fun logUsage(actionId: String) {
+        if (::usageTracker.isInitialized) usageTracker.log(actionId)
+    }
+
+    internal fun onSessionClosed(bridge: TerminalBridge, reason: DisconnectReason) {
+        if (::usageTracker.isInitialized) usageTracker.sessionClosed(bridge, bridge.runsHerdr, reason.name)
+        if (::sunSync.isInitialized) sunSync.onSessionClosed(bridge)
+    }
+
     /**
      * Notify that a bridge's connection state has changed (connected or disconnected-but-staying).
      * Called by [TerminalBridge] so the UI can recompose with fresh state.
@@ -1018,6 +1179,9 @@ class TerminalManager :
         const val TAG = "CB.TerminalManager"
 
         const val VIBRATE_DURATION: Long = 30
+
+        // How long a new session may take to show it runs Herdr before its push endpoint is skipped.
+        private const val PUSH_SYNC_WAIT_MS = 60_000L
 
         // Must match AUTH_VALIDITY_DURATION_SECONDS in BiometricKeyManager
         const val BIOMETRIC_AUTH_VALIDITY_SECONDS = 30

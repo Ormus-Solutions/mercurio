@@ -47,9 +47,6 @@ object TransportFactory {
     fun getUri(scheme: String, input: String): Uri? {
         Timber.d("Attempting to discover URI for scheme=$scheme on input=$input")
         val transport = Transport.fromProtocol(scheme)
-        if (transport is Transport.Local) {
-            Timber.d("Got to the local parsing area")
-        }
         return transport?.parseUri(input)
     }
 

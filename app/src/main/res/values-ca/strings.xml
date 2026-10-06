@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Interfície d\'usuari</string>
   <string name="pref_language_title">Idioma</string>
   <string name="pref_language_system_default">Configuració per defecte del sistema</string>
-  <string name="pref_theme_title">Tema</string>
-  <string name="pref_theme_system">Configuració per defecte del sistema</string>
-  <string name="pref_theme_light">Llum</string>
-  <string name="pref_theme_dark">Fosc</string>
   <string name="pref_rotation_title">Mode de rotació</string>
   <string name="pref_titlebarhide_title">Amaga automàticament la barra de títol</string>
   <string name="pref_titlebarhide_summary">Toqueu la consola per mostrar la barra de títol i el menú d\'accés</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Edita el color %1$d</string>
   <string name="dialog_title_reset_all">Restaurar tots els colors?</string>
   <string name="dialog_message_reset_all">Això restablirà tots els 256 colors als seus valors per defecte. Aquesta acció no es pot revertir.</string>
-  <string name="app_is_running">El ConnectBot està en marxa</string>
+  <string name="app_is_running">El Mercurio està en marxa</string>
   <string name="label_red">Vermell</string>
   <string name="label_green">Verd</string>
   <string name="label_blue">Blau</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Entrada de text</string>
-  <string name="terminal_text_input_dialog_title">Entrada de text</string>
-  <string name="terminal_text_input_dialog_label">Introduïu el text que voleu enviar al terminal.</string>
-  <string name="terminal_text_input_resize_handle">Canviar la mida</string>
-  <string name="console_menu_text_input">Entrada de text</string>
+    <string name="terminal_text_input_dialog_label">Introduïu el text que voleu enviar al terminal.</string>
+    <string name="console_menu_text_input">Entrada de text</string>
   <string name="button_send">Envia</string>
   <string name="button_ok">D\'acord</string>
   <string name="button_close">Tanca</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Configuració de l\'amfitrió</string>
   <string name="pubkey_import_existing">Importa una clau pública existent</string>
   <string name="notification_permission_title">Manteniu-vos connectat en segon pla</string>
-  <string name="notification_permission_message">ConnectBot necessita permís per enviar notificacions per tal de mantenir les connexions actives quan canvieu d\'aplicació. Sense aquest permís, el sistema pot tallar les connexions per estalviar bateria.</string>
+  <string name="notification_permission_message">Mercurio necessita permís per enviar notificacions per tal de mantenir les connexions actives quan canvieu d\'aplicació. Sense aquest permís, el sistema pot tallar les connexions per estalviar bateria.</string>
   <string name="grant_permission">Permetre</string>
   <string name="connect_anyway">Connecta de totes maneres</string>
   <string name="notification_permission_denied_title">Es necessari el permís de notificacions</string>
-  <string name="notification_permission_denied_message">Per mantenir les connexions actives en segon pla, activeu les notificacions de ConnectBot a la configuració del sistema.</string>
+  <string name="notification_permission_denied_message">Per mantenir les connexions actives en segon pla, activeu les notificacions de Mercurio a la configuració del sistema.</string>
   <string name="open_settings">Obriu la configuració</string>
   <string name="notification_permission_denied_snackbar">És possible que les connexions es tallin sense que es demani permís</string>
   <string name="notification_permission_console_warning">La connexió pot tallar-se quan l\'aplicació està en segon pla</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Registre d\'aplicacions</string>
   <string name="copy_logs">Copia els registres</string>
   <string name="logs_copied">Els registres s\'han copiat a la memòria portallàpies.</string>
-  <string name="logs_bug_report_info">Per informar d\'un error, copieu aquests registres i obriu un nou registre a https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Per informar d\'un error, copieu aquests registres i obriu un nou registre a https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">No hi ha registres disponibles.</string>
   <string name="help_section_about">Sobre</string>
   <string name="title_contact">Contacte i assistència</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Autenticació en iniciar l\'aplicació</string>
   <string name="pref_auth_on_launch_summary">Demana l\'empremta digital, el reconeixement facial o el PIN del dispositiu quan s\'obre l\'aplicació.</string>
   <string name="pref_security_category">Seguretat</string>
-  <string name="auth_screen_title">ConnectBot està bloquejat.</string>
+  <string name="auth_screen_title">Mercurio està bloquejat.</string>
   <string name="auth_screen_unlock_button">Toqueu per desbloquejar</string>
-  <string name="auth_prompt_title">Desbloqueja ConnectBot</string>
+  <string name="auth_prompt_title">Desbloqueja Mercurio</string>
   <string name="auth_prompt_subtitle">Verifiqueu la vostra identitat per continuar.</string>
   <string name="pref_language_download" tools:machine_translated="true">Descarrega el paquet d’idioma</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">La descàrrega ha fallat; toqueu per tornar-ho a provar.</string>

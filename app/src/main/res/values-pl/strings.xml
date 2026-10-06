@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Interfejs użytkownika</string>
   <string name="pref_language_title">Język</string>
   <string name="pref_language_system_default">Domyślne ustawienia systemu</string>
-  <string name="pref_theme_title">Motyw</string>
-  <string name="pref_theme_system">Domyślne ustawienia systemu</string>
-  <string name="pref_theme_light">Lekki</string>
-  <string name="pref_theme_dark">Ciemny</string>
   <string name="pref_rotation_title">Sposób orientacji ekranu</string>
   <string name="pref_titlebarhide_title">Automatycznie chowaj pasek tytułowy</string>
   <string name="pref_titlebarhide_summary">Naciśnij konsolę aby wyświetlić pasek tytułowy i uzyskać dostęp do menu</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Edytuj kolor %1$d</string>
   <string name="dialog_title_reset_all">Zresetować wszystkie kolory?</string>
   <string name="dialog_message_reset_all">To spowoduje zresetowanie wszystkich 256 kolorów do ich wartości domyślnych. Ten czynność nie może być cofnięta.</string>
-  <string name="app_is_running">ConnectBot jest uruchomiony</string>
+  <string name="app_is_running">Mercurio jest uruchomiony</string>
   <string name="label_red">Czerwony</string>
   <string name="label_green">Zielony</string>
   <string name="label_blue">Niebieski</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Wprowadzanie tekstu</string>
-  <string name="terminal_text_input_dialog_title">Wprowadzanie tekstu</string>
-  <string name="terminal_text_input_dialog_label">Wprowadź tekst do wysłania do terminala</string>
-  <string name="terminal_text_input_resize_handle">Zmień rozmiar</string>
-  <string name="console_menu_text_input">Wprowadzanie tekstu</string>
+    <string name="terminal_text_input_dialog_label">Wprowadź tekst do wysłania do terminala</string>
+    <string name="console_menu_text_input">Wprowadzanie tekstu</string>
   <string name="button_send">Wyślij</string>
   <string name="button_ok">OK</string>
   <string name="button_close">Zamknij</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Ustawienia hosta</string>
   <string name="pubkey_import_existing">Importuj istniejący klucz publiczny</string>
   <string name="notification_permission_title">Pozostań połączony w tle</string>
-  <string name="notification_permission_message">ConnectBot wymaga uprawnień do wyświetlania powiadomień, aby utrzymać aktywne połączenia podczas przełączania między aplikacjami. W przeciwnym razie system może rozłączyć połączenia, aby oszczędzać baterię.</string>
+  <string name="notification_permission_message">Mercurio wymaga uprawnień do wyświetlania powiadomień, aby utrzymać aktywne połączenia podczas przełączania między aplikacjami. W przeciwnym razie system może rozłączyć połączenia, aby oszczędzać baterię.</string>
   <string name="grant_permission">Zezwól</string>
   <string name="connect_anyway">Połącz się i tak</string>
   <string name="notification_permission_denied_title">Wymagana zgoda na wyświetlanie powiadomień</string>
-  <string name="notification_permission_denied_message">Aby połączenia były aktywne w tle, włącz powiadomienia dla ConnectBot w ustawieniach systemu.</string>
+  <string name="notification_permission_denied_message">Aby połączenia były aktywne w tle, włącz powiadomienia dla Mercurio w ustawieniach systemu.</string>
   <string name="open_settings">Otwórz ustawienia</string>
   <string name="notification_permission_denied_snackbar">Połączenia mogą zostać przerwane bez powiadomienia, jeśli nie udzielono odpowiedniej zgody</string>
   <string name="notification_permission_console_warning">Połączenie może zostać przerwane, gdy aplikacja działa w tle</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Dzienniki aplikacji</string>
   <string name="copy_logs">Kopiuj dzienniki</string>
   <string name="logs_copied">Dzienniki skopiowane do schowka</string>
-  <string name="logs_bug_report_info">Aby zgłosić błąd, skopiuj te logi i otwórz nowy problem pod adresem https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Aby zgłosić błąd, skopiuj te logi i otwórz nowy problem pod adresem https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">Brak dostępnych logów</string>
   <string name="help_section_about">O ConnectBot jest aplikacją SSH dla systemu Android która pozwala uzytkownikom na uzycie Secure Shell Telnet lub lokalnej powloki aby polaczyc sie z zdalnymi serwerami oraz lokalnym systemem poprzez okreslenie hosta portu i nazwy uzytkownika do polaczenia. Zawiera rowniez emulator terminala ktorym uzytkownicy moga uzyc do interakcji ze zdalna lub lokalna powloka</string>
   <string name="title_contact">Kontakt i pomoc</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Uwierzytelnianie przy uruchomieniu</string>
   <string name="pref_auth_on_launch_summary">Wymagaj uwierzytelnienia za pomocą odcisku palca, rozpoznawania twarzy lub kodu PIN urządzenia podczas uruchamiania aplikacji.</string>
   <string name="pref_security_category">Bezpieczeństwo</string>
-  <string name="auth_screen_title">ConnectBot jest zablokowany</string>
+  <string name="auth_screen_title">Mercurio jest zablokowany</string>
   <string name="auth_screen_unlock_button">Dotknij, aby odblokować</string>
-  <string name="auth_prompt_title">Odblokuj ConnectBot</string>
+  <string name="auth_prompt_title">Odblokuj Mercurio</string>
   <string name="auth_prompt_subtitle">Aby kontynuować, zweryfikuj swoją tożsamość.</string>
   <string name="pref_language_download" tools:machine_translated="true">Pobierz pakiet językowy</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Pobieranie nie powiodło się, dotknij, aby spróbować ponownie.</string>

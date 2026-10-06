@@ -19,7 +19,12 @@ package org.connectbot
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.logging.TimberInitializer
+import solutions.ormus.logos.push.PushRegistration
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -28,8 +33,19 @@ class ConnectBotApplication : Application() {
     @Inject
     lateinit var timberInitializer: TimberInitializer
 
+    @Inject
+    lateinit var dispatchers: CoroutineDispatchers
+
     override fun onCreate() {
         super.onCreate()
         timberInitializer.initialize()
+        // Push alerts while Mercurio sleeps: register with the ntfy app when it is installed.
+        CoroutineScope(dispatchers.io).launch {
+            try {
+                PushRegistration.start(this@ConnectBotApplication)
+            } catch (e: Exception) {
+                Timber.w(e, "UnifiedPush registration failed")
+            }
+        }
     }
 }

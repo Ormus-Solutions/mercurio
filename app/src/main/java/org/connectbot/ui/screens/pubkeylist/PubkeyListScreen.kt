@@ -509,7 +509,7 @@ private fun PubkeyListItem(
                             .padding(2.dp)
                             .border(
                                 width = 2.dp, // Border thickness
-                                color = Color.Green, // Border color
+                                color = MaterialTheme.colorScheme.primary, // Gold ring: key is loaded
                                 shape = CircleShape, // Makes the border a circle
                             )
                             .clip(CircleShape)

@@ -179,7 +179,7 @@
   <string name="no">Όχι</string>
   <string name="yes">Ναι</string>
   <string name="menu_colors_reset">Επαναφορά</string>
-  <string name="app_is_running">Εκτελείται το ConnectBot</string>
+  <string name="app_is_running">Εκτελείται το Mercurio</string>
   <string name="colors_fg_label">ΧΓ: %1$d</string>
   <string name="color_bg_label">ΧΠ: %1$d</string>
   <string name="image_description_connected">Έγινε σύνδεση.</string>
@@ -271,10 +271,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Προεπιλεγμένη ρύθμιση συστήματος</string>
   <string name="pref_language_download" tools:machine_translated="true">Λήψη πακέτου γλωσσών</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Η λήψη απέτυχε, πατήστε για να επιχειρήσετε ξανά.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Θέμα</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Προεπιλεγμένες ρυθμίσεις συστήματος</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Ανοιχτόχρωμο</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Σκοτεινό</string>
   <string name="pref_conn_persist_title" tools:machine_translated="true">Διατηρήστε τη σύνδεση στο παρασκήνιο</string>
   <string name="pref_conn_persist_summary" tools:machine_translated="true">Διατηρήστε τις συνεδρίες σας ενεργές, ακόμη και όταν μεταβαίνετε σε άλλες εφαρμογές.</string>
   <string name="pref_bell_summary" tools:machine_translated="true">Αναπαραγωγή ήχου κατά την εμφάνιση ειδοποίησης στο τερματικό.</string>
@@ -396,10 +392,8 @@
   <string name="palette_editor_builtin_note" tools:machine_translated="true">Τα προεγκατεστημένα θέματα είναι μόνο για ανάγνωση. Δημιουργήστε ένα αντίγραφο για να τα προσαρμόσετε.</string>
   <string name="section_color_preview" tools:machine_translated="true">Προεπισκόπηση</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Εισαγωγή κειμένου</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Εισαγωγή κειμένου</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Εισαγάγετε το κείμενο που θέλετε να στείλετε στην κονσόλα</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Αλλαγή μεγέθους</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Εισαγωγή κειμένου</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Εισαγάγετε το κείμενο που θέλετε να στείλετε στην κονσόλα</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Εισαγωγή κειμένου</string>
   <string name="button_send" tools:machine_translated="true">Αποστολή</string>
   <string name="button_ok" tools:machine_translated="true">Εντάξει</string>
   <string name="button_close" tools:machine_translated="true">Κλείσιμο</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Περιεχόμενο του ιδιωτικού κλειδιού</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Επικόλληση από το πρόχειρο</string>
   <string name="notification_permission_title" tools:machine_translated="true">Διατηρήστε τη σύνδεση στο παρασκήνιο</string>
-  <string name="notification_permission_message" tools:machine_translated="true">Το ConnectBot χρειάζεται άδεια για την αποστολή ειδοποιήσεων, ώστε να διατηρεί τις συνδέσεις σας ενεργές όταν αλλάζετε εφαρμογές. Χωρίς αυτήν, το σύστημα ενδέχεται να διακόψει τις συνδέσεις σας για να εξοικονομήσει μπαταρία.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Το Mercurio χρειάζεται άδεια για την αποστολή ειδοποιήσεων, ώστε να διατηρεί τις συνδέσεις σας ενεργές όταν αλλάζετε εφαρμογές. Χωρίς αυτήν, το σύστημα ενδέχεται να διακόψει τις συνδέσεις σας για να εξοικονομήσει μπαταρία.</string>
   <string name="grant_permission" tools:machine_translated="true">Επιτρέψτε</string>
   <string name="connect_anyway" tools:machine_translated="true">Συνδέστε ούτως ή άλλως</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Απαιτείται άδεια για τις ειδοποιήσεις.</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">Για να διατηρήσετε τις συνδέσεις σας ενεργές στο παρασκήνιο, ενεργοποιήστε τις ειδοποιήσεις για την εφαρμογή ConnectBot στις ρυθμίσεις του συστήματος.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">Για να διατηρήσετε τις συνδέσεις σας ενεργές στο παρασκήνιο, ενεργοποιήστε τις ειδοποιήσεις για την εφαρμογή Mercurio στις ρυθμίσεις του συστήματος.</string>
   <string name="open_settings" tools:machine_translated="true">Άνοιγμα ρυθμίσεων</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Οι συνδέσεις ενδέχεται να διακοπούν χωρίς την απαραίτητη άδεια για αποστολή ειδοποιήσεων.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Η σύνδεση ενδέχεται να διακοπεί όταν η εφαρμογή εκτελείται στο παρασκήνιο.</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Αρχεία καταγραφής εφαρμογών</string>
   <string name="copy_logs" tools:machine_translated="true">Αντιγραφή αρχείων καταγραφής</string>
   <string name="logs_copied" tools:machine_translated="true">Τα αρχεία καταγραφής αντιγράφηκαν στο πρόχειρο.</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">Για να αναφέρετε ένα σφάλμα, αντιγράψτε αυτά τα αρχεία καταγραφής και δημιουργήστε ένα νέο αίτημα στην ιστοσελίδα https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">Για να αναφέρετε ένα σφάλμα, αντιγράψτε αυτά τα αρχεία καταγραφής και δημιουργήστε ένα νέο αίτημα στην ιστοσελίδα https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">Δεν υπάρχουν διαθέσιμα αρχεία καταγραφής.</string>
   <string name="help_section_about" tools:machine_translated="true">Σχετικά με</string>
   <string name="title_contact" tools:machine_translated="true">Επικοινωνία και Υποστήριξη</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Έλεγχος ταυτότητας κατά την εκκίνηση</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Απαιτείται η χρήση δακτυλικού αποτυπώματος, αναγνώρισης προσώπου ή κωδικού PIN της συσκευής κατά το άνοιγμα της εφαρμογής.</string>
   <string name="pref_security_category" tools:machine_translated="true">Ασφάλεια</string>
-  <string name="auth_screen_title" tools:machine_translated="true">Το ConnectBot είναι κλειδωμένο.</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Το Mercurio είναι κλειδωμένο.</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Πατήστε για να ξεκλειδώσετε</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Ξεκλειδώστε το ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Ξεκλειδώστε το Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Επαληθεύστε την ταυτότητά σας για να συνεχίσετε.</string>
   <string name="auth_banner_title" tools:machine_translated="true">Μήνυμα αυθεντικοποίησης από το %1$s.</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Μήνυμα αυθεντικοποίησης:</string>

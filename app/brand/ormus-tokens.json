@@ -1,0 +1,97 @@
+{
+  "$comment": "Ormus fusion tokens for places CSS variables cannot reach: canvas, WebGL, Python, slide tools. Values match tokens.css; test/tokens.test.mjs enforces it.",
+  "version": "0.2.0",
+  "color": {
+    "midnight": "#14213d",
+    "deep": "#0e1830",
+    "gold": "#d29e3d",
+    "goldBright": "#e0b258",
+    "ink": "#eceae3",
+    "inkMuted": "#a5b0c4",
+    "dim": "#6d7891",
+    "hairline": "rgba(236, 234, 227, 0.12)",
+    "onGold": "#1a1407",
+    "codeBg": "#0b1226",
+    "danger": "#d44f4f"
+  },
+  "canvas": {
+    "$comment": "Graph and chart palette, from the site's GraphCanvas. Class reads through intensity: gold, ink, muted, dim.",
+    "background": "#0e1830",
+    "nodePrimary": "#d29e3d",
+    "nodeSecondary": "#eceae3",
+    "nodeTertiary": "#a5b0c4",
+    "nodeQuiet": "#6d7891",
+    "label": "#eceae3",
+    "nodeBorder": "rgba(236, 234, 227, 0.2)",
+    "edgeGold": "rgba(210, 158, 61, 0.3)",
+    "edgeGoldSoft": "rgba(210, 158, 61, 0.2)",
+    "edgeMuted": "rgba(165, 176, 196, 0.12)",
+    "edgeDefault": "rgba(236, 234, 227, 0.08)"
+  },
+  "print": {
+    "$comment": "fusion.css remaps the palette to these values under @media print.",
+    "paper": "#ffffff",
+    "gold": "#8a6519",
+    "goldBright": "#8a6519",
+    "ink": "#1a1407",
+    "inkMuted": "#14213d",
+    "dim": "#14213d",
+    "onGold": "#ffffff",
+    "hairline": "rgba(26, 20, 7, 0.2)"
+  },
+  "font": {
+    "display": "'Cormorant Garamond', Georgia, serif",
+    "sans": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+    "mono": "'JetBrains Mono', 'Fira Code', Consolas, monospace"
+  },
+  "typeScale": {
+    "$comment": "Heading and text sizes from the ormus.solutions prose-fusion rules; weights and tracking from fusion.css.",
+    "h1": {
+      "font": "display",
+      "size": "2.25rem",
+      "lineHeight": "2.5rem",
+      "weight": 300,
+      "tracking": "-0.01em"
+    },
+    "h2": {
+      "font": "display",
+      "size": "1.875rem",
+      "lineHeight": "2.25rem",
+      "weight": 400,
+      "tracking": "-0.025em"
+    },
+    "h3": {
+      "font": "display",
+      "size": "1.5rem",
+      "lineHeight": "2rem",
+      "weight": 400,
+      "tracking": "0"
+    },
+    "body": {
+      "font": "sans",
+      "size": "1rem",
+      "lineHeight": "1.8",
+      "weight": 400,
+      "tracking": "0"
+    },
+    "label": {
+      "font": "mono",
+      "size": "0.72rem",
+      "lineHeight": "1.5",
+      "weight": 400,
+      "tracking": "0.08em",
+      "transform": "uppercase",
+      "prefix": "/ "
+    }
+  },
+  "motion": {
+    "easeReveal": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "easeRevealPoints": [
+      0.16,
+      1,
+      0.3,
+      1
+    ]
+  },
+  "radius": "3px"
+}

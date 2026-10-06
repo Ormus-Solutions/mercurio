@@ -1,6 +1,6 @@
 /*
  * ConnectBot: simple, powerful, open-source SSH client for Android
- * Copyright 2025 Kenny Root
+ * Copyright 2025-2026 Kenny Root
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,11 +60,14 @@ import org.connectbot.service.TerminalManager
 import org.connectbot.ui.components.DisconnectAllDialog
 import org.connectbot.ui.navigation.NavDestinations
 import org.connectbot.ui.theme.ConnectBotTheme
+import org.connectbot.usage.UsageTracker
 import org.connectbot.util.IconStyle
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.ShortcutIconGenerator
 import org.connectbot.util.isNotificationPermissionGranted
+import solutions.ormus.logos.herd.HerdrAction
 import timber.log.Timber
+import javax.inject.Inject
 
 // TODO: Move back to ComponentActivity when https://issuetracker.google.com/issues/178855209 is fixed.
 //       FragmentActivity subclass is required for BiometricPrompt to find the FragmentManager
@@ -73,11 +77,29 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val STATE_SELECTED_URI = "selectedUri"
         const val DISCONNECT_ACTION = "org.connectbot.action.DISCONNECT"
+
+        /** Extra on a host URI intent: the Herdr pane to focus once its console opens. */
+        const val EXTRA_HERD_PANE = "solutions.ormus.logos.extra.HERD_PANE"
+
+        /** Extra beside [EXTRA_HERD_PANE]: the usage id of the notification that was tapped. */
+        const val EXTRA_HERD_NOTICE = "solutions.ormus.logos.extra.HERD_NOTICE"
     }
 
     internal lateinit var appViewModel: AppViewModel
+
+    @Inject
+    internal lateinit var usageTracker: UsageTracker
     private var bound = false
     private var requestedUri: Uri? by mutableStateOf(null)
+
+    // The Herdr pane a notification asked to focus, used with requestedUri.
+    private var requestedHerdPane: String? = null
+
+    /** Remember a tapped Herdr notification's pane and log the tap (an id only). */
+    private fun takeHerdNotification(intent: Intent?) {
+        requestedHerdPane = intent?.getStringExtra(EXTRA_HERD_PANE)
+        intent?.getStringExtra(EXTRA_HERD_NOTICE)?.let { usageTracker.log(it) }
+    }
     private var pendingHostConnection: Host? by mutableStateOf(null)
 
     // Holds the host waiting for permission result; not compose state so it doesn't trigger navigation.
@@ -134,6 +156,7 @@ class MainActivity : AppCompatActivity() {
 
         if (savedInstanceState == null) {
             requestedUri = intent?.data
+            takeHerdNotification(intent)
             makingShortcut = Intent.ACTION_CREATE_SHORTCUT == intent?.action ||
                 Intent.ACTION_PICK == intent?.action
             Timber.d("onCreate: requestedUri=$requestedUri, makingShortcut=$makingShortcut")
@@ -152,9 +175,16 @@ class MainActivity : AppCompatActivity() {
             val pendingDisconnectAll by appViewModel.pendingDisconnectAll.collectAsState()
             val isAuthenticated by appViewModel.isAuthenticated.collectAsState()
             val authOnLaunchEnabled = appViewModel.authOnLaunchEnabled
-            val themeMode by appViewModel.themeMode.collectAsState()
             val navController = rememberNavController()
             val context = LocalContext.current
+            // Usage log: stamp each event with the screen showing (its route's first segment).
+            DisposableEffect(navController) {
+                val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+                    usageTracker.setScreen(destination.route)
+                }
+                navController.addOnDestinationChangedListener(listener)
+                onDispose { navController.removeOnDestinationChangedListener(listener) }
+            }
             var showPermissionRationale by remember { mutableStateOf(false) }
 
             LaunchedEffect(Unit) {
@@ -310,7 +340,6 @@ class MainActivity : AppCompatActivity() {
                 makingShortcut = makingShortcut,
                 authRequired = authOnLaunchEnabled,
                 isAuthenticated = isAuthenticated,
-                themeMode = themeMode,
                 onAuthenticationSuccess = { appViewModel.onAuthenticationSuccess() },
                 onRetryMigration = { appViewModel.retryMigration() },
                 onSelectShortcut = { host, color, iconStyle ->
@@ -321,6 +350,7 @@ class MainActivity : AppCompatActivity() {
                     !appViewModel.hostListSnackbarShownThisLaunch && appViewModel.shouldShowNotificationWarning()
                 },
                 onNotificationSnackbarFinish = { appViewModel.markHostListSnackbarShown() },
+                usageLog = usageTracker,
             )
         }
     }
@@ -332,6 +362,7 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
 
         intent.data?.let { uri ->
+            takeHerdNotification(intent)
             requestedUri = uri
         }
     }
@@ -379,6 +410,10 @@ class MainActivity : AppCompatActivity() {
                     Timber.d("Creating new connection for URI: $uri with nickname: $nickname")
                     bridge = manager.openConnection(uri)
                 }
+
+                // From a Herdr notification: focus that agent in Herdr as the console opens.
+                requestedHerdPane?.let { pane -> bridge.herd?.perform(HerdrAction.FocusAgent(pane)) }
+                requestedHerdPane = null
 
                 controller.navigate("${NavDestinations.CONSOLE}/${bridge.host.id}") {
                     launchSingleTop = true

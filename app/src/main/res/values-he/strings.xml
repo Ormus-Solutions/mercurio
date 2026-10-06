@@ -145,7 +145,7 @@
   <string name="no">לא</string>
   <string name="yes">כן</string>
   <string name="menu_colors_reset">איפוס</string>
-  <string name="app_is_running">ConnectBot פעיל</string>
+  <string name="app_is_running">Mercurio פעיל</string>
   <string name="colors_fg_label">קדמה:%1$d</string>
   <string name="color_bg_label">רקע:%1$d</string>
   <string name="image_description_connected">יש חיבור.</string>
@@ -218,10 +218,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">ברירת המחדל של המערכת</string>
   <string name="pref_language_download" tools:machine_translated="true">הורד חבילת שפה</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">ההורדה נכשלה, לחצו כדי לנסות שוב.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">עיצוב</string>
-  <string name="pref_theme_system" tools:machine_translated="true">ברירת המחדל של המערכת</string>
-  <string name="pref_theme_light" tools:machine_translated="true">בהיר</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">כהה</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">הסתר אוטומטי של סרגל הכותרת</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">הקש על הקונסולה כדי להציג את סרגל הכותרת ולגשת לתפריט.</string>
   <string name="pref_alwaysvisible_title" tools:machine_translated="true">מקשים מיוחדים – תמיד גלויים</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">הזנת טקסט</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">הזנת טקסט</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">הזן את הטקסט שברצונך לשלוח למסוף</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">שנה גודל</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">הזנת טקסט</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">הזן את הטקסט שברצונך לשלוח למסוף</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">הזנת טקסט</string>
   <string name="button_send" tools:machine_translated="true">שלח</string>
   <string name="button_ok" tools:machine_translated="true">בסדר</string>
   <string name="button_close" tools:machine_translated="true">סגור</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">תוכן המפתח הפרטי</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">הדבק מלוח הגזירים</string>
   <string name="notification_permission_title" tools:machine_translated="true">הישארו מחוברים ברקע</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot זקוק לאישור הודעות כדי לשמור על חיבורי הרשת שלך פעילים כשאתה עובר בין אפליקציות. בלעדיו, ייתכן שהמערכת תנתק את החיבורים שלך כדי לחסוך בסוללה.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio זקוק לאישור הודעות כדי לשמור על חיבורי הרשת שלך פעילים כשאתה עובר בין אפליקציות. בלעדיו, ייתכן שהמערכת תנתק את החיבורים שלך כדי לחסוך בסוללה.</string>
   <string name="grant_permission" tools:machine_translated="true">אפשר</string>
   <string name="connect_anyway" tools:machine_translated="true">התחבר בכל מקרה</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">יש צורך באישור להצגת התראות.</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">כדי לשמור על חיבורי הרשת שלך פעילים ברקע, אנא הפעל התראות עבור ConnectBot בהגדרות המערכת.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">כדי לשמור על חיבורי הרשת שלך פעילים ברקע, אנא הפעל התראות עבור Mercurio בהגדרות המערכת.</string>
   <string name="open_settings" tools:machine_translated="true">פתח הגדרות</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">ייתכן שהחיבורים ינותקו ללא אישור להצגת התראות.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">ייתכן שהחיבור ינותק בזמן שהאפליקציה פועלת ברקע.</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">יומני רישום של היישום</string>
   <string name="copy_logs" tools:machine_translated="true">העתק יומנים</string>
   <string name="logs_copied" tools:machine_translated="true">היומנים הועתקו ללוח הגזירים</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">כדי לדווח על תקלה, העתיקו את קבצי הרישום הללו ופתחו דיווח חדש בכתובת https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">כדי לדווח על תקלה, העתיקו את קבצי הרישום הללו ופתחו דיווח חדש בכתובת https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available" tools:machine_translated="true">אין רישומי מערכת זמינים</string>
   <string name="help_section_about" tools:machine_translated="true">אודות</string>
   <string name="title_contact" tools:machine_translated="true">צור קשר ותמיכה</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">אימות בעת הפעלת האפליקציה</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">יש לדרוש טביעת אצבע, זיהוי פנים או קוד PIN של המכשיר בעת פתיחת האפליקציה.</string>
   <string name="pref_security_category" tools:machine_translated="true">אבטחה</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot נעול</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio נעול</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">הקש כדי לפתוח את הנעילה</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">אפשר את ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">אפשר את Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">אמת את זהותך כדי להמשיך</string>
   <string name="auth_banner_title" tools:machine_translated="true">הודעת אימות ממקור: %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] הודעת אימות:</string>

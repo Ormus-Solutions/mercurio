@@ -113,10 +113,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Setarea implicită a sistemului</string>
   <string name="pref_language_download" tools:machine_translated="true">Descarcă pachetul lingvistic.</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Descărcarea a eșuat, atingeți pentru a încerca din nou.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Temă</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Setările implicite ale sistemului</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Temă deschisă</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Întunecat</string>
   <string name="pref_rotation_title" tools:machine_translated="true">Mod de rotire</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">Ascunde automat bara de titlu</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">Atingeți consola pentru a afișa bara de titlu și pentru a accesa meniul.</string>
@@ -346,7 +342,7 @@
   <string name="dialog_title_edit_color" tools:machine_translated="true">Editează culoarea %1$d</string>
   <string name="dialog_title_reset_all" tools:machine_translated="true">Resetați toate culorile?</string>
   <string name="dialog_message_reset_all" tools:machine_translated="true">Această acțiune va reseta toate cele 256 de culori la valorile lor implicite. Această operație nu poate fi anulată.</string>
-  <string name="app_is_running" tools:machine_translated="true">ConnectBot este în funcțiune</string>
+  <string name="app_is_running" tools:machine_translated="true">Mercurio este în funcțiune</string>
   <string name="label_red" tools:machine_translated="true">Roșu</string>
   <string name="label_green" tools:machine_translated="true">Verde</string>
   <string name="label_blue" tools:machine_translated="true">Albastru</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Introducere text</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Introducere text</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Introduceți textul pe care doriți să-l trimiteți la terminal.</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Redimensionează</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Introducere text</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Introduceți textul pe care doriți să-l trimiteți la terminal.</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Introducere text</string>
   <string name="button_send" tools:machine_translated="true">Trimite</string>
   <string name="button_ok" tools:machine_translated="true">Bine</string>
   <string name="button_close" tools:machine_translated="true">Închide</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Conținutul cheii private</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Copiază din zona de lucru</string>
   <string name="notification_permission_title" tools:machine_translated="true">Menține conexiunea activă în fundal.</string>
-  <string name="notification_permission_message" tools:machine_translated="true">ConnectBot are nevoie de permisiunea de a trimite notificări pentru a menține conexiunile active atunci când schimbați aplicațiile. În caz contrar, sistemul poate întrerupe conexiunile pentru a economisi bateria.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Mercurio are nevoie de permisiunea de a trimite notificări pentru a menține conexiunile active atunci când schimbați aplicațiile. În caz contrar, sistemul poate întrerupe conexiunile pentru a economisi bateria.</string>
   <string name="grant_permission" tools:machine_translated="true">Permite</string>
   <string name="connect_anyway" tools:machine_translated="true">Conectează-te oricum</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Este necesar să acordați permisiunea pentru notificări.</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">Pentru a menține conexiunile active în fundal, vă rugăm să activați notificările pentru ConnectBot în setările sistemului.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">Pentru a menține conexiunile active în fundal, vă rugăm să activați notificările pentru Mercurio în setările sistemului.</string>
   <string name="open_settings" tools:machine_translated="true">Deschide setările</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Conexiunile pot fi întrerupte dacă nu se acordă permisiunea pentru notificări.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Conexiunea se poate întrerupe în fundal.</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Jurnalele aplicației</string>
   <string name="copy_logs" tools:machine_translated="true">Copiază jurnalele</string>
   <string name="logs_copied" tools:machine_translated="true">Înregistrările au fost copiate în clipboard.</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">Pentru a raporta o eroare, copiați aceste jurnale și deschideți o nouă solicitare pe https://connectbot.org/bug.</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">Pentru a raporta o eroare, copiați aceste jurnale și deschideți o nouă solicitare pe https://github.com/Ormus-Solutions/mercurio/issues.</string>
   <string name="no_logs_available" tools:machine_translated="true">Nu sunt disponibile înregistrări.</string>
   <string name="help_section_about" tools:machine_translated="true">Despre</string>
   <string name="title_contact" tools:machine_translated="true">Contact și asistență</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Autentificare la pornire</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Solicită utilizarea amprentei, a recunoașterii faciale sau a codului PIN al dispozitivului la deschiderea aplicației.</string>
   <string name="pref_security_category" tools:machine_translated="true">Securitate</string>
-  <string name="auth_screen_title" tools:machine_translated="true">ConnectBot este blocat.</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Mercurio este blocat.</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Atingeți pentru a debloca.</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Deblochează ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Deblochează Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Verificați-vă identitatea pentru a continua.</string>
   <string name="auth_banner_title" tools:machine_translated="true">Mesaj de autentificare de la %1$s.</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Mesaj de autentificare:</string>

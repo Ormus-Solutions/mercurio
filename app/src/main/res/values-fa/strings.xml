@@ -111,10 +111,6 @@
   <string name="pref_ui_category">رابط کاربری</string>
   <string name="pref_language_title">زبان</string>
   <string name="pref_language_system_default">مقدار پیش‌فرض سیستم</string>
-  <string name="pref_theme_title">تم</string>
-  <string name="pref_theme_system">مقدار پیش‌فرض سیستم</string>
-  <string name="pref_theme_light">نور</string>
-  <string name="pref_theme_dark">تاریک</string>
   <string name="pref_rotation_title">حالت چرخش</string>
   <string name="pref_titlebarhide_title">"مخفی شدن خودکار  نوار عنوان"</string>
   <string name="pref_titlebarhide_summary">برای نمایش نوار عنوان و دسترسی به منو، روی کنسول ضربه بزنید.</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">ورودی متن</string>
-  <string name="terminal_text_input_dialog_title">ورودی متن</string>
-  <string name="terminal_text_input_dialog_label">متنی را که می‌خواهید به ترمینال ارسال کنید، وارد کنید.</string>
-  <string name="terminal_text_input_resize_handle">تغییر اندازه</string>
-  <string name="console_menu_text_input">ورودی متن</string>
+    <string name="terminal_text_input_dialog_label">متنی را که می‌خواهید به ترمینال ارسال کنید، وارد کنید.</string>
+    <string name="console_menu_text_input">ورودی متن</string>
   <string name="button_send">ارسال</string>
   <string name="button_ok">بسیار خب</string>
   <string name="button_close">بستن</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">تنظیمات میزبان</string>
   <string name="pubkey_import_existing">وارد کردن کلید عمومی موجود</string>
   <string name="notification_permission_title">در پس‌زمینه به اتصال ادامه دهید</string>
-  <string name="notification_permission_message">برای اینکه ConnectBot بتواند اتصالات شما را فعال نگه دارد، به مجوز اعلان نیاز دارد. در غیر این صورت، سیستم ممکن است برای صرفه‌جویی در مصرف باتری، اتصالات شما را قطع کند.</string>
+  <string name="notification_permission_message">برای اینکه Mercurio بتواند اتصالات شما را فعال نگه دارد، به مجوز اعلان نیاز دارد. در غیر این صورت، سیستم ممکن است برای صرفه‌جویی در مصرف باتری، اتصالات شما را قطع کند.</string>
   <string name="grant_permission">اجازه بده</string>
   <string name="connect_anyway">به هر حال، اتصال برقرار شود</string>
   <string name="notification_permission_denied_title">مجوز اعلان مورد نیاز است</string>
-  <string name="notification_permission_denied_message">برای اینکه اتصالات شما در پس‌زمینه فعال بمانند، لطفاً اعلان‌ها را برای ConnectBot در تنظیمات سیستم فعال کنید.</string>
+  <string name="notification_permission_denied_message">برای اینکه اتصالات شما در پس‌زمینه فعال بمانند، لطفاً اعلان‌ها را برای Mercurio در تنظیمات سیستم فعال کنید.</string>
   <string name="open_settings">تنظیمات را باز کنید</string>
   <string name="notification_permission_denied_snackbar">ممکن است اتصال‌ها بدون اطلاع‌رسانی قطع شوند</string>
   <string name="notification_permission_console_warning">ممکن است اتصال در حالت پس‌زمینه قطع شود</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">لاگ‌های برنامه</string>
   <string name="copy_logs">کپی کردن گزارش‌ها</string>
   <string name="logs_copied">لاگ‌ها در حافظه کلیپ‌بورد کپی شدند.</string>
-  <string name="logs_bug_report_info">برای گزارش یک مشکل، این گزارش‌ها را کپی کرده و یک درخواست جدید در آدرس https://connectbot.org/bug ایجاد کنید.</string>
+  <string name="logs_bug_report_info">برای گزارش یک مشکل، این گزارش‌ها را کپی کرده و یک درخواست جدید در آدرس https://github.com/Ormus-Solutions/mercurio/issues ایجاد کنید.</string>
   <string name="no_logs_available">هیچ لاگی در دسترس نیست</string>
   <string name="help_section_about">درباره</string>
   <string name="title_contact">تماس و پشتیبانی</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">احراز هویت هنگام شروع برنامه</string>
   <string name="pref_auth_on_launch_summary">هنگام باز کردن برنامه، درخواست اثر انگشت، تشخیص چهره یا پین دستگاه را فعال کنید.</string>
   <string name="pref_security_category">امنیت</string>
-  <string name="auth_screen_title">ConnectBot قفل شده است.</string>
+  <string name="auth_screen_title">Mercurio قفل شده است.</string>
   <string name="auth_screen_unlock_button">برای باز کردن، ضربه بزنید.</string>
-  <string name="auth_prompt_title">آنلاک کردن ConnectBot</string>
+  <string name="auth_prompt_title">آنلاک کردن Mercurio</string>
   <string name="auth_prompt_subtitle">برای ادامه، هویت خود را تأیید کنید.</string>
   <string name="pref_language_download" tools:machine_translated="true">دانلود بسته‌ی زبانی</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">دانلود با خطا مواجه شد، برای تلاش مجدد ضربه بزنید</string>

@@ -111,10 +111,6 @@
   <string name="pref_ui_category">Antarmuka pengguna</string>
   <string name="pref_language_title">Bahasa</string>
   <string name="pref_language_system_default">Pengaturan bawaan sistem</string>
-  <string name="pref_theme_title">Tema</string>
-  <string name="pref_theme_system">Pengaturan bawaan sistem</string>
-  <string name="pref_theme_light">Ringan</string>
-  <string name="pref_theme_dark">Gelap</string>
   <string name="pref_rotation_title">Mode rotasi</string>
   <string name="pref_titlebarhide_title">Sembunyikan bilah judul secara otomatis</string>
   <string name="pref_titlebarhide_summary">Ketuk konsol untuk menampilkan bilah judul dan mengakses menu</string>
@@ -344,7 +340,7 @@
   <string name="dialog_title_edit_color">Edit Warna %1$d</string>
   <string name="dialog_title_reset_all">Atur Ulang Semua Warna?</string>
   <string name="dialog_message_reset_all">Ini akan mengatur ulang semua 256 warna ke nilai bawaannya. Tindakan ini tidak dapat dibatalkan.</string>
-  <string name="app_is_running">ConnectBot sedang berjalan</string>
+  <string name="app_is_running">Mercurio sedang berjalan</string>
   <string name="label_red">Merah</string>
   <string name="label_green">Hijau</string>
   <string name="label_blue">Biru</string>
@@ -388,10 +384,8 @@
   <string name="button_key_f11">F11</string>
   <string name="button_key_f12">F12</string>
   <string name="terminal_keyboard_text_input_button">Input teks</string>
-  <string name="terminal_text_input_dialog_title">Input Teks</string>
-  <string name="terminal_text_input_dialog_label">Masukkan teks yang akan dikirim ke terminal</string>
-  <string name="terminal_text_input_resize_handle">Ubah ukuran</string>
-  <string name="console_menu_text_input">Input teks</string>
+    <string name="terminal_text_input_dialog_label">Masukkan teks yang akan dikirim ke terminal</string>
+    <string name="console_menu_text_input">Input teks</string>
   <string name="button_send">Kirim</string>
   <string name="button_ok">Baik</string>
   <string name="button_close">Tutup</string>
@@ -450,11 +444,11 @@
   <string name="hostpref_setting_title">Pengaturan host</string>
   <string name="pubkey_import_existing">Impor kunci publik yang sudah ada</string>
   <string name="notification_permission_title">Tetap terhubung di latar belakang</string>
-  <string name="notification_permission_message">ConnectBot memerlukan izin notifikasi untuk menjaga koneksi Anda tetap aktif saat Anda beralih aplikasi. Tanpa izin ini, sistem mungkin memutuskan koneksi Anda untuk menghemat baterai.</string>
+  <string name="notification_permission_message">Mercurio memerlukan izin notifikasi untuk menjaga koneksi Anda tetap aktif saat Anda beralih aplikasi. Tanpa izin ini, sistem mungkin memutuskan koneksi Anda untuk menghemat baterai.</string>
   <string name="grant_permission">Izinkan</string>
   <string name="connect_anyway">Tetap sambungkan</string>
   <string name="notification_permission_denied_title">Izin notifikasi diperlukan</string>
-  <string name="notification_permission_denied_message">Untuk menjaga agar koneksi Anda tetap aktif di latar belakang, silakan aktifkan notifikasi untuk ConnectBot di pengaturan sistem.</string>
+  <string name="notification_permission_denied_message">Untuk menjaga agar koneksi Anda tetap aktif di latar belakang, silakan aktifkan notifikasi untuk Mercurio di pengaturan sistem.</string>
   <string name="open_settings">Buka pengaturan</string>
   <string name="notification_permission_denied_snackbar">Koneksi dapat terputus tanpa pemberitahuan atau izin</string>
   <string name="notification_permission_console_warning">Koneksi dapat terputus saat aplikasi berjalan di latar belakang</string>
@@ -498,7 +492,7 @@
   <string name="logs_title">Catatan Aplikasi</string>
   <string name="copy_logs">Salin Log</string>
   <string name="logs_copied">Log disalin ke papan klip</string>
-  <string name="logs_bug_report_info">Untuk melaporkan bug, salin log ini dan buka laporan baru di https://connectbot.org/bug</string>
+  <string name="logs_bug_report_info">Untuk melaporkan bug, salin log ini dan buka laporan baru di https://github.com/Ormus-Solutions/mercurio/issues</string>
   <string name="no_logs_available">Tidak ada log yang tersedia</string>
   <string name="help_section_about">Tentang</string>
   <string name="title_contact">Hubungi &amp; Dukungan</string>
@@ -554,9 +548,9 @@
   <string name="pref_auth_on_launch_title">Autentikasi saat peluncuran</string>
   <string name="pref_auth_on_launch_summary">Meminta sidik jari, pemindaian wajah, atau PIN perangkat saat membuka aplikasi</string>
   <string name="pref_security_category">Keamanan</string>
-  <string name="auth_screen_title">ConnectBot terkunci</string>
+  <string name="auth_screen_title">Mercurio terkunci</string>
   <string name="auth_screen_unlock_button">Ketuk untuk membuka kunci</string>
-  <string name="auth_prompt_title">Buka ConnectBot</string>
+  <string name="auth_prompt_title">Buka Mercurio</string>
   <string name="auth_prompt_subtitle">Verifikasi identitas Anda untuk melanjutkan</string>
   <string name="pref_language_download" tools:machine_translated="true">Unduh paket bahasa</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Pengunduhan gagal, ketuk untuk mencoba lagi</string>

@@ -144,7 +144,7 @@
   <string name="no">Nie</string>
   <string name="yes">Áno</string>
   <string name="menu_colors_reset">Pôvodné</string>
-  <string name="app_is_running">ConnectBot je spustený</string>
+  <string name="app_is_running">Mercurio je spustený</string>
   <string name="app_copyright" tools:machine_translated="true">Autorské práva © Kenny Root</string>
   <string name="title_eula" tools:machine_translated="true">Licencia</string>
   <string name="title_color_picker" tools:machine_translated="true">Vyberte farbu</string>
@@ -212,10 +212,6 @@
   <string name="pref_language_system_default" tools:machine_translated="true">Predvolené nastavenie systému</string>
   <string name="pref_language_download" tools:machine_translated="true">Stiahnite si jazykový balíček</string>
   <string name="pref_language_download_failed" tools:machine_translated="true">Sťahovanie zlyhalo, klepnite na tlačidlo, aby ste sa pokúsili o nové stiahnutie.</string>
-  <string name="pref_theme_title" tools:machine_translated="true">Vzhľad</string>
-  <string name="pref_theme_system" tools:machine_translated="true">Predvolené nastavenie systému</string>
-  <string name="pref_theme_light" tools:machine_translated="true">Svetlý</string>
-  <string name="pref_theme_dark" tools:machine_translated="true">Tmavý</string>
   <string name="pref_titlebarhide_title" tools:machine_translated="true">Automatické skrytie titulkového panela</string>
   <string name="pref_titlebarhide_summary" tools:machine_translated="true">Ťuknite na konzolu, aby sa zobrazil panel s názvom a otvorila sa ponuka.</string>
   <string name="pref_alwaysvisible_title" tools:machine_translated="true">Špeciálne klávesy sú vždy viditeľné</string>
@@ -390,10 +386,8 @@
   <string name="button_key_f11" tools:machine_translated="true">F11</string>
   <string name="button_key_f12" tools:machine_translated="true">F12</string>
   <string name="terminal_keyboard_text_input_button" tools:machine_translated="true">Vstup textu</string>
-  <string name="terminal_text_input_dialog_title" tools:machine_translated="true">Vstupný text</string>
-  <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Zadajte text, ktorý sa má odoslať do terminálu.</string>
-  <string name="terminal_text_input_resize_handle" tools:machine_translated="true">Zmeniť veľkosť</string>
-  <string name="console_menu_text_input" tools:machine_translated="true">Vstupný text</string>
+    <string name="terminal_text_input_dialog_label" tools:machine_translated="true">Zadajte text, ktorý sa má odoslať do terminálu.</string>
+    <string name="console_menu_text_input" tools:machine_translated="true">Vstupný text</string>
   <string name="button_send" tools:machine_translated="true">Odoslať</string>
   <string name="button_ok" tools:machine_translated="true">Dobre</string>
   <string name="button_close" tools:machine_translated="true">Zavrieť</string>
@@ -464,11 +458,11 @@
   <string name="pubkey_import_clipboard_key_label" tools:machine_translated="true">Obsah súkromného kľúča</string>
   <string name="pubkey_paste_from_clipboard" tools:machine_translated="true">Vložiť z schránky</string>
   <string name="notification_permission_title" tools:machine_translated="true">Zostaňte pripojení na pozadí</string>
-  <string name="notification_permission_message" tools:machine_translated="true">Aplikácia ConnectBot potrebuje povolenie na zobrazovanie upozornení, aby udržala vaše pripojenia aktívne, keď prepínate medzi aplikáciami. Bez tohto povolenia môže systém vaše pripojenia prerušiť, aby šetril batériu.</string>
+  <string name="notification_permission_message" tools:machine_translated="true">Aplikácia Mercurio potrebuje povolenie na zobrazovanie upozornení, aby udržala vaše pripojenia aktívne, keď prepínate medzi aplikáciami. Bez tohto povolenia môže systém vaše pripojenia prerušiť, aby šetril batériu.</string>
   <string name="grant_permission" tools:machine_translated="true">Povoliť</string>
   <string name="connect_anyway" tools:machine_translated="true">Pripojte sa aj tak</string>
   <string name="notification_permission_denied_title" tools:machine_translated="true">Potrebné povolenie pre upozornenia</string>
-  <string name="notification_permission_denied_message" tools:machine_translated="true">Ak chcete, aby vaše pripojenia zostali aktívne aj na pozadí, povoľte prosím upozornenia pre aplikáciu ConnectBot v nastaveniach systému.</string>
+  <string name="notification_permission_denied_message" tools:machine_translated="true">Ak chcete, aby vaše pripojenia zostali aktívne aj na pozadí, povoľte prosím upozornenia pre aplikáciu Mercurio v nastaveniach systému.</string>
   <string name="open_settings" tools:machine_translated="true">Otvoriť nastavenia</string>
   <string name="notification_permission_denied_snackbar" tools:machine_translated="true">Pripojenia sa môžu prerušiť, ak neudelite povolenie na zobrazovanie upozornení.</string>
   <string name="notification_permission_console_warning" tools:machine_translated="true">Pripojenie sa môže v pozadí prerušiť.</string>
@@ -512,7 +506,7 @@
   <string name="logs_title" tools:machine_translated="true">Logy aplikácií</string>
   <string name="copy_logs" tools:machine_translated="true">Kopírovať záznamy</string>
   <string name="logs_copied" tools:machine_translated="true">Protokoly boli skopírované do schránky</string>
-  <string name="logs_bug_report_info" tools:machine_translated="true">Ak chcete nahlásiť chybu, skopírujte tieto záznamy a vytvorte nové hlásenie na adrese https://connectbot.org/bug.</string>
+  <string name="logs_bug_report_info" tools:machine_translated="true">Ak chcete nahlásiť chybu, skopírujte tieto záznamy a vytvorte nové hlásenie na adrese https://github.com/Ormus-Solutions/mercurio/issues.</string>
   <string name="no_logs_available" tools:machine_translated="true">Žiadne záznamy nie sú k dispozícii</string>
   <string name="help_section_about" tools:machine_translated="true">O programe</string>
   <string name="title_contact" tools:machine_translated="true">Kontakt a podpora</string>
@@ -568,9 +562,9 @@
   <string name="pref_auth_on_launch_title" tools:machine_translated="true">Overenie pri spustení</string>
   <string name="pref_auth_on_launch_summary" tools:machine_translated="true">Pri otváraní aplikácie vyžadujte overenie pomocou snímača odtlačkov prstov, rozpoznávania tváre alebo PIN kódu zariadenia.</string>
   <string name="pref_security_category" tools:machine_translated="true">Zabezpečenie</string>
-  <string name="auth_screen_title" tools:machine_translated="true">Aplikácia ConnectBot je uzamknutá.</string>
+  <string name="auth_screen_title" tools:machine_translated="true">Aplikácia Mercurio je uzamknutá.</string>
   <string name="auth_screen_unlock_button" tools:machine_translated="true">Ťuknite na obrazovku, aby ste odomkli zariadenie.</string>
-  <string name="auth_prompt_title" tools:machine_translated="true">Odomknite ConnectBot</string>
+  <string name="auth_prompt_title" tools:machine_translated="true">Odomknite Mercurio</string>
   <string name="auth_prompt_subtitle" tools:machine_translated="true">Overte svoju identitu, aby ste mohli pokračovať.</string>
   <string name="auth_banner_title" tools:machine_translated="true">Autentifikačná správa od %1$s</string>
   <string name="terminal_auth_banner_header" tools:machine_translated="true">[%1$s] Správa o overovaní:</string>

@@ -17,6 +17,9 @@
 
 package org.connectbot.data
 
+import androidx.compose.ui.graphics.toArgb
+import org.connectbot.ui.theme.OrmusTokens
+
 /**
  * Built-in color scheme presets for terminal emulation.
  * Each preset defines 16 colors in the terminal palette.
@@ -24,30 +27,65 @@ package org.connectbot.data
 object ColorSchemePresets {
 
     /**
-     * Default terminal colors.
+     * Default terminal colors: "Ormus Fusion", gold and ink on the brand's code
+     * panel. Slots that have a brand token use it (black = codeBg, red = danger,
+     * yellow = gold, white = ink muted, bright black = dim, bright yellow = gold
+     * bright, bright white = ink). The other hues are muted to sit on midnight;
+     * they are proposed for a `terminal` group in ormus-brand and are hand-set here
+     * until it lands. Every index reads 4.2:1 or better on the background
+     * (ColorSchemePresetsTest). Also the runtime fallback palette.
      */
     val default = PresetScheme(
-        name = "Default",
-        description = "Default terminal colors",
-        defaultFg = 7,
-        defaultBg = 0,
+        name = "Ormus Fusion",
+        description = "Gold and ink on midnight lacquer",
+        defaultFg = 15, // ink
+        defaultBg = 0, // codeBg
         colors = intArrayOf(
-            0xff000000.toInt(), // black
-            0xffcc0000.toInt(), // red
-            0xff00cc00.toInt(), // green
-            0xffcccc00.toInt(), // brown
-            0xff0000cc.toInt(), // blue
-            0xffcc00cc.toInt(), // purple
-            0xff00cccc.toInt(), // cyan
-            0xffcccccc.toInt(), // light grey
-            0xff444444.toInt(), // dark grey
-            0xffff4444.toInt(), // light red
-            0xff44ff44.toInt(), // light green
-            0xffffff44.toInt(), // yellow
-            0xff4444ff.toInt(), // light blue
-            0xffff44ff.toInt(), // light purple
-            0xff44ffff.toInt(), // light cyan
-            0xffffffff.toInt(), // white
+            OrmusTokens.CodeBg.toArgb(), // black
+            OrmusTokens.Danger.toArgb(), // red
+            0xff8fb08a.toInt(), // green: sage
+            OrmusTokens.Gold.toArgb(), // yellow
+            0xff6f93cf.toInt(), // blue: lapis
+            0xffa98bc2.toInt(), // magenta: amethyst
+            0xff6fa7a8.toInt(), // cyan: verdigris
+            OrmusTokens.InkMuted.toArgb(), // white
+            OrmusTokens.Dim.toArgb(), // bright black (zsh autosuggestions stay readable)
+            0xffe27a72.toInt(), // bright red
+            0xffaecba7.toInt(), // bright green
+            OrmusTokens.GoldBright.toArgb(), // bright yellow
+            0xff93b2e2.toInt(), // bright blue
+            0xffc4a9da.toInt(), // bright magenta
+            0xff93c6c4.toInt(), // bright cyan
+            OrmusTokens.Ink.toArgb(), // bright white
+        ),
+    )
+
+    /**
+     * Aurum: the earlier Ormus fleet palette, gold foreground on obsidian. Kept
+     * selectable for continuity; appended last so preset IDs stay stable.
+     */
+    val aurum = PresetScheme(
+        name = "Aurum",
+        description = "Gold on obsidian, the earlier Ormus fleet palette",
+        defaultFg = 7, // gold
+        defaultBg = 0, // obsidian
+        colors = intArrayOf(
+            0xff090a16.toInt(), // black: obsidian
+            0xffcc6633.toInt(), // red
+            0xff5a9a7a.toInt(), // green
+            0xffc8b583.toInt(), // yellow: gold
+            0xff6488b4.toInt(), // blue
+            0xff8a6aaa.toInt(), // magenta
+            0xff5a9a8a.toInt(), // cyan
+            0xffc8b583.toInt(), // white: gold foreground
+            0xff2a2a32.toInt(), // bright black
+            0xffe08050.toInt(), // bright red
+            0xff7abb9a.toInt(), // bright green
+            0xffecdba6.toInt(), // bright yellow
+            0xff8facd6.toInt(), // bright blue
+            0xffaa8acc.toInt(), // bright magenta
+            0xff7abbaa.toInt(), // bright cyan
+            0xfff5e6c8.toInt(), // bright white
         ),
     )
 
@@ -264,6 +302,7 @@ object ColorSchemePresets {
         gruvboxDark,
         monokai,
         tomorrowNight,
+        aurum,
     )
 
     /**
