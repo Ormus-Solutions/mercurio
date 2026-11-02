@@ -315,6 +315,9 @@ object UsageActions {
     const val HERDR_PICKER_ATTACH = "herdr-picker:attach"
     const val HERDR_PICKER_DISMISS = "herdr-picker:dismiss"
 
+    // The + beside a picker row, marking it to open in a console of its own as well.
+    const val HERDR_PICKER_ALSO_OPEN = "herdr-picker:also-open"
+
     // The host's console list opened its consoles on connect, with no picker (no control: the session raised it).
     const val HERDR_CONSOLES_ON_CONNECT = "herdr-console:on-connect"
 
@@ -434,7 +437,7 @@ object UsageActions {
         BOARD_OPEN, BOARD_CHAT, BOARD_JUMP, BOARD_MORE, BOARD_APPROVE, BOARD_DENY, BOARD_REPLY, BOARD_REFRESH, BOARD_CLOSE, BOARD_OPTION,
         HERDR_SHEET_KEY_MENU, HERDR_SHEET_KEY_HIDE, HERDR_SHEET_KEY_EDIT, HERDR_SHEET_KEY_ADD,
         HERDR_SHEET_KEY_REMOVE, HERDR_SHEET_RESTORE,
-        HERDR_PICKER_SHOW, HERDR_PICKER_PICK, HERDR_PICKER_ATTACH, HERDR_PICKER_DISMISS,
+        HERDR_PICKER_SHOW, HERDR_PICKER_PICK, HERDR_PICKER_ATTACH, HERDR_PICKER_DISMISS, HERDR_PICKER_ALSO_OPEN,
         HERDR_CONSOLES_ON_CONNECT,
         NOTIFY_NEEDS_YOU_OPEN, NOTIFY_FINISHED_OPEN, NOTIFY_APPROVE, NOTIFY_DENY, NOTIFY_ANSWER_CONNECT,
         PALETTE_OPEN, PALETTE_RUN,

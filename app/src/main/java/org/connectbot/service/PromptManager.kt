@@ -155,10 +155,11 @@ class PromptManager {
     }
 
     /**
-     * Offer a Herdr host's workspaces before its post-login attaches. A cancelled
-     * prompt (the session closed under it) reads as [WorkspacePick.Dismiss].
+     * Offer a Herdr host's workspaces before its post-login attaches: the pick, and the rows
+     * marked to open in consoles of their own as well. A cancelled prompt (the session closed
+     * under it) reads as [WorkspacePick.Dismiss] with none.
      */
-    suspend fun requestHerdrWorkspace(choices: List<WorkspaceChoice>): WorkspacePick {
+    suspend fun requestHerdrWorkspace(choices: List<WorkspaceChoice>): PromptResponse.HerdrWorkspaceResponse {
         val deferred = CompletableDeferred<PromptResponse>()
         currentDeferred = deferred
 
@@ -172,7 +173,7 @@ class PromptManager {
         }
         _promptState.update { null }
 
-        return (response as? PromptResponse.HerdrWorkspaceResponse)?.pick ?: WorkspacePick.Dismiss
+        return response as? PromptResponse.HerdrWorkspaceResponse ?: PromptResponse.HerdrWorkspaceResponse(WorkspacePick.Dismiss)
     }
 
     /**
@@ -264,7 +265,7 @@ sealed class PromptResponse {
     data class BooleanResponse(val value: Boolean) : PromptResponse()
     data class StringResponse(val value: String?, val remember: Boolean = false) : PromptResponse()
     data class BiometricResponse(val success: Boolean) : PromptResponse()
-    data class HerdrWorkspaceResponse(val pick: WorkspacePick) : PromptResponse()
+    data class HerdrWorkspaceResponse(val pick: WorkspacePick, val alsoOpen: List<WorkspaceChoice> = emptyList()) : PromptResponse()
 }
 
 /** A password typed at a login prompt, and whether "Remember password" was ticked. */

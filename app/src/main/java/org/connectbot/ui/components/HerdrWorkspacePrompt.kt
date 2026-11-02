@@ -40,6 +40,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -49,6 +52,8 @@ import org.connectbot.R
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusMono
+import org.connectbot.usage.LocalUsageLog
+import org.connectbot.usage.UsageActions
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAgentStatus
 import solutions.ormus.logos.herd.HerdrCommands
@@ -60,14 +65,18 @@ import solutions.ormus.logos.herd.WorkspacePick
  * The connect-time Herdr picker: one row per workspace of every running Herdr
  * session (a gold dot on the default session's focused one, its most urgent agent
  * state on the right), the gold key to attach where Herdr already is. A row focuses
- * its workspace first, and attaches its session. Back attaches as before.
+ * its workspace first, and attaches its session. The + beside a row marks it to open
+ * in a console of its own as well; [onPick] gets the marked rows with the pick, less the
+ * one this console attaches. Back attaches as before and opens none.
  */
 @Composable
 internal fun HerdrWorkspacePromptContent(
     choices: List<WorkspaceChoice>,
-    onPick: (WorkspacePick) -> Unit,
+    onPick: (WorkspacePick, alsoOpen: List<WorkspaceChoice>) -> Unit,
 ) {
-    BackHandler { onPick(WorkspacePick.Dismiss) }
+    val usage = LocalUsageLog.current
+    var alsoOpen by remember { mutableStateOf(emptyList<WorkspaceChoice>()) }
+    BackHandler { onPick(WorkspacePick.Dismiss, emptyList()) }
     val focused = choices.firstOrNull { it.focused }
 
     Column(
@@ -80,11 +89,19 @@ internal fun HerdrWorkspacePromptContent(
     ) {
         MonoLabel(stringResource(R.string.herdr_picker_title))
         // The rows scroll in a short window (landscape) while the gold key stays on screen.
-        WorkspaceRows(choices) { choice -> onPick(WorkspacePick.Focus(choice.workspaceId, choice.session)) }
+        WorkspaceRows(
+            choices,
+            alsoOpenKey = { choice ->
+                AlsoOpenKey(choice, marked = choice in alsoOpen) {
+                    if (choice !in alsoOpen) usage.log(UsageActions.HERDR_PICKER_ALSO_OPEN)
+                    alsoOpen = if (choice in alsoOpen) alsoOpen - choice else alsoOpen + choice
+                }
+            },
+        ) { choice -> onPick(WorkspacePick.Focus(choice.workspaceId, choice.session), alsoOpen - choice) }
         OrmusKey(
             label = focused?.let { stringResource(R.string.herdr_picker_attach_to, it.label) }
                 ?: stringResource(R.string.herdr_picker_attach),
-            onClick = { onPick(WorkspacePick.Attach) },
+            onClick = { onPick(WorkspacePick.Attach, alsoOpen.filterNot { it.focused }) },
             tone = KeyTone.ON,
             contentPadding = WORD_KEY_PADDING,
             modifier = Modifier.fillMaxWidth(),
@@ -138,14 +155,18 @@ internal fun HerdrOpenWorkspaceContent(choices: List<WorkspaceChoice>, onOpen: (
         if (choices.isEmpty()) {
             Text(stringResource(R.string.herdr_open_workspace_reading), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        WorkspaceRows(choices, onOpen)
+        WorkspaceRows(choices, onClick = onOpen)
     }
 }
 
 // The rows in a window that scrolls when short; with more than one Herdr session, each
-// session's rows sit under its name.
+// session's rows sit under its name, and [alsoOpenKey], when set, sits at the end of each row.
 @Composable
-private fun ColumnScope.WorkspaceRows(choices: List<WorkspaceChoice>, onClick: (WorkspaceChoice) -> Unit) {
+private fun ColumnScope.WorkspaceRows(
+    choices: List<WorkspaceChoice>,
+    alsoOpenKey: (@Composable (WorkspaceChoice) -> Unit)? = null,
+    onClick: (WorkspaceChoice) -> Unit,
+) {
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
@@ -155,17 +176,32 @@ private fun ColumnScope.WorkspaceRows(choices: List<WorkspaceChoice>, onClick: (
         val grouped = choices.distinctBy { it.session }.size > 1
         choices.forEachIndexed { index, choice ->
             if (grouped && choices.getOrNull(index - 1)?.session != choice.session) MonoLabel(choice.session)
-            WorkspaceRow(choice) { onClick(choice) }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                WorkspaceRow(choice, onClick = { onClick(choice) }, modifier = Modifier.weight(1f))
+                alsoOpenKey?.invoke(choice)
+            }
         }
     }
 }
 
+// The + beside a picker row: marks the workspace to open in a console of its own as well;
+// marked, it reads a tick on a gold tint (the gold fill stays the attach key's).
 @Composable
-private fun WorkspaceRow(choice: WorkspaceChoice, onClick: () -> Unit) {
+private fun AlsoOpenKey(choice: WorkspaceChoice, marked: Boolean, onToggle: () -> Unit) {
+    OrmusKey(
+        label = if (marked) "✓" else "+",
+        onClick = onToggle,
+        tone = if (marked) KeyTone.ACCENT else KeyTone.PLAIN,
+        description = stringResource(if (marked) R.string.herdr_picker_also_open_marked else R.string.herdr_picker_also_open, choice.label),
+    )
+}
+
+@Composable
+private fun WorkspaceRow(choice: WorkspaceChoice, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val tone = if (choice.focused) KeyTone.ACCENT else KeyTone.PLAIN
     Button(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(KEY_HEIGHT),
         shape = KEY_SHAPE,

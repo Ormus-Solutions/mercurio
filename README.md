@@ -44,7 +44,7 @@ management come from ConnectBot. Mercurio is maintained by
 - **Found on any SSH host.** Herdr features turn on once Herdr answers on the
   host. There is no setting for it.
 - **Workspace picker.** Connecting to a Herdr host offers its workspaces before
-  attaching.
+  attaching. The + beside a workspace opens it in a console of its own as well.
 - **More consoles.** The session drawer of a Herdr host has Open a workspace:
   every workspace of every running Herdr session. A row opens it in a console of
   its own, and the open consoles stay where they are. Herdr gives each client its

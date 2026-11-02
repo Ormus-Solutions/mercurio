@@ -1267,6 +1267,10 @@
 	<string name="herdr_picker_attach_to">Attach · %1$s</string>
 	<!-- Herdr connect picker: main button when no workspace has focus -->
 	<string name="herdr_picker_attach">Attach</string>
+	<!-- Herdr connect picker: spoken name of the + key beside a workspace, which marks it to open in a console of its own as well; %1$s is the workspace name -->
+	<string name="herdr_picker_also_open">Also open %1$s in its own console</string>
+	<!-- Herdr connect picker: spoken name of the same key once marked (a tap unmarks it); %1$s is the workspace name -->
+	<string name="herdr_picker_also_open_marked">%1$s opens in its own console, tap to undo</string>
 	<!-- Open a workspace sheet (from the session drawer): label above every workspace of every running Herdr session on the host; a row opens it in a console of its own -->
 	<string name="herdr_open_workspace_title">Open in a new console</string>
 	<!-- Open a workspace sheet: shown while the host's Herdr workspaces are read, or when Herdr answers with none -->

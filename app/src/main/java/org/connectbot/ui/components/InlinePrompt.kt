@@ -145,7 +145,7 @@ fun InlinePrompt(
             is PromptRequest.HerdrWorkspacePrompt -> {
                 HerdrWorkspacePromptContent(
                     choices = promptRequest.choices,
-                    onPick = { onResponse(PromptResponse.HerdrWorkspaceResponse(it)) },
+                    onPick = { pick, alsoOpen -> onResponse(PromptResponse.HerdrWorkspaceResponse(pick, alsoOpen)) },
                 )
             }
 

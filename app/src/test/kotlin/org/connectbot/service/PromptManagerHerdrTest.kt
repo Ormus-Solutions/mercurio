@@ -27,7 +27,7 @@ import solutions.ormus.logos.herd.HerdrAgentStatus
 import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
 
-/** The connect picker's prompt: an answer comes back as the pick, a cancelled prompt as Back. */
+/** The connect picker's prompt: an answer comes back as the pick and its marked rows, a cancelled prompt as Back. */
 class PromptManagerHerdrTest {
     private val choices = listOf(
         WorkspaceChoice("w1", 1, "tmp", focused = true, state = HerdrAgentStatus.IDLE),
@@ -40,8 +40,8 @@ class PromptManagerHerdrTest {
         val pick = async { prompts.requestHerdrWorkspace(choices) }
         runCurrent()
         assertEquals(PromptRequest.HerdrWorkspacePrompt(choices), prompts.promptState.value)
-        prompts.respond(PromptResponse.HerdrWorkspaceResponse(WorkspacePick.Focus("w2")))
-        assertEquals(WorkspacePick.Focus("w2"), pick.await())
+        prompts.respond(PromptResponse.HerdrWorkspaceResponse(WorkspacePick.Focus("w2"), alsoOpen = choices.take(1)))
+        assertEquals(PromptResponse.HerdrWorkspaceResponse(WorkspacePick.Focus("w2"), choices.take(1)), pick.await())
         assertNull(prompts.promptState.value)
     }
 
@@ -51,7 +51,7 @@ class PromptManagerHerdrTest {
         val pick = async { prompts.requestHerdrWorkspace(choices) }
         runCurrent()
         prompts.cancelPrompt()
-        assertEquals(WorkspacePick.Dismiss, pick.await())
+        assertEquals(PromptResponse.HerdrWorkspaceResponse(WorkspacePick.Dismiss), pick.await())
         assertNull(prompts.promptState.value)
     }
 }

@@ -80,6 +80,7 @@ import solutions.ormus.logos.herd.HerdrSessions
 import solutions.ormus.logos.herd.HerdrTermKey
 import solutions.ormus.logos.herd.HerdrWorkspacePicker
 import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
 import solutions.ormus.logos.terminal.TerminalArrow
 import solutions.ormus.logos.terminal.TerminalMouse
@@ -894,13 +895,17 @@ class TerminalBridge {
                 withContext(dispatchers.io) { listed.drop(1).forEach { manager.openHerdrConsole(host, it) } }
                 return@launch
             }
+            // The rows marked with their + key: each opens in a console of its own after the attach.
+            var alsoOpen = emptyList<WorkspaceChoice>()
             val pick = HerdrWorkspacePicker.offer(
                 scope = scope,
                 io = dispatchers.io,
                 run = run,
                 ask = { choices ->
                     manager.logUsage(UsageActions.HERDR_PICKER_SHOW)
-                    promptManager.requestHerdrWorkspace(choices)
+                    val answer = promptManager.requestHerdrWorkspace(choices)
+                    alsoOpen = answer.alsoOpen
+                    answer.pick
                 },
             )
             when (pick) {
@@ -917,6 +922,11 @@ class TerminalBridge {
                 }
             }
             injectString(host.postLogin?.let { HerdrWorkspacePicker.postLogin(it, pick) })
+            if (pick != WorkspacePick.Dismiss && alsoOpen.isNotEmpty()) {
+                withContext(dispatchers.io) {
+                    alsoOpen.forEach { manager.openHerdrConsole(host, HerdrConsole(it.session, it.workspaceId, it.label)) }
+                }
+            }
         }
     }
 

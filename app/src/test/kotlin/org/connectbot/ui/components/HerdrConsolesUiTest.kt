@@ -21,6 +21,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -39,6 +40,7 @@ import solutions.ormus.logos.herd.HerdrAgentStatus
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.WorkspaceChoice
+import solutions.ormus.logos.herd.WorkspacePick
 
 /**
  * The consoles of one Herdr host in the session drawer, and the drawer's Open a
@@ -126,5 +128,50 @@ class HerdrConsolesUiTest {
     fun openWorkspace_saysItIsReading_untilTheRowsCome() {
         rule.setContent { ConnectBotTheme { HerdrOpenWorkspaceContent(emptyList()) {} } }
         rule.onNodeWithText("Reading Herdr…").assertExists()
+    }
+
+    private val home = WorkspaceChoice("w1", 1, "home", focused = true, state = HerdrAgentStatus.IDLE)
+    private val one = choice("alpha", "w1", 1, "one")
+    private val three = choice("alpha", "w3", 3, "three")
+
+    private fun picker(): MutableList<Pair<WorkspacePick, List<WorkspaceChoice>>> {
+        val picks = mutableListOf<Pair<WorkspacePick, List<WorkspaceChoice>>>()
+        rule.setContent { ConnectBotTheme { HerdrWorkspacePromptContent(listOf(home, one, three)) { pick, alsoOpen -> picks += pick to alsoOpen } } }
+        return picks
+    }
+
+    @Test
+    fun picker_aPlusMarksARow_andThePickCarriesIt() {
+        val picks = picker()
+        rule.onNodeWithContentDescription("Also open three in its own console").performClick()
+        rule.onNodeWithContentDescription("three opens in its own console, tap to undo").assertExists()
+        rule.onNodeWithText("1 · one").performClick()
+        assertEquals(listOf(WorkspacePick.Focus("w1", "alpha") to listOf(three)), picks)
+    }
+
+    @Test
+    fun picker_theRowThisConsoleAttachesOpensOnce() {
+        val picks = picker()
+        rule.onNodeWithContentDescription("Also open one in its own console").performClick()
+        rule.onNodeWithText("1 · one").performClick()
+        assertEquals(listOf(WorkspacePick.Focus("w1", "alpha") to emptyList<WorkspaceChoice>()), picks)
+    }
+
+    @Test
+    fun picker_theGoldKeyLeavesOutTheWorkspaceItAttaches() {
+        val picks = picker()
+        rule.onNodeWithContentDescription("Also open home in its own console").performClick()
+        rule.onNodeWithContentDescription("Also open three in its own console").performClick()
+        rule.onNodeWithText("Attach · home").performClick()
+        assertEquals(listOf(WorkspacePick.Attach to listOf(three)), picks)
+    }
+
+    @Test
+    fun picker_aSecondTapUnmarks() {
+        val picks = picker()
+        rule.onNodeWithContentDescription("Also open three in its own console").performClick()
+        rule.onNodeWithContentDescription("three opens in its own console, tap to undo").performClick()
+        rule.onNodeWithText("1 · one").performClick()
+        assertEquals(listOf(WorkspacePick.Focus("w1", "alpha") to emptyList<WorkspaceChoice>()), picks)
     }
 }
