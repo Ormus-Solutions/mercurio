@@ -17,6 +17,7 @@
 
 package org.connectbot.data
 
+import android.content.SharedPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -26,7 +27,9 @@ import org.connectbot.data.dao.ColorSchemeDao
 import org.connectbot.data.entity.ColorPalette
 import org.connectbot.data.entity.ColorScheme
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.ui.theme.Planet
 import org.connectbot.util.HostConstants
+import org.connectbot.util.PreferenceConstants
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,12 +38,21 @@ import javax.inject.Singleton
  * Handles both built-in preset schemes and user-created custom schemes.
  *
  * @param colorSchemeDao The DAO for accessing color scheme data
+ * @param prefs Settings, for the planet the default scheme is drawn in
  */
 @Singleton
 class ColorSchemeRepository @Inject constructor(
     private val colorSchemeDao: ColorSchemeDao,
     private val dispatchers: CoroutineDispatchers,
+    private val prefs: SharedPreferences,
 ) {
+
+    /** The built-in preset at [index]. The default, Ormus Fusion, is drawn in the planet picked in the settings panel. */
+    private fun preset(index: Int): ColorSchemePresets.PresetScheme = if (index == 0) {
+        ColorSchemePresets.ormusFusion(Planet.fromKey(prefs.getString(PreferenceConstants.PLANET, null)).palette)
+    } else {
+        ColorSchemePresets.builtInSchemes[index]
+    }
 
     /**
      * Get all available color schemes (built-in + custom).
@@ -127,7 +139,7 @@ class ColorSchemeRepository @Inject constructor(
     fun observeSchemeColors(schemeId: Long): Flow<IntArray> = if (schemeId < 0) {
         val presetIndex = -(schemeId + 1).toInt()
         val safeIndex = presetIndex.coerceIn(0, ColorSchemePresets.builtInSchemes.size - 1)
-        flowOf(ColorSchemePresets.builtInSchemes[safeIndex].colors.clone())
+        flowOf(preset(safeIndex).colors.clone())
     } else {
         colorSchemeDao.observeColors(schemeId).map { paletteEntries ->
             val colors = ColorSchemePresets.default.colors.clone()
@@ -171,7 +183,7 @@ class ColorSchemeRepository @Inject constructor(
             schemeId < 0 -> {
                 val presetIndexUnbounded = -(schemeId + 1).toInt()
                 val presetIndex = presetIndexUnbounded.coerceIn(0, ColorSchemePresets.builtInSchemes.size - 1)
-                ColorSchemePresets.builtInSchemes[presetIndex].colors.clone()
+                preset(presetIndex).colors.clone()
             }
 
             // Non-negative ID represents a scheme stored in the database.

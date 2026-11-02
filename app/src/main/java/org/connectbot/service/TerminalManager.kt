@@ -1025,6 +1025,9 @@ class TerminalManager :
             connectivityMonitor.setWantWifiLock(lockingWifi)
         } else if (PreferenceConstants.MEMKEYS == key) {
             updateSavingKeys()
+        } else if (PreferenceConstants.PLANET == key) {
+            // The default terminal scheme is drawn in the planet: repaint the open sessions.
+            synchronized(_bridges) { _bridges.toList() }.forEach { it.refreshPlanetColors() }
         }
     }
 

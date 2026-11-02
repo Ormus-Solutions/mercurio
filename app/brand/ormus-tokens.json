@@ -1,6 +1,6 @@
 {
   "$comment": "Ormus fusion tokens for places CSS variables cannot reach: canvas, WebGL, Python, slide tools. Values match tokens.css; test/tokens.test.mjs enforces it.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "color": {
     "midnight": "#14213d",
     "deep": "#0e1830",
@@ -38,6 +38,16 @@
     "dim": "#14213d",
     "onGold": "#ffffff",
     "hairline": "rgba(26, 20, 7, 0.2)"
+  },
+  "planets": {
+    "$comment": "One dark theme per classical planet, for apps that offer a theme choice. Each has every key of color, in the same roles: the gold key is that planet's one accent. sun equals color and is the default. Not in tokens.css; test/tokens.test.mjs checks the keys and the contrast.",
+    "sun": { "midnight": "#14213d", "deep": "#0e1830", "gold": "#d29e3d", "goldBright": "#e0b258", "ink": "#eceae3", "inkMuted": "#a5b0c4", "dim": "#6d7891", "hairline": "rgba(236, 234, 227, 0.12)", "onGold": "#1a1407", "codeBg": "#0b1226", "danger": "#d44f4f" },
+    "moon": { "midnight": "#182038", "deep": "#0c1226", "gold": "#9cc0f0", "goldBright": "#c4dbf8", "ink": "#eceff4", "inkMuted": "#a7b1c5", "dim": "#6f7a94", "hairline": "rgba(236, 239, 244, 0.12)", "onGold": "#0b1424", "codeBg": "#090e1e", "danger": "#d44f4f" },
+    "mercury": { "midnight": "#12252b", "deep": "#0a171b", "gold": "#6fc9d6", "goldBright": "#9cdce6", "ink": "#e8eff0", "inkMuted": "#a0b3b8", "dim": "#66808a", "hairline": "rgba(232, 239, 240, 0.12)", "onGold": "#06181c", "codeBg": "#071216", "danger": "#d44f4f" },
+    "venus": { "midnight": "#132620", "deep": "#0b1814", "gold": "#5fc497", "goldBright": "#8ed8b5", "ink": "#eaefea", "inkMuted": "#a5b8ae", "dim": "#6a8278", "hairline": "rgba(234, 239, 234, 0.12)", "onGold": "#06180f", "codeBg": "#08130f", "danger": "#d44f4f" },
+    "mars": { "midnight": "#2a1816", "deep": "#1a0f0e", "gold": "#e07a48", "goldBright": "#ee9b6e", "ink": "#f0e9e5", "inkMuted": "#c2aea6", "dim": "#8c766e", "hairline": "rgba(240, 233, 229, 0.12)", "onGold": "#1e0d06", "codeBg": "#140b0a", "danger": "#d44f4f" },
+    "jupiter": { "midnight": "#241838", "deep": "#150d24", "gold": "#c08ae8", "goldBright": "#d8b4f4", "ink": "#eeebf4", "inkMuted": "#b5a9c8", "dim": "#7e7298", "hairline": "rgba(238, 235, 244, 0.12)", "onGold": "#1a0c26", "codeBg": "#0f091c", "danger": "#d44f4f" },
+    "saturn": { "midnight": "#1a1c24", "deep": "#0d0e12", "gold": "#8a97ee", "goldBright": "#b3bcf6", "ink": "#ececee", "inkMuted": "#a9abb3", "dim": "#757884", "hairline": "rgba(236, 236, 238, 0.12)", "onGold": "#0e1028", "codeBg": "#090a0d", "danger": "#d44f4f" }
   },
   "font": {
     "display": "'Cormorant Garamond', Georgia, serif",

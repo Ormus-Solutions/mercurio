@@ -120,6 +120,7 @@ settings:upload-now
 settings:wishes
 panel:enter-new-line
 panel:all-settings
+panel:planet
 session:start
 session:end
 session:fail

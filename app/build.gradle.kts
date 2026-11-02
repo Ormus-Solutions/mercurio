@@ -502,6 +502,20 @@ abstract class GenerateOrmusTokens : DefaultTask() {
             group(g).forEach { (k, v) -> kt.append("        val ${pascal(k)} = Color(0x${argb(v.toString())})\n") }
             kt.append("    }\n")
         }
+        // One palette per planet, in the color group's keys (tokens.json planets).
+        val planets = group("planets")
+
+        @Suppress("UNCHECKED_CAST")
+        val paletteKeys = (planets.values.first() as Map<String, Any>).keys.toList()
+        kt.append("\n    /** One dark theme per classical planet (tokens.json planets). [Planets.Sun] equals the color group. */\n")
+        kt.append("    object Planets {\n")
+        planets.forEach { (name, v) ->
+            @Suppress("UNCHECKED_CAST")
+            val p = v as Map<String, Any>
+            val args = paletteKeys.joinToString(", ") { k -> "$k = Color(0x${argb(p[k].toString())})" }
+            kt.append("        val ${pascal(name)} = OrmusPalette($args)\n")
+        }
+        kt.append("    }\n")
         val radius = json["radius"].toString().removeSuffix("px")
         kt.append("\n    /** The brand's single corner radius, in dp (CSS px). */\n")
         kt.append("    const val RADIUS_DP = ${radius}f\n")
@@ -526,6 +540,10 @@ abstract class GenerateOrmusTokens : DefaultTask() {
         kt.append("/** One brand type-scale entry; [font] names a family in tokens.json (display, sans, mono). */\n")
         kt.append("data class OrmusTypeToken(\n")
         kt.append("    val font: String,\n    val sizeSp: Float,\n    val lineHeightSp: Float,\n    val weight: Int,\n    val trackingEm: Float,\n)\n")
+        kt.append("\n/** One planet's palette: every key of the color group, in the same roles; [gold] is the planet's one accent. */\n")
+        kt.append("data class OrmusPalette(\n")
+        paletteKeys.forEach { k -> kt.append("    val $k: Color,\n") }
+        kt.append(")\n")
         kotlinOut.get().asFile.apply { parentFile.mkdirs() }.writeText(kt.toString())
 
         val xml = StringBuilder("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")

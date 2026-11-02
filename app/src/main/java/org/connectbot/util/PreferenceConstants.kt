@@ -92,6 +92,9 @@ object PreferenceConstants {
     /* Compose bar: the keyboard's Enter starts a new line, and only the bar's ⏎ key sends. */
     const val ENTER_NEW_LINE: String = "enterNewLine"
 
+    /* Theme: the planet picked in the settings panel (Planet.key); none means Sun. */
+    const val PLANET: String = "planet"
+
     /* Theme: retired, the app is dark only. AppViewModel removes a saved value at launch. */
     const val THEME_MODE: String = "themeMode"
 }

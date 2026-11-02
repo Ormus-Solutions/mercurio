@@ -17,6 +17,7 @@
 
 package org.connectbot.data
 
+import org.connectbot.ui.theme.Planet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -121,14 +122,21 @@ class ColorSchemePresetsTest {
     }
 
     @Test
-    fun ormusFusion_EveryColorReadsOnTheBackground() {
-        val scheme = ColorSchemePresets.default
-        val background = scheme.colors[scheme.defaultBg]
-        scheme.colors.forEachIndexed { index, color ->
-            if (index == scheme.defaultBg) return@forEachIndexed
-            val ratio = contrast(color, background)
-            assertTrue("Ormus Fusion index $index reads $ratio:1, needs 4.2", ratio >= 4.2)
+    fun ormusFusion_EveryColorReadsOnTheBackground_onEveryPlanet() {
+        Planet.entries.forEach { planet ->
+            val scheme = ColorSchemePresets.ormusFusion(planet.palette)
+            val background = scheme.colors[scheme.defaultBg]
+            scheme.colors.forEachIndexed { index, color ->
+                if (index == scheme.defaultBg) return@forEachIndexed
+                val ratio = contrast(color, background)
+                assertTrue("Ormus Fusion on ${planet.key}, index $index reads $ratio:1, needs 4.2", ratio >= 4.2)
+            }
         }
+    }
+
+    @Test
+    fun theDefault_isOrmusFusionOnSun() {
+        assertEquals(ColorSchemePresets.ormusFusion(Planet.SUN.palette), ColorSchemePresets.default)
     }
 
     private fun luminance(argb: Int): Double {

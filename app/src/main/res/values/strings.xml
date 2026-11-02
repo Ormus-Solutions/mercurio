@@ -2049,4 +2049,13 @@
 	<string name="settings_panel_enter_new_line_off">Enter sends, like the ⏎ key on the bar.</string>
 	<string name="settings_panel_all_settings">All settings</string>
 	<string name="settings_panel_all_settings_summary">Terminal, keyboard, fonts and connections</string>
+	<!-- The settings panel's theme: one per classical planet. -->
+	<string name="settings_panel_theme">Theme</string>
+	<string name="planet_sun">Sun</string>
+	<string name="planet_moon">Moon</string>
+	<string name="planet_mercury">Mercury</string>
+	<string name="planet_venus">Venus</string>
+	<string name="planet_mars">Mars</string>
+	<string name="planet_jupiter">Jupiter</string>
+	<string name="planet_saturn">Saturn</string>
 </resources>

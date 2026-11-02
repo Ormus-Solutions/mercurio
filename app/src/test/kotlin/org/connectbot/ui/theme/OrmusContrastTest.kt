@@ -25,7 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * WCAG 2.x contrast for the dark scheme (the app has no other): text pairs at 4.5:1, outlines and status
+ * WCAG 2.x contrast for every planet's dark scheme (the app has no light one): text pairs at 4.5:1, outlines and status
  * marks at 3:1. One documented exception: the dark `error` role is the brand
  * danger token itself (4.22 on deep), so error text uses status.error instead.
  */
@@ -67,20 +67,26 @@ class OrmusContrastTest {
         assertContrast("$name onSecondaryContainer", scheme.onSecondaryContainer, scheme.secondaryContainer, 4.5)
         assertContrast("$name onErrorContainer", scheme.onErrorContainer, scheme.errorContainer, 4.5)
         assertContrast("$name onBackground", scheme.onBackground, scheme.background, 4.5)
+        // Sun's print gold on ink reads 4.41, the floor every planet keeps.
+        assertContrast("$name inversePrimary on inverseSurface", scheme.inversePrimary, scheme.inverseSurface, 4.4)
     }
 
     @Test
-    fun darkScheme_meetsContrast() {
-        checkScheme("dark", OrmusDarkColorScheme, OrmusDarkExtras)
-        // The exception, pinned so it cannot slip further: danger on deep.
-        assertContrast("dark error role on surface", OrmusDarkColorScheme.error, OrmusDarkColorScheme.surface, 4.2)
+    fun everyPlanet_meetsContrast() {
+        Planet.entries.forEach { planet ->
+            checkScheme(planet.key, planet.colorScheme, planet.extras)
+            // The exception, pinned so it cannot slip further: danger on the planet's ground.
+            assertContrast("${planet.key} error role on surface", planet.colorScheme.error, planet.colorScheme.surface, 4.2)
+        }
     }
 
     @Test
-    fun terminalOverlay_textReadsOverTheTerminal() {
-        val terminal = OrmusTokens.CodeBg
-        val panel = TerminalOverlayBackground.compositeOver(terminal)
-        assertContrast("overlay text", TerminalOverlayText, panel, 4.5)
-        assertContrast("overlay secondary text", TerminalOverlayTextSecondary, panel, 4.5)
+    fun terminalOverlay_textReadsOverTheTerminal_onEveryPlanet() {
+        Planet.entries.forEach { planet ->
+            val overlay = planet.colorScheme.terminal
+            val panel = overlay.overlayBackground.compositeOver(planet.palette.codeBg)
+            assertContrast("${planet.key} overlay text", overlay.overlayText, panel, 4.5)
+            assertContrast("${planet.key} overlay secondary text", overlay.overlayTextSecondary, panel, 4.5)
+        }
     }
 }

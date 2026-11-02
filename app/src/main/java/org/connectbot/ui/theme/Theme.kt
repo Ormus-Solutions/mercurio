@@ -31,63 +31,66 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
- * Ormus dark scheme: midnight lacquer, ink text, gold as the only accent.
- * Mapping from ~/projects/logos-notes/brand-mapping.md section 2; see docs/DESIGN.md.
+ * A planet's dark scheme: its ground, ink text, its accent (the palette's gold key) as
+ * the only one. Mapping from the brand mapping notes, section 2; see docs/DESIGN.md.
  */
-val OrmusDarkColorScheme = darkColorScheme(
-    primary = OrmusTokens.Gold,
-    onPrimary = OrmusTokens.OnGold,
-    primaryContainer = DarkPrimaryContainer,
-    onPrimaryContainer = OrmusTokens.GoldBright,
-    inversePrimary = OrmusTokens.Print.Gold,
+fun ormusColorScheme(p: OrmusPalette): ColorScheme = darkColorScheme(
+    primary = p.gold,
+    onPrimary = p.onGold,
+    primaryContainer = p.primaryContainer,
+    onPrimaryContainer = p.goldBright,
+    inversePrimary = p.inversePrimary,
     // The brand has no second hue: secondary reads through intensity (ink muted).
-    secondary = OrmusTokens.InkMuted,
-    onSecondary = OrmusTokens.Deep,
-    secondaryContainer = DarkSurfaceContainerHighest,
-    onSecondaryContainer = OrmusTokens.Ink,
+    secondary = p.inkMuted,
+    onSecondary = p.deep,
+    secondaryContainer = p.surfaceContainerHighest,
+    onSecondaryContainer = p.ink,
     // Emphasis is gold plus a brightness lift, never a new hue.
-    tertiary = OrmusTokens.GoldBright,
-    onTertiary = OrmusTokens.OnGold,
-    tertiaryContainer = DarkPrimaryContainer,
-    onTertiaryContainer = OrmusTokens.GoldBright,
+    tertiary = p.goldBright,
+    onTertiary = p.onGold,
+    tertiaryContainer = p.primaryContainer,
+    onTertiaryContainer = p.goldBright,
     // The brand danger token itself (4.22 on deep: fine for fills, icons and
     // borders). Error text in Mercurio's own screens uses Ormus.extras.status.error,
     // the lifted tone that reads 4.5 or better on every surface.
-    error = OrmusTokens.Danger,
-    onError = OrmusTokens.OnGold,
-    errorContainer = DarkErrorContainer,
-    onErrorContainer = OrmusTokens.Ink,
-    background = OrmusTokens.Deep,
-    onBackground = OrmusTokens.Ink,
-    surface = OrmusTokens.Deep,
-    onSurface = OrmusTokens.Ink,
-    surfaceVariant = DarkSurfaceContainerHighest,
+    error = p.danger,
+    onError = p.onGold,
+    errorContainer = p.errorContainer,
+    onErrorContainer = p.ink,
+    background = p.deep,
+    onBackground = p.ink,
+    surface = p.deep,
+    onSurface = p.ink,
+    surfaceVariant = p.surfaceContainerHighest,
     // Never dim for small text: the brand keeps dim for 24px and up.
-    onSurfaceVariant = OrmusTokens.InkMuted,
+    onSurfaceVariant = p.inkMuted,
     // Equal to surface so tonal elevation adds no gold wash.
-    surfaceTint = OrmusTokens.Deep,
-    surfaceDim = OrmusTokens.CodeBg,
-    surfaceBright = DarkSurfaceContainerHighest,
-    surfaceContainerLowest = OrmusTokens.CodeBg,
-    surfaceContainerLow = DarkSurfaceContainerLow,
-    surfaceContainer = OrmusTokens.Midnight,
-    surfaceContainerHigh = DarkSurfaceContainerHigh,
-    surfaceContainerHighest = DarkSurfaceContainerHighest,
+    surfaceTint = p.deep,
+    surfaceDim = p.codeBg,
+    surfaceBright = p.surfaceContainerHighest,
+    surfaceContainerLowest = p.codeBg,
+    surfaceContainerLow = p.surfaceContainerLow,
+    surfaceContainer = p.midnight,
+    surfaceContainerHigh = p.surfaceContainerHigh,
+    surfaceContainerHighest = p.surfaceContainerHighest,
     // Dim (3.61 on midnight) rather than the 25% ghost border (2.07), which fails 3:1.
-    outline = OrmusTokens.Dim,
-    outlineVariant = DarkOutlineVariant,
-    inverseSurface = OrmusTokens.Ink,
-    inverseOnSurface = OrmusTokens.Deep,
-    scrim = OrmusTokens.Deep,
+    outline = p.dim,
+    outlineVariant = p.outlineVariant,
+    inverseSurface = p.ink,
+    inverseOnSurface = p.deep,
+    scrim = p.deep,
 )
 
+/** The Ormus dark scheme: the Sun planet, midnight lacquer with gold. */
+val OrmusDarkColorScheme: ColorScheme = Planet.SUN.colorScheme
+
 /**
- * The app theme. The brand has no light mode, so this always renders the dark Ormus
- * scheme, whatever the phone's system setting is.
+ * The app theme: the [planet] picked in the settings panel, Sun until one is picked. Every
+ * planet is dark: the brand has no light mode, whatever the phone's system setting is.
  */
 @Composable
-fun ConnectBotTheme(content: @Composable () -> Unit) {
-    val colorScheme = OrmusDarkColorScheme
+fun ConnectBotTheme(planet: Planet = rememberPlanet(), content: @Composable () -> Unit) {
+    val colorScheme = planet.colorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -102,7 +105,7 @@ fun ConnectBotTheme(content: @Composable () -> Unit) {
         }
     }
 
-    CompositionLocalProvider(LocalOrmusExtras provides OrmusDarkExtras) {
+    CompositionLocalProvider(LocalOrmusExtras provides planet.extras) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = AppTypography,
@@ -113,8 +116,8 @@ fun ConnectBotTheme(content: @Composable () -> Unit) {
 }
 
 /**
- * Terminal-specific colors for overlays that appear over the terminal view.
- * The terminal background is always dark, like the rest of the app.
+ * Terminal-specific colors for overlays that appear over the terminal view, from the
+ * scheme of the planet in use. The terminal background is always dark, like the rest of the app.
  */
 data class TerminalColors(
     val overlayBackground: Color,
@@ -122,16 +125,10 @@ data class TerminalColors(
     val overlayTextSecondary: Color,
 )
 
-private val terminalColors = TerminalColors(
-    overlayBackground = TerminalOverlayBackground,
-    overlayText = TerminalOverlayText,
-    overlayTextSecondary = TerminalOverlayTextSecondary,
-)
-
-/**
- * Access terminal-specific colors via MaterialTheme.colorScheme.terminal
- */
 val ColorScheme.terminal: TerminalColors
-    @Composable
-    @ReadOnlyComposable
-    get() = terminalColors
+    get() = TerminalColors(
+        // Panels over live content are solid ground at 90%, never blurred.
+        overlayBackground = background.copy(alpha = 0.9f),
+        overlayText = onSurface,
+        overlayTextSecondary = onSurfaceVariant,
+    )

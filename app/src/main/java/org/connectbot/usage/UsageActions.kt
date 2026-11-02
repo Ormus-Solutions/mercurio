@@ -195,6 +195,7 @@ object UsageActions {
     // Settings panel (the console's gear).
     const val PANEL_ENTER_NEW_LINE = "panel:enter-new-line"
     const val PANEL_ALL_SETTINGS = "panel:all-settings"
+    const val PANEL_PLANET = "panel:planet"
 
     // Herd screen (agents by who needs you).
     const val HERD_OPEN = "herd:open"
@@ -404,7 +405,7 @@ object UsageActions {
         HOSTLIST_CONNECT, HOSTLIST_ADD, HOSTLIST_SETTINGS, HOSTLIST_WISH, HOSTLIST_COPY_DETAILS, HOSTLIST_SEND_ERROR,
         WISH_SAVE, WISH_EDIT, WISH_DONE, WISH_DELETE,
         SETTINGS_USAGE_SUMMARY, SETTINGS_USAGE_CLEAR, SETTINGS_UPLOAD_NOW, SETTINGS_WISHES,
-        PANEL_ENTER_NEW_LINE, PANEL_ALL_SETTINGS,
+        PANEL_ENTER_NEW_LINE, PANEL_ALL_SETTINGS, PANEL_PLANET,
         SESSION_START, SESSION_END, SESSION_FAIL, SESSION_RECONNECT, SESSION_AUTO_RECONNECT,
         UPLOAD_REFUSED_HOSTKEY,
         HERD_OPEN, HERD_CARD, HERD_REFRESH, HERD_COMMANDS, HERD_CLOSE,

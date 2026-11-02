@@ -18,6 +18,7 @@
 package org.connectbot.data
 
 import androidx.compose.ui.graphics.toArgb
+import org.connectbot.ui.theme.OrmusPalette
 import org.connectbot.ui.theme.OrmusTokens
 
 /**
@@ -32,31 +33,38 @@ object ColorSchemePresets {
      * yellow = gold, white = ink muted, bright black = dim, bright yellow = gold
      * bright, bright white = ink). The other hues are muted to sit on midnight;
      * they are proposed for a `terminal` group in ormus-brand and are hand-set here
-     * until it lands. Every index reads 4.2:1 or better on the background
-     * (ColorSchemePresetsTest). Also the runtime fallback palette.
+     * until it lands. Every index reads 4.2:1 or better on the background, on every
+     * planet (ColorSchemePresetsTest). Also the runtime fallback palette.
      */
-    val default = PresetScheme(
+    val default = ormusFusion(OrmusTokens.Planets.Sun)
+
+    /**
+     * Ormus Fusion drawn in a planet's palette: its tokens in the token slots, the same
+     * muted hues in the rest. The default scheme follows the planet picked in the
+     * settings panel (ColorSchemeRepository).
+     */
+    fun ormusFusion(p: OrmusPalette) = PresetScheme(
         name = "Ormus Fusion",
         description = "Gold and ink on midnight lacquer",
         defaultFg = 15, // ink
         defaultBg = 0, // codeBg
         colors = intArrayOf(
-            OrmusTokens.CodeBg.toArgb(), // black
-            OrmusTokens.Danger.toArgb(), // red
+            p.codeBg.toArgb(), // black
+            p.danger.toArgb(), // red
             0xff8fb08a.toInt(), // green: sage
-            OrmusTokens.Gold.toArgb(), // yellow
+            p.gold.toArgb(), // yellow
             0xff6f93cf.toInt(), // blue: lapis
             0xffa98bc2.toInt(), // magenta: amethyst
             0xff6fa7a8.toInt(), // cyan: verdigris
-            OrmusTokens.InkMuted.toArgb(), // white
-            OrmusTokens.Dim.toArgb(), // bright black (zsh autosuggestions stay readable)
+            p.inkMuted.toArgb(), // white
+            p.dim.toArgb(), // bright black (zsh autosuggestions stay readable)
             0xffe27a72.toInt(), // bright red
             0xffaecba7.toInt(), // bright green
-            OrmusTokens.GoldBright.toArgb(), // bright yellow
+            p.goldBright.toArgb(), // bright yellow
             0xff93b2e2.toInt(), // bright blue
             0xffc4a9da.toInt(), // bright magenta
             0xff93c6c4.toInt(), // bright cyan
-            OrmusTokens.Ink.toArgb(), // bright white
+            p.ink.toArgb(), // bright white
         ),
     )
 

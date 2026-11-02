@@ -576,4 +576,13 @@
   <string name="settings_panel_enter_new_line_off">Enter envía, igual que la tecla ⏎ de la barra.</string>
   <string name="settings_panel_all_settings">Todos los ajustes</string>
   <string name="settings_panel_all_settings_summary">Terminal, teclado, fuentes y conexiones</string>
+  <!-- The settings panel's theme: one per classical planet. -->
+  <string name="settings_panel_theme">Tema</string>
+  <string name="planet_sun">Sol</string>
+  <string name="planet_moon">Luna</string>
+  <string name="planet_mercury">Mercurio</string>
+  <string name="planet_venus">Venus</string>
+  <string name="planet_mars">Marte</string>
+  <string name="planet_jupiter">Júpiter</string>
+  <string name="planet_saturn">Saturno</string>
 </resources>

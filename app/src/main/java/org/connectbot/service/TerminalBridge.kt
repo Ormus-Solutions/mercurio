@@ -541,6 +541,16 @@ class TerminalBridge {
     }
 
     /**
+     * Repaint after a new planet pick in the settings panel. Only a session on the default
+     * scheme (Ormus Fusion, drawn in the planet) changes; another scheme keeps its colors.
+     */
+    fun refreshPlanetColors() {
+        if (currentColorSchemeId != DEFAULT_COLOR_SCHEME_ID) return
+        fullColorPalette = manager.colorRepository.getColorsForSchemeBlocking(currentColorSchemeId)
+        terminalEmulator.applyColorScheme(fullColorPalette.sliceArray(0 until 16), fullColorPalette[defaultFg], fullColorPalette[defaultBg])
+    }
+
+    /**
      * Apply profile settings to the terminal.
      */
     private fun applyProfileSettings(profile: org.connectbot.data.entity.Profile) {
@@ -1507,6 +1517,9 @@ class TerminalBridge {
         const val TAG = "CB.TerminalBridge"
 
         private const val DEFAULT_FONT_SIZE_SP = 10
+
+        /** The default scheme, Ormus Fusion: built-in preset 0 (a profile's colorSchemeId default). */
+        private const val DEFAULT_COLOR_SCHEME_ID = -1L
         private const val FONT_SIZE_STEP = 2
 
         private const val ACTIVITY_BUFFER_CHARS = 2048

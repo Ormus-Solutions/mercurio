@@ -115,7 +115,11 @@ class BackupAgent : BackupAgentHelper() {
         val dispatchers = CoroutineDispatchers(default = Dispatchers.Default, io = Dispatchers.IO, main = Dispatchers.Main)
         val securePasswordStorage = org.connectbot.util.SecurePasswordStorage(applicationContext)
         val hostRepository = HostRepository(applicationContext, database, database.hostDao(), database.portForwardDao(), database.knownHostDao(), securePasswordStorage)
-        val colorSchemeRepository = ColorSchemeRepository(database.colorSchemeDao(), dispatchers = dispatchers)
+        val colorSchemeRepository = ColorSchemeRepository(
+            database.colorSchemeDao(),
+            dispatchers = dispatchers,
+            prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext),
+        )
         val pubkeyRepository = PubkeyRepository(database.pubkeyDao())
 
         val filter = BackupFilter(applicationContext, hostRepository, colorSchemeRepository, pubkeyRepository)

@@ -18,15 +18,21 @@
 package org.connectbot.data
 
 import android.content.Context
+import androidx.compose.ui.graphics.toArgb
+import androidx.preference.PreferenceManager
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.connectbot.di.CoroutineDispatchers
+import org.connectbot.ui.theme.OrmusTokens
 import org.connectbot.util.HostConstants
+import org.connectbot.util.PreferenceConstants
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -47,6 +53,7 @@ class ColorSchemeRepositoryTest {
     private lateinit var database: ConnectBotDatabase
     private lateinit var repository: ColorSchemeRepository
     private val testDispatcher = UnconfinedTestDispatcher()
+    private val prefs get() = PreferenceManager.getDefaultSharedPreferences(ApplicationProvider.getApplicationContext<Context>())
     private val dispatchers = CoroutineDispatchers(
         default = testDispatcher,
         io = testDispatcher,
@@ -59,11 +66,12 @@ class ColorSchemeRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, ConnectBotDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = ColorSchemeRepository(database.colorSchemeDao(), dispatchers)
+        repository = ColorSchemeRepository(database.colorSchemeDao(), dispatchers, prefs)
     }
 
     @After
     fun tearDown() {
+        prefs.edit().clear().commit()
         database.close()
     }
 
@@ -302,5 +310,24 @@ class ColorSchemeRepositoryTest {
         val (fgAfter, bgAfter) = repository.getSchemeDefaults(customId)
         assertEquals("FG should be reset to default", HostConstants.DEFAULT_FG_COLOR, fgAfter)
         assertEquals("BG should be reset to default", HostConstants.DEFAULT_BG_COLOR, bgAfter)
+    }
+
+    @Test
+    fun theDefaultScheme_isDrawnInThePickedPlanet() = runBlocking {
+        assertEquals(OrmusTokens.Planets.Sun.codeBg.toArgb(), repository.getSchemeColors(-1L)[0])
+
+        prefs.edit().putString(PreferenceConstants.PLANET, "mars").commit()
+
+        val colors = repository.getSchemeColors(-1L)
+        assertEquals(OrmusTokens.Planets.Mars.codeBg.toArgb(), colors[0])
+        assertEquals(OrmusTokens.Planets.Mars.gold.toArgb(), colors[3])
+        assertEquals(OrmusTokens.Planets.Mars.ink.toArgb(), colors[15])
+        assertArrayEquals(colors, repository.observeSchemeColors(-1L).first())
+    }
+
+    @Test
+    fun anotherBuiltInScheme_keepsItsColors_onAnyPlanet() = runBlocking {
+        prefs.edit().putString(PreferenceConstants.PLANET, "mars").commit()
+        assertArrayEquals(ColorSchemePresets.builtInSchemes[1].colors, repository.getSchemeColors(-2L))
     }
 }

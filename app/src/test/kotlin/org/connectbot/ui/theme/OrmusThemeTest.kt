@@ -81,6 +81,26 @@ class OrmusThemeTest {
     }
 
     @Test
+    fun generatedPlanets_matchVendoredJson_andSunIsTheColorGroup() {
+        val planets = tokens.getJSONObject("planets")
+        assertEquals(planets.keys().asSequence().filterNot { it.startsWith("$") }.toList(), Planet.entries.map { it.key })
+        Planet.entries.forEach { planet ->
+            val p = planet.palette
+            val generated = mapOf(
+                "midnight" to p.midnight, "deep" to p.deep, "gold" to p.gold, "goldBright" to p.goldBright,
+                "ink" to p.ink, "inkMuted" to p.inkMuted, "dim" to p.dim, "hairline" to p.hairline,
+                "onGold" to p.onGold, "codeBg" to p.codeBg, "danger" to p.danger,
+            )
+            val json = planets.getJSONObject(planet.key)
+            assertEquals(json.keys().asSequence().toSet(), generated.keys)
+            generated.forEach { (key, value) -> assertEquals("${planet.key}.$key", parseCss(json.getString(key)).toArgb(), value.toArgb()) }
+        }
+        // Sun is today's look: its scheme is the one the brand roles above are checked on.
+        assertEquals(OrmusDarkColorScheme, Planet.SUN.colorScheme)
+        assertEquals(token("color", "gold"), Planet.SUN.palette.gold)
+    }
+
+    @Test
     fun darkScheme_brandRolesEqualVendoredTokens() {
         val scheme = OrmusDarkColorScheme
         assertEquals(token("color", "gold"), scheme.primary)

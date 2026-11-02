@@ -20,8 +20,10 @@ package org.connectbot.ui.screens.panel
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -30,6 +32,7 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.connectbot.ui.theme.ConnectBotTheme
+import org.connectbot.ui.theme.Planet
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.usage.UsageLog
@@ -42,7 +45,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The settings panel behind the console's gear: the Enter switch and the way on to all settings. */
+/** The settings panel behind the console's gear: the planet picker, the Enter switch and the way on to all settings. */
 @RunWith(AndroidJUnit4::class)
 class SettingsPanelScreenTest {
 
@@ -90,6 +93,29 @@ class SettingsPanelScreenTest {
         prefs.edit().putBoolean(PreferenceConstants.ENTER_NEW_LINE, true).commit()
         setPanel()
         composeTestRule.onNodeWithTag(ENTER_NEW_LINE_TAG).assertIsOn()
+    }
+
+    @Test
+    fun sunIsPicked_untilAnotherPlanetIs_andThePickIsSaved() {
+        setPanel()
+        composeTestRule.onNodeWithTag(planetTag(Planet.SUN)).assertIsSelected()
+        composeTestRule.onNodeWithTag(planetTag(Planet.MARS)).assertIsNotSelected()
+
+        composeTestRule.onNodeWithTag(planetTag(Planet.MARS)).performClick()
+
+        assertEquals("mars", prefs.getString(PreferenceConstants.PLANET, null))
+        assertEquals(listOf(UsageActions.PANEL_PLANET), logged)
+        composeTestRule.onNodeWithTag(planetTag(Planet.MARS)).assertIsSelected()
+        composeTestRule.onNodeWithTag(planetTag(Planet.SUN)).assertIsNotSelected()
+    }
+
+    @Test
+    fun everyPlanet_hasATile_withItsName() {
+        setPanel()
+        Planet.entries.forEach { composeTestRule.onNodeWithTag(planetTag(it)).assertExists() }
+        listOf("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn").forEach {
+            composeTestRule.onNodeWithText(it).assertExists()
+        }
     }
 
     @Test

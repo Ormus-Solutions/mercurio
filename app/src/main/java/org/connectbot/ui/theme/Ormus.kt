@@ -72,20 +72,24 @@ data class OrmusExtras(
     val panelOverLive: Color,
 )
 
-val OrmusDarkExtras = OrmusExtras(
+/** A planet's surfaces and status colors, in the brand's intensity order. */
+fun ormusExtras(p: OrmusPalette) = OrmusExtras(
     status = OrmusStatusColors(
-        blocked = OrmusTokens.Gold,
-        done = OrmusTokens.Ink,
-        working = OrmusTokens.InkMuted,
-        idle = OrmusTokens.Dim,
-        connecting = OrmusTokens.GoldBright,
-        error = DarkError,
+        blocked = p.gold,
+        done = p.ink,
+        working = p.inkMuted,
+        idle = p.dim,
+        connecting = p.goldBright,
+        error = p.errorText,
     ),
-    hairline = OrmusTokens.Hairline,
-    ghostBorder = OrmusTokens.Ink.copy(alpha = 0.25f),
-    cardAccent = OrmusTokens.Gold.copy(alpha = 0.7f),
-    panelOverLive = OrmusTokens.Deep.copy(alpha = 0.9f),
+    hairline = p.hairline,
+    ghostBorder = p.ink.copy(alpha = 0.25f),
+    cardAccent = p.gold.copy(alpha = 0.7f),
+    panelOverLive = p.deep.copy(alpha = 0.9f),
 )
+
+/** The Sun planet's extras, the default. */
+val OrmusDarkExtras: OrmusExtras = Planet.SUN.extras
 
 val LocalOrmusExtras = staticCompositionLocalOf { OrmusDarkExtras }
 
