@@ -340,14 +340,19 @@ class HerdSession(
     fun switchWorkspace(down: Boolean): String? {
         val keys = _keys.value
         val strokes = keys.switchWorkspace(down) ?: return keys.switchProblem(down)
+        sendStrokes(strokes)
+        scope.launch { refresh(_attached.value) }
+        return null
+    }
+
+    /** Type [strokes] into the attached client, in order and together (see [switchWorkspace]). */
+    fun sendStrokes(strokes: List<HerdrStroke>) {
         strokes.forEach { stroke ->
             when (stroke) {
                 is HerdrStroke.Bytes -> sendKeys(keystroke(stroke.bytes))
                 is HerdrStroke.Key -> sendKey(stroke.key)
             }
         }
-        scope.launch { refresh(_attached.value) }
-        return null
     }
 
     /** Clear the result line (the sheet closed). */

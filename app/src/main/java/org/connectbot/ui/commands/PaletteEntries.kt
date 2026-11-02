@@ -38,7 +38,7 @@ import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSessionSnapshot
 
 /** An open session the palette can switch to. */
-data class PaletteSession(val hostId: Long, val nickname: String)
+data class PaletteSession(val consoleId: Long, val nickname: String)
 
 /**
  * What the console knows when the palette opens: which session is on screen,
@@ -220,10 +220,10 @@ fun buildPaletteEntries(
     context.sessions.forEach { session ->
         add(
             PaletteEntry(
-                "session:${session.hostId}",
+                "session:${session.consoleId}",
                 session.nickname,
                 PaletteGroup.SESSIONS,
-                PaletteAction.SwitchSession(session.hostId),
+                PaletteAction.SwitchSession(session.consoleId),
                 s(R.string.palette_subtitle_session),
                 UsageActions.DRAWER_SWITCH,
             ),

@@ -62,7 +62,7 @@ sealed interface PaletteAction {
     data class ConnectHost(val hostId: Long) : PaletteAction
 
     /** Show an open session's console. */
-    data class SwitchSession(val hostId: Long) : PaletteAction
+    data class SwitchSession(val consoleId: Long) : PaletteAction
 
     /** Connect to a tailnet machine, the way the Machines list does. */
     data class ConnectMachine(val device: TailscaleDevice) : PaletteAction

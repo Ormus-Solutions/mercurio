@@ -78,6 +78,7 @@ import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdAttention
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.push.PushEndpoints
 import timber.log.Timber
 import java.io.IOException
@@ -380,15 +381,46 @@ class TerminalManager :
             throw IllegalArgumentException("Connection already open for that nickname")
         }
 
-        val bridge = TerminalBridge(this, host, dispatchers)
+        return startBridge(TerminalBridge(this, host, dispatchers), first = true)
+    }
+
+    /**
+     * Open one more console on [host], whose post-login attaches [console]'s Herdr session
+     * and lands on its workspace ([TerminalBridge.console]); the console already open on
+     * that target when there is one. The host's first console stays the one
+     * [getConnectedBridge] finds, so the host list and the per-host lookups see it as before.
+     */
+    fun openHerdrConsole(host: Host, console: HerdrConsole): TerminalBridge {
+        val shown = synchronized(_bridges) {
+            _bridges.firstOrNull { it.host.id == host.id && it.console == console }?.let { return it }
+            _bridges.firstOrNull { it.host.id == host.id }
+        }
+        val bridge = TerminalBridge(this, host, dispatchers, console)
+        // Out of sight until it is shown: start at the size of the host's first console.
+        shown?.let(bridge::sizeLike)
+        return startBridge(bridge, first = false)
+    }
+
+    /**
+     * Whether a console of [bridge]'s host other than [bridge] shows Herdr [session] now:
+     * its session is open and its terminal attached that Herdr session.
+     */
+    fun showsHerdrSession(bridge: TerminalBridge, session: String): Boolean = synchronized(_bridges) {
+        _bridges.any { it !== bridge && it.host.id == bridge.host.id && it.isSessionOpen && it.herd?.attached?.value == session }
+    }
+
+    // Connect [bridge] and list it; a host's [first] console is also what the per-host maps find.
+    private fun startBridge(bridge: TerminalBridge, first: Boolean): TerminalBridge {
         bridge.setOnDisconnectedListener(this)
         bridge.startConnection()
 
         synchronized(_bridges) {
             _bridges.add(bridge)
-            val wr = WeakReference(bridge)
-            hostBridgeMap[bridge.host] = wr
-            nicknameBridgeMap[bridge.host.nickname] = wr
+            if (first) {
+                val wr = WeakReference(bridge)
+                hostBridgeMap[bridge.host] = wr
+                nicknameBridgeMap[bridge.host.nickname] = wr
+            }
             _bridgesFlow.value = _bridges.toList()
         }
 
@@ -406,7 +438,7 @@ class TerminalManager :
         }
 
         // also update database with new connected time
-        touchHost(host)
+        touchHost(bridge.host)
 
         notifyHostStatusChanged()
 
@@ -500,8 +532,9 @@ class TerminalManager :
             // remove this bridge from our list
             _bridges.remove(bridge)
 
-            hostBridgeMap.remove(bridge.host)
-            nicknameBridgeMap.remove(bridge.host.nickname)
+            // An extra console of the host is not in the maps: leave the host's first console there.
+            if (hostBridgeMap[bridge.host]?.get() === bridge) hostBridgeMap.remove(bridge.host)
+            if (nicknameBridgeMap[bridge.host.nickname]?.get() === bridge) nicknameBridgeMap.remove(bridge.host.nickname)
 
             if (bridge.isUsingNetwork()) {
                 connectivityMonitor.decRef()
@@ -976,6 +1009,9 @@ class TerminalManager :
      * already left out the agent the user is looking at). Called off the main thread.
      */
     fun onHerdNotices(bridge: TerminalBridge, notices: List<HerdAttention.Notice>) {
+        // Every console of a host reads the same default session, so only its first open one posts.
+        val poster = synchronized(_bridges) { _bridges.firstOrNull { it.host.id == bridge.host.id && it.isSessionOpen } }
+        if (poster !== bridge) return
         notices.forEach { connectionNotifier.showHerdNotification(this, bridge.host, it) }
     }
 
@@ -1141,6 +1177,8 @@ class TerminalManager :
 
     internal fun onSessionOpened(bridge: TerminalBridge) {
         if (::usageTracker.isInitialized) usageTracker.sessionOpened(bridge, bridge.runsHerdr)
+        // The host's first console already syncs usage and the push endpoint there.
+        if (bridge.console != null) return
         if (::sunSync.isInitialized) sunSync.onSessionOpen(bridge, bridge.host, (bridge.transport as? SSH)?.let(::SshSunLink))
         if (::pushEndpoints.isInitialized) syncPushEndpoint(bridge)
     }

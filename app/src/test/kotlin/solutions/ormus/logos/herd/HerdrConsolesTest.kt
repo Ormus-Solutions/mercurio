@@ -1,0 +1,166 @@
+/*
+ * ConnectBot: simple, powerful, open-source SSH client for Android
+ * Copyright 2026 Kenny Root
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package solutions.ormus.logos.herd
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
+import org.connectbot.transport.CommandOutput
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Test
+
+/**
+ * How an extra console of a Herdr host lands on its workspace, and its name.
+ *
+ * snapshot-picker-test.json is `herdr api snapshot` recorded on Sun (herdr 0.9.0) from a
+ * throwaway session: workspaces w1 (tmp), w2 (beta), w3 (gamma), w1 focused.
+ */
+class HerdrConsolesTest {
+    private val snapshot = checkNotNull(parseHerdrSnapshot(herdrFixture("snapshot-picker-test.json")))
+    private val keys = HerdrKeys.DEFAULT
+
+    // Herdr's default switcher: prefix (ctrl+b) w, the arrows, Enter.
+    private val picker = HerdrStroke.Bytes(2.toChar().toString() + "w")
+    private val down = HerdrStroke.Key(HerdrTermKey.DOWN)
+    private val up = HerdrStroke.Key(HerdrTermKey.UP)
+    private val enter = HerdrStroke.Key(HerdrTermKey.ENTER)
+
+    private fun landing(
+        console: HerdrConsole,
+        snapshot: HerdrSessionSnapshot? = this.snapshot,
+        keys: HerdrKeys = this.keys,
+        crossesMachines: Boolean = false,
+        shared: Boolean = true,
+    ) = HerdrConsoles.landing(console, snapshot, keys, crossesMachines, shared)
+
+    @Test
+    fun landing_asIsWithoutAWorkspace_orWhereTheFocusAlreadyIs() {
+        assertEquals(HerdrLanding.AsIs, landing(HerdrConsole("beta")))
+        assertEquals(HerdrLanding.AsIs, landing(HerdrConsole("beta", "w1", "tmp")))
+        assertEquals(HerdrLanding.AsIs, landing(HerdrConsole("beta", "w1", "tmp"), shared = false))
+    }
+
+    @Test
+    fun landing_theFocus_whileNoOtherConsoleShowsTheSession() {
+        assertEquals(HerdrLanding.Focus("w3"), landing(HerdrConsole("beta", "w3", "gamma"), shared = false))
+    }
+
+    @Test
+    fun landing_switcherKeysFromTheFocusedWorkspace_whenAnotherConsoleShowsTheSession() {
+        // A new client opens on w1, the session's focus: two steps down to w3.
+        assertEquals(HerdrLanding.Keys(listOf(picker, down, down, enter)), landing(HerdrConsole("beta", "w3", "gamma")))
+        // With w3 focused, w1 is two steps up.
+        val onGamma = snapshot.copy(focusedWorkspaceId = "w3")
+        assertEquals(HerdrLanding.Keys(listOf(picker, up, up, enter)), landing(HerdrConsole("beta", "w1", "tmp"), snapshot = onGamma))
+        // The sidebar order is the workspace numbers, whatever order the snapshot lists them in.
+        val shuffled = snapshot.copy(workspaces = snapshot.workspaces.reversed())
+        assertEquals(HerdrLanding.Keys(listOf(picker, down, enter)), landing(HerdrConsole("beta", "w2", "beta"), snapshot = shuffled))
+    }
+
+    @Test
+    fun landing_theFocus_whenTheKeysCannotCountTheSteps() {
+        val console = HerdrConsole("beta", "w3", "gamma")
+        assertEquals(HerdrLanding.Focus("w3"), landing(console, snapshot = null))
+        assertEquals(HerdrLanding.Focus("w3"), landing(console, snapshot = snapshot.copy(focusedWorkspaceId = null)))
+        // Herdr's switcher walks saved machines' workspaces too: the count would be off.
+        assertEquals(HerdrLanding.Focus("w3"), landing(console, crossesMachines = true))
+        assertEquals(HerdrLanding.Focus("w9"), landing(HerdrConsole("beta", "w9", "gone")))
+        assertEquals(HerdrLanding.Focus("w3"), landing(console, keys = HerdrKeys.fromConfig("[keys]\nworkspace_picker = \"cmd+w\"\n")))
+    }
+
+    @Test
+    fun console_refusesANameHerdrWouldNotGive() {
+        assertThrows(IllegalArgumentException::class.java) { HerdrConsole("beta; rm -rf ~") }
+        assertThrows(IllegalArgumentException::class.java) { HerdrConsole("") }
+    }
+
+    @Test
+    fun label_hostThenSessionThenWorkspace() {
+        assertEquals("box", HerdrConsoles.label("box", HerdrCommands.DEFAULT_SESSION, null))
+        assertEquals("box · beta", HerdrConsoles.label("box", "beta", null))
+        assertEquals("box · beta · gamma", HerdrConsoles.label("box", "beta", HerdrConsole("beta", "w3", "gamma")))
+        assertEquals("box · beta", HerdrConsoles.label("box", "beta", HerdrConsole("beta")))
+        assertEquals("box · tmp", HerdrConsoles.label("box", HerdrCommands.DEFAULT_SESSION, HerdrConsole(HerdrCommands.DEFAULT_SESSION, "w1", "tmp")))
+        // A jump attached the console to another session: its opening workspace no longer applies.
+        assertEquals("box · alpha", HerdrConsoles.label("box", "alpha", HerdrConsole("beta", "w3", "gamma")))
+    }
+
+    /** Runs [HerdrConsoles.land] with a real IO pool, recording each command. */
+    private class Land(private val shared: Boolean, private val run: (String) -> CommandOutput?) {
+        val commands = mutableListOf<String>()
+
+        fun land(console: HerdrConsole): HerdrLanding = runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            try {
+                HerdrConsoles.land(
+                    console = console,
+                    scope = scope,
+                    io = Dispatchers.IO,
+                    run = { command, _ ->
+                        synchronized(commands) { commands += command }
+                        run(command)
+                    },
+                    keys = HerdrKeys.DEFAULT,
+                    crossesMachines = false,
+                    shared = shared,
+                )
+            } finally {
+                scope.cancel()
+            }
+        }
+    }
+
+    private val snapshotCommand = HerdrSessions.snapshotCommand("beta")
+    private val ok = CommandOutput(stdout = herdrFixture("snapshot-picker-test.json"), stderr = "", exitCode = 0)
+
+    private fun focusCommand(workspaceId: String) = (HerdrSessions.commands("beta").build(HerdrAction.FocusWorkspace(workspaceId), snapshot) as HerdrInvocation.Cli).command
+
+    @Test
+    fun land_focusesTheWorkspaceInItsSessionBeforeReturning() {
+        val land = Land(shared = false) { if (it == snapshotCommand) ok else CommandOutput("", "", 0) }
+        assertEquals(HerdrLanding.Focus("w3"), land.land(HerdrConsole("beta", "w3", "gamma")))
+        assertEquals(listOf(snapshotCommand, focusCommand("w3")), land.commands)
+    }
+
+    @Test
+    fun land_switcherKeysRunNoFocus() {
+        val land = Land(shared = true) { if (it == snapshotCommand) ok else CommandOutput("", "", 0) }
+        assertEquals(HerdrLanding.Keys(listOf(picker, down, down, enter)), land.land(HerdrConsole("beta", "w3", "gamma")))
+        assertEquals(listOf(snapshotCommand), land.commands)
+    }
+
+    @Test
+    fun land_noWorkspaceRunsNothing() {
+        val land = Land(shared = true) { ok }
+        assertEquals(HerdrLanding.AsIs, land.land(HerdrConsole("beta")))
+        assertEquals(emptyList<String>(), land.commands)
+    }
+
+    @Test
+    fun land_aSnapshotThatFailsStillLandsByTheFocus() {
+        val land = Land(shared = true) { command ->
+            if (command == snapshotCommand) throw IllegalStateException("exec channel closed") else CommandOutput("", "", 0)
+        }
+        assertEquals(HerdrLanding.Focus("w3"), land.land(HerdrConsole("beta", "w3", "gamma")))
+        assertEquals(snapshotCommand, land.commands.first())
+        assertEquals(2, land.commands.size)
+    }
+}

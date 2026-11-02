@@ -64,12 +64,15 @@ import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusMono
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
+import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.HerdrConsoles
 
 /**
  * Left-edge drawer for switching between, disconnecting, and starting terminal
  * sessions. Lists every open bridge across all hosts (not just the host the
  * console was launched for), so it doubles as a session hub. [onOpenHerd], when
  * a session runs Herdr, adds a Herd item that lists its agents by who needs you.
+ * A host's consoles are one row each, named by the Herdr session each one shows.
  */
 @Composable
 fun SessionDrawer(
@@ -95,9 +98,10 @@ fun SessionDrawer(
             modifier = Modifier.weight(1f, fill = false),
             contentPadding = PaddingValues(horizontal = 12.dp),
         ) {
-            items(bridges, key = { it.host.id }) { bridge ->
+            items(bridges, key = { it.consoleId }) { bridge ->
                 val host = bridge.host
-                val label = host.nickname.ifBlank { host.hostname }
+                val attached = bridge.herd?.attached?.collectAsState()?.value ?: HerdrCommands.DEFAULT_SESSION
+                val label = HerdrConsoles.label(host.nickname.ifBlank { host.hostname }, attached, bridge.console)
                 val endpoint = buildString {
                     if (host.username.isNotBlank()) append("${host.username}@")
                     append(host.hostname)

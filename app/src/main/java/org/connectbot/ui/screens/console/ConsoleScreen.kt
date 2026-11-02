@@ -204,6 +204,7 @@ import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdResult
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.HerdrConsoles
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSwipe
 import solutions.ormus.logos.terminal.BracketedPaste
@@ -778,8 +779,8 @@ fun ConsoleScreen(
             if (index >= 0) viewModel.selectBridge(index) else onNavigateToConsole(hostId)
         }
 
-        override fun switchSession(hostId: Long) {
-            allBridges.firstOrNull { it.host.id == hostId }?.let { onSelectSession(it) }
+        override fun switchSession(consoleId: Long) {
+            allBridges.firstOrNull { it.consoleId == consoleId }?.let { onSelectSession(it) }
         }
 
         override fun connectMachine(device: TailscaleDevice) {
@@ -1349,7 +1350,9 @@ fun ConsoleScreen(
                         herdrKeys = herdrKeys,
                         disconnected = disconnected,
                         canForwardPorts = canForwardPorts,
-                        sessions = allBridges.filter { it !== currentBridge }.map { PaletteSession(it.host.id, it.host.nickname) },
+                        sessions = allBridges.filter { it !== currentBridge }.map {
+                            PaletteSession(it.consoleId, HerdrConsoles.label(it.host.nickname, it.herd?.attached?.value ?: HerdrCommands.DEFAULT_SESSION, it.console))
+                        },
                         machines = machines.devices,
                     ),
                     target = currentBridge?.let { remember(it) { it.slashTarget() } },
@@ -1433,8 +1436,9 @@ fun ConsoleScreen(
                                     coroutineScope.launch { drawerState.open() }
                                 },
                         ) {
+                            val attached = currentBridge?.herd?.attached?.collectAsState()?.value ?: HerdrCommands.DEFAULT_SESSION
                             Text(
-                                currentBridge?.host?.nickname
+                                currentBridge?.host?.nickname?.let { HerdrConsoles.label(it, attached, currentBridge.console) }
                                     ?: stringResource(R.string.console_default_title),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

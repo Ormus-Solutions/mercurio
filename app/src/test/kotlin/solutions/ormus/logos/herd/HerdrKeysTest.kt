@@ -130,6 +130,24 @@ class HerdrKeysTest {
     }
 
     @Test
+    fun switchWorkspaceBy_opensThePickerOnce_stepsThatMany_thenEnter() {
+        val stock = HerdrKeys.DEFAULT
+        val picker = HerdrStroke.Bytes(ctrlB + "w")
+        val down = HerdrStroke.Key(HerdrTermKey.DOWN)
+        val up = HerdrStroke.Key(HerdrTermKey.UP)
+        val enter = HerdrStroke.Key(HerdrTermKey.ENTER)
+        assertEquals(listOf(picker, down, down, down, enter), stock.switchWorkspaceBy(3))
+        assertEquals(listOf(picker, up, up, enter), stock.switchWorkspaceBy(-2))
+        assertEquals(emptyList<HerdrStroke>(), stock.switchWorkspaceBy(0))
+        // One step is the swipe's switch, as before.
+        assertEquals(stock.switchWorkspace(down = true), stock.switchWorkspaceBy(1))
+        assertEquals(stock.switchWorkspace(down = false), stock.switchWorkspaceBy(-1))
+        // A key the host binds to nothing sendable: no strokes at all.
+        assertNull(HerdrKeys.fromConfig("[keys]\nworkspace_picker = \"cmd+w\"\n").switchWorkspaceBy(2))
+        assertNull(HerdrKeys.fromConfig("[keys]\nnavigate_workspace_up = \"\"\n").switchWorkspaceBy(-1))
+    }
+
+    @Test
     fun switchWorkspace_offWhenAKeyCannotBeSent_andSaysWhy() {
         val picker = HerdrKeys.fromConfig("[keys]\nworkspace_picker = \"cmd+w\"\n")
         assertNull(picker.switchWorkspace(down = true))

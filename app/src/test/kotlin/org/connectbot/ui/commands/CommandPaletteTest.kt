@@ -73,8 +73,8 @@ private class RecordingTarget : PaletteTarget {
         calls += "host $hostId"
     }
 
-    override fun switchSession(hostId: Long) {
-        calls += "session $hostId"
+    override fun switchSession(consoleId: Long) {
+        calls += "session $consoleId"
     }
 
     override fun connectMachine(device: TailscaleDevice) {

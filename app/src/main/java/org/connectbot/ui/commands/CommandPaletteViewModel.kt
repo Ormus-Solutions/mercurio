@@ -62,7 +62,7 @@ interface PaletteTarget {
 
     fun connectHost(hostId: Long)
 
-    fun switchSession(hostId: Long)
+    fun switchSession(consoleId: Long)
 
     fun connectMachine(device: TailscaleDevice)
 
@@ -78,7 +78,7 @@ fun runPaletteAction(action: PaletteAction, target: PaletteTarget, text: String?
         is PaletteAction.Herdr -> target.herdr(action.action, text)
         is PaletteAction.Slash -> target.slash(action.command)
         is PaletteAction.ConnectHost -> target.connectHost(action.hostId)
-        is PaletteAction.SwitchSession -> target.switchSession(action.hostId)
+        is PaletteAction.SwitchSession -> target.switchSession(action.consoleId)
         is PaletteAction.ConnectMachine -> target.connectMachine(action.device)
         is PaletteAction.Open -> target.open(action.screen)
         is PaletteAction.Navigate -> target.navigate(action.route)

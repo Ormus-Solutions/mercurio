@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.connectbot.R
 import org.connectbot.data.entity.Host
 import org.connectbot.data.entity.PortForward
@@ -66,9 +67,12 @@ import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.herd.HerdrConsoles
 import solutions.ormus.logos.herd.HerdrDrop
 import solutions.ormus.logos.herd.HerdrJump
 import solutions.ormus.logos.herd.HerdrKey
+import solutions.ormus.logos.herd.HerdrLanding
 import solutions.ormus.logos.herd.HerdrOnScreen
 import solutions.ormus.logos.herd.HerdrReattach
 import solutions.ormus.logos.herd.HerdrSessions
@@ -318,6 +322,25 @@ class TerminalBridge {
     var herd: HerdSession? = null
         private set
 
+    /**
+     * Set on an extra console of a Herdr host ([TerminalManager.openHerdrConsole]): the
+     * session it attaches and the workspace it lands on. Null on a host's first console,
+     * which attaches through the connect picker as before.
+     */
+    val console: HerdrConsole?
+
+    /** This console's id, unique while the app runs: two consoles of one host share the host's id. */
+    val consoleId: Long = nextConsoleId.incrementAndGet()
+
+    /**
+     * Give this console's terminal [other]'s size, before it connects: an extra console that
+     * opens out of sight then attaches at the size of the console on screen, not 80x24.
+     */
+    fun sizeLike(other: TerminalBridge) {
+        val size = other.terminalEmulator.dimensions
+        if (size.rows > 0 && size.columns > 0) terminalEmulator.resize(size.rows, size.columns)
+    }
+
     private val disconnectListeners = CopyOnWriteArrayList<BridgeDisconnectedListener>()
 
     // One reconnect with no tap after a dropped link (see AutoReconnect).
@@ -328,10 +351,11 @@ class TerminalBridge {
      * launch thread to start SSH connection and handle any hostkey verification
      * and password authentication.
      */
-    constructor(manager: TerminalManager, host: Host, dispatchers: CoroutineDispatchers) {
+    constructor(manager: TerminalManager, host: Host, dispatchers: CoroutineDispatchers, console: HerdrConsole? = null) {
         this.manager = manager
         this.host = host
         this.dispatchers = dispatchers
+        this.console = console
         autoReconnect = AutoReconnect(scope, dispatchers, SystemClock::elapsedRealtime) {
             // A tap on Reconnect in the meantime already started one.
             if (disconnected && !connecting) {
@@ -366,6 +390,8 @@ class TerminalBridge {
         // post-login command says. Where Herdr is missing, the monitor backs off to
         // about one try a minute.
         herd = if (host.protocol == "ssh") newHerdSession() else null
+        // An extra console shows its own session from the start (its name and its swipes).
+        console?.let { herd?.attach(it.session) }
 
         // Store force size from profile
         profileForceSizeRows = profile.forceSizeRows
@@ -609,6 +635,10 @@ class TerminalBridge {
         if (newTransport is SSH) {
             newTransport.setCompression(host.compression)
             host.useAuthAgent?.let { newTransport.setUseAuthAgent(it) }
+            // The PTY starts at the terminal's size. A console no view has sized yet (an extra
+            // console opened out of sight) otherwise asks for 0x0, and Herdr's client refuses to
+            // attach: "cannot attach without a usable terminal" (measured on the emulator).
+            terminalEmulator.dimensions.let { newTransport.setDimensions(it.columns, it.rows, 0, 0) }
         }
         newTransport.setEmulation(emulation)
 
@@ -843,6 +873,12 @@ class TerminalBridge {
             return
         }
         val ssh = transport as? SSH
+        console?.let { console ->
+            if (ssh != null) {
+                openConsole(ssh, console)
+                return
+            }
+        }
         if (ssh == null || !HerdrWorkspacePicker.offers(host.postLogin)) {
             injectString(host.postLogin)
             return
@@ -871,6 +907,44 @@ class TerminalBridge {
                 }
             }
             injectString(host.postLogin?.let { HerdrWorkspacePicker.postLogin(it, pick) })
+        }
+    }
+
+    /**
+     * An extra console's post-login, with no picker: land on its workspace
+     * ([HerdrConsoles.land]), then attach its session. Switcher keys wait until Herdr's
+     * client is on this terminal, so they never reach a shell; a client that does not
+     * come up in [HerdrConsoles.ON_SCREEN_WAIT_MS] gets none and stays where it opened.
+     */
+    private fun openConsole(ssh: SSH, console: HerdrConsole) {
+        val herd = herd
+        herd?.attach(console.session)
+        scope.launch {
+            val landing = if (herd == null || console.workspaceId == null) {
+                HerdrLanding.AsIs
+            } else {
+                herd.readKeys()
+                herd.readMachines()
+                HerdrConsoles.land(
+                    console = console,
+                    scope = scope,
+                    io = dispatchers.io,
+                    run = { command, timeoutMs -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) },
+                    keys = herd.keys.value,
+                    crossesMachines = herd.crossesMachines.value,
+                    shared = manager.showsHerdrSession(this@TerminalBridge, console.session),
+                )
+            }
+            injectString(host.postLogin?.let { HerdrWorkspacePicker.attachPostLogin(it, console.session) })
+            if (landing is HerdrLanding.Keys && herd != null) {
+                val up = withTimeoutOrNull(HerdrConsoles.ON_SCREEN_WAIT_MS) {
+                    while (!herdrOnScreen) delay(ON_SCREEN_POLL_MS)
+                }
+                if (up != null) {
+                    delay(HerdrConsoles.SETTLE_MS)
+                    herd.sendStrokes(landing.strokes)
+                }
+            }
         }
     }
 
@@ -1514,6 +1588,12 @@ class TerminalBridge {
 
         /** How long a jump waits for the detached Herdr client to leave before it gives up. */
         private const val HERDR_DETACH_WAIT_MS = 3_000L
+
+        /** How often an extra console looks for Herdr's client on its terminal before it lands. */
+        private const val ON_SCREEN_POLL_MS = 100L
+
+        // Every console's id, counting from 1 while the app runs.
+        private val nextConsoleId = AtomicLong()
         const val TAG = "CB.TerminalBridge"
 
         private const val DEFAULT_FONT_SIZE_SP = 10

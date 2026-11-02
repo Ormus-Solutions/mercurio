@@ -18,6 +18,7 @@
 package solutions.ormus.logos.herd
 
 import org.connectbot.transport.CommandOutput
+import kotlin.math.abs
 
 /**
  * A Herdr client action Mercurio sends as keystrokes: [config] is its name under
@@ -84,10 +85,18 @@ data class HerdrKeys(
      * order, on any connected machine) or up: workspace_picker, the navigate key, Enter.
      * Null when the host binds either key to nothing Mercurio can send ([switchProblem]).
      */
-    fun switchWorkspace(down: Boolean): List<HerdrStroke>? {
+    fun switchWorkspace(down: Boolean): List<HerdrStroke>? = switchWorkspaceBy(if (down) 1 else -1)
+
+    /**
+     * [steps] through Herdr's workspace switcher in one go, down the sidebar when positive,
+     * up when negative: workspace_picker, the navigate key [steps] times, Enter. Empty for
+     * no steps; null when the host binds a key it needs to nothing Mercurio can send.
+     */
+    fun switchWorkspaceBy(steps: Int): List<HerdrStroke>? {
+        if (steps == 0) return emptyList()
         val picker = bytes(HerdrKey.WORKSPACE_PICKER) ?: return null
-        val step = (if (down) workspaceDown else workspaceUp).stroke ?: return null
-        return listOf(HerdrStroke.Bytes(picker), step, HerdrStroke.Key(HerdrTermKey.ENTER))
+        val step = (if (steps > 0) workspaceDown else workspaceUp).stroke ?: return null
+        return listOf(HerdrStroke.Bytes(picker)) + List(abs(steps)) { step } + HerdrStroke.Key(HerdrTermKey.ENTER)
     }
 
     /** Why [switchWorkspace] sends nothing on this host; null when it can be sent. */

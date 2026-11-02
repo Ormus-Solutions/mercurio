@@ -46,6 +46,9 @@ object HerdrSessions {
 
     fun isDefault(session: String): Boolean = session == HerdrCommands.DEFAULT_SESSION
 
+    /** Whether [session] is a name Herdr could have given a session. */
+    fun isName(session: String): Boolean = NAME.matches(session)
+
     /**
      * The running sessions in `herdr session list --json` output, the default first and the
      * rest by name; null when it does not parse (an old Herdr, no Herdr).

@@ -169,7 +169,7 @@ object HerdrWorkspacePicker {
 
     // The command runs apart from the caller, so a host that never answers costs
     // the caller [waitMs] and no more; a failure reads as no answer.
-    private suspend fun within(
+    internal suspend fun within(
         scope: CoroutineScope,
         io: CoroutineDispatcher,
         waitMs: Long,
