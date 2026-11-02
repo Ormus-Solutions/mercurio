@@ -18,6 +18,8 @@
 package org.connectbot.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TranscriptBufferTest {
@@ -60,6 +62,20 @@ class TranscriptBufferTest {
         buffer.append("partial")
 
         assertEquals("hello world${lf}partial", buffer.text())
+    }
+
+    @Test
+    fun aLongRedrawCutInsideASequenceLeavesNoTail() {
+        // A full-screen program redraws with cursor moves and no newline, past the
+        // pending cap, and the read that crosses the cap ends inside a sequence.
+        val buffer = TranscriptBuffer()
+        val cell = "$esc[12;38Hx"
+        buffer.append(cell.repeat(9000 / cell.length) + "$esc[38;")
+        buffer.append("27Hdone$lf")
+
+        val text = buffer.text()
+        assertFalse(text.takeLast(40), text.contains("[38;") || text.contains("27H"))
+        assertTrue(text.takeLast(40), text.endsWith("x${lf}done"))
     }
 
     @Test

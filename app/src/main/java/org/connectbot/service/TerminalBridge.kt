@@ -1491,9 +1491,8 @@ class TerminalBridge {
         transcript.append(text)
         synchronized(activityBuffer) {
             activityBuffer.append(text)
-            val overflow = activityBuffer.length - ACTIVITY_BUFFER_CHARS
-            if (overflow > 0) activityBuffer.delete(0, overflow)
-            latestLine(activityBuffer)?.let { _activityPreview.value = it }
+            TerminalText.keepLast(activityBuffer, ACTIVITY_BUFFER_CHARS)
+            TerminalText.latestLine(activityBuffer, ACTIVITY_PREVIEW_CHARS)?.let { _activityPreview.value = it }
             bytesSinceAttention += text.length
         }
         armIdleDetector()
@@ -1596,18 +1595,6 @@ class TerminalBridge {
                 manager.onAgentAttention(this@TerminalBridge, AttentionReason.IDLE)
             }
         }
-    }
-
-    /** Strip escape/control sequences and return the last non-blank line, clamped. */
-    private fun latestLine(raw: CharSequence): String? {
-        // Treat carriage returns as line breaks so in-place redraws (spinners,
-        // progress bars) resolve to their final rendered state.
-        val cleaned = TerminalText.stripSequences(raw).replace('\r', '\n')
-        val line = cleaned.split('\n')
-            .lastOrNull { candidate -> candidate.any { !it.isISOControl() && !it.isWhitespace() } }
-            ?: return null
-        val printable = line.filter { !it.isISOControl() }.trim()
-        return printable.ifEmpty { null }?.take(ACTIVITY_PREVIEW_CHARS)
     }
 
     companion object {

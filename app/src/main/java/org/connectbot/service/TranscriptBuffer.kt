@@ -46,10 +46,12 @@ class TranscriptBuffer(
             start = end + 1
         }
         pending.delete(0, start)
-        // A full-screen TUI can redraw for a long time without a newline; cap it.
+        // A full-screen TUI can redraw for a long time without a newline; cap it, and keep
+        // a sequence the read cut short for the next read to finish.
         if (pending.length > MAX_PENDING_CHARS) {
-            addLine(pending.toString())
-            pending.setLength(0)
+            val end = TerminalText.unfinishedStart(pending).takeIf { it > 0 } ?: pending.length
+            addLine(pending.substring(0, end))
+            pending.delete(0, end)
         }
     }
 
