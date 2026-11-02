@@ -315,6 +315,9 @@ object UsageActions {
     const val HERDR_PICKER_ATTACH = "herdr-picker:attach"
     const val HERDR_PICKER_DISMISS = "herdr-picker:dismiss"
 
+    // The host's console list opened its consoles on connect, with no picker (no control: the session raised it).
+    const val HERDR_CONSOLES_ON_CONNECT = "herdr-console:on-connect"
+
     // Herdr notifications, when tapped; Approve and Deny on a "Needs you" (after the unlock);
     // an answer that had to log in in the background (no live session).
     const val NOTIFY_NEEDS_YOU_OPEN = "notify:needs-you-open"
@@ -432,6 +435,7 @@ object UsageActions {
         HERDR_SHEET_KEY_MENU, HERDR_SHEET_KEY_HIDE, HERDR_SHEET_KEY_EDIT, HERDR_SHEET_KEY_ADD,
         HERDR_SHEET_KEY_REMOVE, HERDR_SHEET_RESTORE,
         HERDR_PICKER_SHOW, HERDR_PICKER_PICK, HERDR_PICKER_ATTACH, HERDR_PICKER_DISMISS,
+        HERDR_CONSOLES_ON_CONNECT,
         NOTIFY_NEEDS_YOU_OPEN, NOTIFY_FINISHED_OPEN, NOTIFY_APPROVE, NOTIFY_DENY, NOTIFY_ANSWER_CONNECT,
         PALETTE_OPEN, PALETTE_RUN,
         SLASH_SEND, SLASH_INSERT, SLASH_AGENT, SLASH_REFRESH,

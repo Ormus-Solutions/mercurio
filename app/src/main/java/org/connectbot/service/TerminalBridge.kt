@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.connectbot.R
 import org.connectbot.data.entity.Host
@@ -861,10 +862,12 @@ class TerminalBridge {
     }
 
     /**
-     * Send the post-login command. When it attaches Herdr and the host's running Herdr
-     * sessions have two or more workspaces, offer them first ([HerdrWorkspacePicker]); a
-     * workspace in another session attaches that session. Every other case, a slow or
-     * failed snapshot included, sends it at once as before.
+     * Send the post-login command. When it attaches Herdr and the host keeps a console list
+     * ([HerdrConsoles.onConnect]), this console attaches its first entry and every other one
+     * opens beside it, with no picks. Otherwise, when the host's running Herdr sessions have
+     * two or more workspaces, offer them first ([HerdrWorkspacePicker]); a workspace in
+     * another session attaches that session. Every other case, a slow or failed snapshot
+     * included, sends it at once as before.
      */
     private fun sendPostLogin() {
         // An automatic reconnect attaches the Herdr session the terminal had, with no picker.
@@ -883,11 +886,18 @@ class TerminalBridge {
             injectString(host.postLogin)
             return
         }
+        val run = { command: String, timeoutMs: Long -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) }
         scope.launch {
+            HerdrConsoles.onConnect(scope, dispatchers.io, run)?.let { listed ->
+                manager.logUsage(UsageActions.HERDR_CONSOLES_ON_CONNECT)
+                attachConsole(ssh, listed.first())
+                withContext(dispatchers.io) { listed.drop(1).forEach { manager.openHerdrConsole(host, it) } }
+                return@launch
+            }
             val pick = HerdrWorkspacePicker.offer(
                 scope = scope,
                 io = dispatchers.io,
-                run = { command, timeoutMs -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) },
+                run = run,
                 ask = { choices ->
                     manager.logUsage(UsageActions.HERDR_PICKER_SHOW)
                     promptManager.requestHerdrWorkspace(choices)
@@ -917,33 +927,36 @@ class TerminalBridge {
      * come up in [HerdrConsoles.ON_SCREEN_WAIT_MS] gets none and stays where it opened.
      */
     private fun openConsole(ssh: SSH, console: HerdrConsole) {
+        scope.launch { attachConsole(ssh, console) }
+    }
+
+    // Land this console's terminal on [console] and attach its session ([openConsole]).
+    private suspend fun attachConsole(ssh: SSH, console: HerdrConsole) {
         val herd = herd
         herd?.attach(console.session)
-        scope.launch {
-            val landing = if (herd == null || console.workspaceId == null) {
-                HerdrLanding.AsIs
-            } else {
-                herd.readKeys()
-                herd.readMachines()
-                HerdrConsoles.land(
-                    console = console,
-                    scope = scope,
-                    io = dispatchers.io,
-                    run = { command, timeoutMs -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) },
-                    keys = herd.keys.value,
-                    crossesMachines = herd.crossesMachines.value,
-                    shared = manager.showsHerdrSession(this@TerminalBridge, console.session),
-                )
+        val landing = if (herd == null || (console.workspaceId == null && console.workspaceLabel == null)) {
+            HerdrLanding.AsIs
+        } else {
+            herd.readKeys()
+            herd.readMachines()
+            HerdrConsoles.land(
+                console = console,
+                scope = scope,
+                io = dispatchers.io,
+                run = { command, timeoutMs -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) },
+                keys = herd.keys.value,
+                crossesMachines = herd.crossesMachines.value,
+                shared = manager.showsHerdrSession(this@TerminalBridge, console.session),
+            )
+        }
+        injectString(host.postLogin?.let { HerdrWorkspacePicker.attachPostLogin(it, console.session) })
+        if (landing is HerdrLanding.Keys && herd != null) {
+            val up = withTimeoutOrNull(HerdrConsoles.ON_SCREEN_WAIT_MS) {
+                while (!herdrOnScreen) delay(ON_SCREEN_POLL_MS)
             }
-            injectString(host.postLogin?.let { HerdrWorkspacePicker.attachPostLogin(it, console.session) })
-            if (landing is HerdrLanding.Keys && herd != null) {
-                val up = withTimeoutOrNull(HerdrConsoles.ON_SCREEN_WAIT_MS) {
-                    while (!herdrOnScreen) delay(ON_SCREEN_POLL_MS)
-                }
-                if (up != null) {
-                    delay(HerdrConsoles.SETTLE_MS)
-                    herd.sendStrokes(landing.strokes)
-                }
+            if (up != null) {
+                delay(HerdrConsoles.SETTLE_MS)
+                herd.sendStrokes(landing.strokes)
             }
         }
     }

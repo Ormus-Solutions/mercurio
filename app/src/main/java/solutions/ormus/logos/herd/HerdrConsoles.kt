@@ -24,7 +24,8 @@ import org.connectbot.transport.CommandOutput
 /**
  * One more console on a Herdr host: its own SSH session, beside the console the host
  * already has, whose terminal attaches Herdr [session] and lands on [workspaceId]
- * ([workspaceLabel] names it; null lands wherever the session's focus is). Herdr 0.9.0
+ * ([workspaceLabel] names it). With no id it lands on the workspace of that label, and
+ * with neither wherever the session's focus is. Herdr 0.9.0
  * gives every client its own workspace and tab ("Multiple clients can now view different
  * workspaces and tabs independently", its changelog), so the consoles of one host can
  * show different workspaces, of one session or of several.
@@ -73,6 +74,58 @@ object HerdrConsoles {
     const val SETTLE_MS = 600L
 
     /**
+     * The host's console list, read when its first console connects: one console per line,
+     * the Herdr session, then after a space the label of the workspace to land on; `#`
+     * starts a comment. The operator keeps it on the host, so every phone opens the same.
+     */
+    const val LIST_PATH = "~/.config/mercurio/consoles"
+
+    /** Prints [LIST_PATH], or nothing when the host has none. */
+    const val LIST_COMMAND = "cat $LIST_PATH 2>/dev/null"
+
+    /** At most this many consoles open on connect, the host's first one included. */
+    const val MAX_ON_CONNECT = 8
+
+    private val SPACE = Regex("\\s+")
+
+    /**
+     * The consoles [LIST_PATH] lists, in its order: lines whose session is not a name Herdr
+     * gives are left out, then repeats, then every one past [MAX_ON_CONNECT].
+     */
+    fun parseList(raw: String): List<HerdrConsole> = raw.lineSequence()
+        .map { it.substringBefore('#').trim() }
+        .filter { it.isNotEmpty() }
+        .mapNotNull { line ->
+            val parts = line.split(SPACE, limit = 2)
+            val label = parts.getOrNull(1)?.trim()?.ifEmpty { null }
+            if (HerdrSessions.isName(parts[0])) HerdrConsole(parts[0], workspaceLabel = label) else null
+        }
+        .distinct()
+        .take(MAX_ON_CONNECT)
+        .toList()
+
+    /**
+     * The consoles to open as the host's first console connects: its list ([LIST_PATH]), kept
+     * to the Herdr sessions that run now (`herdr session list`), in the list's order. Null when
+     * the host has no list, none of its sessions runs, or a read does not answer within the
+     * picker's wait; the connect picker then runs as before. [run] is as in [land].
+     */
+    suspend fun onConnect(
+        scope: CoroutineScope,
+        io: CoroutineDispatcher,
+        run: (command: String, timeoutMs: Long) -> CommandOutput?,
+    ): List<HerdrConsole>? {
+        val waitMs = HerdrWorkspacePicker.SNAPSHOT_WAIT_MS
+        val listed = HerdrWorkspacePicker.within(scope, io, waitMs) { run(LIST_COMMAND, waitMs) }.ok()?.let(::parseList).orEmpty()
+        if (listed.isEmpty()) return null
+        val running = HerdrWorkspacePicker.within(scope, io, waitMs) { run(HerdrSessions.listCommand, waitMs) }.ok()?.let(HerdrSessions::parse)
+            ?: return null
+        return listed.filter { it.session in running }.ifEmpty { null }
+    }
+
+    private fun CommandOutput?.ok(): String? = this?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout
+
+    /**
      * How [console] lands: [snapshot] is its session's, read just before the attach; [keys]
      * and [crossesMachines] are the host's ([HerdSession.keys], [HerdSession.crossesMachines]);
      * [shared] says another console of this phone shows the session now. The keys only when
@@ -87,7 +140,9 @@ object HerdrConsoles {
         crossesMachines: Boolean,
         shared: Boolean,
     ): HerdrLanding {
-        val target = console.workspaceId ?: return HerdrLanding.AsIs
+        val target = console.workspaceId
+            ?: console.workspaceLabel?.let { label -> snapshot?.workspaces?.firstOrNull { it.label == label }?.workspaceId }
+            ?: return HerdrLanding.AsIs
         val from = snapshot?.focusedWorkspaceId
         if (from == target) return HerdrLanding.AsIs
         if (!shared || snapshot == null || from == null || crossesMachines) return HerdrLanding.Focus(target)
@@ -113,11 +168,10 @@ object HerdrConsoles {
         crossesMachines: Boolean,
         shared: Boolean,
     ): HerdrLanding {
-        if (console.workspaceId == null) return HerdrLanding.AsIs
+        if (console.workspaceId == null && console.workspaceLabel == null) return HerdrLanding.AsIs
         val waitMs = HerdrWorkspacePicker.SNAPSHOT_WAIT_MS
         val snapshot = HerdrWorkspacePicker.within(scope, io, waitMs) { run(HerdrSessions.snapshotCommand(console.session), waitMs) }
-            ?.takeIf { it.exitCode == null || it.exitCode == 0 }
-            ?.stdout
+            .ok()
             ?.let(::parseHerdrSnapshot)
         val landing = landing(console, snapshot, keys, crossesMachines, shared)
         if (landing is HerdrLanding.Focus) {

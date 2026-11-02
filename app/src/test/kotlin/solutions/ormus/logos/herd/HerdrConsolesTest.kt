@@ -163,4 +163,88 @@ class HerdrConsolesTest {
         assertEquals(snapshotCommand, land.commands.first())
         assertEquals(2, land.commands.size)
     }
+
+    @Test
+    fun landing_aLabelWithNoIdLandsOnTheWorkspaceOfThatLabel() {
+        val gamma = HerdrConsole("beta", workspaceLabel = "gamma")
+        assertEquals(HerdrLanding.Focus("w3"), landing(gamma, shared = false))
+        assertEquals(HerdrLanding.Keys(listOf(picker, down, down, enter)), landing(gamma))
+        // Where the focus already is, or a label the session does not have: attach as it is.
+        assertEquals(HerdrLanding.AsIs, landing(HerdrConsole("beta", workspaceLabel = "tmp")))
+        assertEquals(HerdrLanding.AsIs, landing(HerdrConsole("beta", workspaceLabel = "gone")))
+        assertEquals(HerdrLanding.AsIs, landing(gamma, snapshot = null))
+    }
+
+    @Test
+    fun land_aLabelReadsTheSnapshotThenFocuses() {
+        val land = Land(shared = false) { if (it == snapshotCommand) ok else CommandOutput("", "", 0) }
+        assertEquals(HerdrLanding.Focus("w3"), land.land(HerdrConsole("beta", workspaceLabel = "gamma")))
+        assertEquals(listOf(snapshotCommand, focusCommand("w3")), land.commands)
+    }
+
+    @Test
+    fun parseList_oneConsolePerLine_sessionThenWorkspaceLabel() {
+        // The first word is the session (a name Herdr gives, or the line is left out); the rest is a
+        // label, matched against Herdr's workspace labels and shown, never run.
+        val raw = """
+            # the boards
+            work
+            lab   checks and lint
+            review${"\t"}draft
+            lab   checks and lint
+            bad;name rm -rf
+            # end
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                HerdrConsole("work"),
+                HerdrConsole("lab", workspaceLabel = "checks and lint"),
+                HerdrConsole("review", workspaceLabel = "draft"),
+            ),
+            HerdrConsoles.parseList(raw),
+        )
+        assertEquals(emptyList<HerdrConsole>(), HerdrConsoles.parseList(""))
+        assertEquals(HerdrConsoles.MAX_ON_CONNECT, HerdrConsoles.parseList((1..20).joinToString("\n") { "s$it" }).size)
+    }
+
+    /** Runs [HerdrConsoles.onConnect] with a real IO pool against [answers], recording each command. */
+    private fun onConnect(answers: (String) -> CommandOutput?): Pair<List<HerdrConsole>?, List<String>> = runBlocking {
+        val commands = mutableListOf<String>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            HerdrConsoles.onConnect(scope, Dispatchers.IO) { command, _ ->
+                synchronized(commands) { commands += command }
+                answers(command)
+            } to commands
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    // `herdr session list --json`: default, work and review run; lab is stopped.
+    private val sessionList = CommandOutput(
+        stdout = """{"sessions":[{"name":"default","running":true},{"name":"work","running":true},""" +
+            """{"name":"lab","running":false},{"name":"review","running":true}]}""",
+        stderr = "",
+        exitCode = 0,
+    )
+
+    @Test
+    fun onConnect_theListedSessionsThatRun_inTheListsOrder() {
+        val list = CommandOutput("review\nlab\nwork main\n", "", 0)
+        val (consoles, commands) = onConnect { if (it == HerdrConsoles.LIST_COMMAND) list else sessionList }
+        assertEquals(listOf(HerdrConsole("review"), HerdrConsole("work", workspaceLabel = "main")), consoles)
+        assertEquals(listOf(HerdrConsoles.LIST_COMMAND, HerdrSessions.listCommand), commands)
+    }
+
+    @Test
+    fun onConnect_nothingWithoutAList_soThePickerRuns() {
+        // No file: cat prints nothing (2>/dev/null); the session list is never read.
+        val (none, commands) = onConnect { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("", "", 1) else sessionList }
+        assertEquals(null, none)
+        assertEquals(listOf(HerdrConsoles.LIST_COMMAND), commands)
+        // Only stopped sessions, or a session list that fails: the picker too.
+        assertEquals(null, onConnect { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("lab\n", "", 0) else sessionList }.first)
+        assertEquals(null, onConnect { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("work\n", "", 0) else null }.first)
+    }
 }

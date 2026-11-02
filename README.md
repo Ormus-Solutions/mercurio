@@ -49,6 +49,11 @@ management come from ConnectBot. Mercurio is maintained by
   every workspace of every running Herdr session. A row opens it in a console of
   its own, and the open consoles stay where they are. Herdr gives each client its
   own workspace, so two consoles can show two workspaces of one session.
+- **Consoles on connect.** A host can list the consoles to open when it
+  connects, in `~/.config/mercurio/consoles`: one per line, a Herdr session and,
+  after a space, the label of a workspace to land on. The first console attaches
+  the first line and the others open beside it, with no picker. Sessions that do
+  not run are left out; with no list, the picker runs as before.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.
@@ -137,6 +142,15 @@ with other tasks. To prove a change on an emulator, follow
    panes and agents between connections.
 3. For push alerts while the phone sleeps, set up the ntfy server, the ntfy app
    and the host watcher in [docs/PUSH.md](docs/PUSH.md).
+4. To open several Herdr sessions at once on connect, list them in
+   `~/.config/mercurio/consoles` on the host, for example:
+
+   ```text
+   # one console per line: <herdr session> [workspace label]
+   work
+   lab
+   review checks
+   ```
 
 ## Privacy
 

@@ -212,6 +212,7 @@ herdr-picker:show
 herdr-picker:pick
 herdr-picker:attach
 herdr-picker:dismiss
+herdr-console:on-connect
 notify:needs-you-open
 notify:finished-open
 notify:approve
