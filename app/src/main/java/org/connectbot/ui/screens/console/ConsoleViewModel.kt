@@ -40,6 +40,7 @@ import org.connectbot.service.TerminalManager
 import org.connectbot.terminal.ProgressState
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.HerdrConsole
 import javax.inject.Inject
 
 data class ConsoleUiState(
@@ -307,6 +308,16 @@ class ConsoleViewModel @Inject constructor(
      * the string is parsed as user@host[:port] and saved as a new SSH host.
      * Returns null when the input can't be turned into an SSH login.
      */
+
+    /**
+     * Open [console] on [host] in a console of its own beside the open ones (the one already
+     * open on it when there is one); null without the service. Off the main thread: a
+     * console reads its profile from the database as it starts.
+     */
+    suspend fun openHerdrConsole(host: Host, console: HerdrConsole): TerminalBridge? = withContext(dispatchers.io) {
+        terminalManager?.openHerdrConsole(host, console)
+    }
+
     suspend fun quickConnect(rawInput: String): Long? {
         val input = rawInput.trim().removePrefix("ssh ").trim()
         if (input.isEmpty()) return null

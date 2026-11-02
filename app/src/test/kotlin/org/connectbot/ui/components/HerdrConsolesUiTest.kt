@@ -18,7 +18,9 @@
 package org.connectbot.ui.components
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -33,12 +35,14 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import solutions.ormus.logos.herd.HerdSession
+import solutions.ormus.logos.herd.HerdrAgentStatus
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.herd.WorkspaceChoice
 
 /**
- * The consoles of one Herdr host in the session drawer. Synthetic host and workspace
- * names only.
+ * The consoles of one Herdr host in the session drawer, and the drawer's Open a
+ * workspace list. Synthetic host and workspace names only.
  */
 @RunWith(AndroidJUnit4::class)
 class HerdrConsolesUiTest {
@@ -59,7 +63,7 @@ class HerdrConsolesUiTest {
         }
     }
 
-    private fun drawer(bridges: List<TerminalBridge>, onSelect: (TerminalBridge) -> Unit = {}) {
+    private fun drawer(bridges: List<TerminalBridge>, onSelect: (TerminalBridge) -> Unit = {}, onOpenWorkspace: (() -> Unit)? = null) {
         rule.setContent {
             ConnectBotTheme {
                 SessionDrawer(
@@ -69,6 +73,7 @@ class HerdrConsolesUiTest {
                     onDisconnect = {},
                     onQuickConnect = {},
                     onOpenHostList = {},
+                    onOpenWorkspace = onOpenWorkspace,
                 )
             }
         }
@@ -84,5 +89,42 @@ class HerdrConsolesUiTest {
         rule.onNodeWithText("box").assertExists()
         rule.onNodeWithText("box · beta · gamma").performClick()
         assertEquals(listOf(extra), selected)
+    }
+
+    @Test
+    fun drawer_openAWorkspace_onlyWhereItIsOffered() {
+        var opened = 0
+        drawer(listOf(console(1, null)), onOpenWorkspace = { opened++ })
+        rule.onNodeWithText("Open a workspace").performClick()
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun drawer_noOpenAWorkspace_onAHostWithoutIt() {
+        drawer(listOf(console(1, null)))
+        rule.onAllNodesWithText("Open a workspace").assertCountEquals(0)
+    }
+
+    private fun choice(session: String, id: String, number: Int, label: String) = WorkspaceChoice(id, number, label, focused = false, state = HerdrAgentStatus.IDLE, session = session)
+
+    @Test
+    fun openWorkspace_rowsBySession_andARowOpensItsWorkspace() {
+        val gamma = choice("beta", "w3", 3, "gamma")
+        val choices = listOf(choice("default", "w1", 1, "home"), choice("beta", "w1", 1, "tmp"), gamma)
+        val opened = mutableListOf<WorkspaceChoice>()
+        rule.setContent { ConnectBotTheme { HerdrOpenWorkspaceContent(choices) { opened += it } } }
+
+        rule.onNodeWithText("Open in a new console").assertExists()
+        // Two sessions: each one's rows under its name.
+        rule.onNodeWithText("default").assertExists()
+        rule.onNodeWithText("beta").assertExists()
+        rule.onNodeWithText("3 · gamma").performClick()
+        assertEquals(listOf(gamma), opened)
+    }
+
+    @Test
+    fun openWorkspace_saysItIsReading_untilTheRowsCome() {
+        rule.setContent { ConnectBotTheme { HerdrOpenWorkspaceContent(emptyList()) {} } }
+        rule.onNodeWithText("Reading Herdr…").assertExists()
     }
 }

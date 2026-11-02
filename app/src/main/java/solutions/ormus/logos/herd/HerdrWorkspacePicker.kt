@@ -78,10 +78,12 @@ object HerdrWorkspacePicker {
      * by name, each by workspace number. Null when the connect should attach at once. Only
      * the default session's focused workspace is marked: that is where the gold key attaches.
      */
-    fun choices(snapshots: Map<String, HerdrSessionSnapshot>): List<WorkspaceChoice>? = snapshots.entries
+    fun choices(snapshots: Map<String, HerdrSessionSnapshot>): List<WorkspaceChoice>? = rows(snapshots).takeIf { it.size >= 2 }
+
+    /** Every workspace of [snapshots] as a row, in the picker's order ([choices]), however few. */
+    fun rows(snapshots: Map<String, HerdrSessionSnapshot>): List<WorkspaceChoice> = snapshots.entries
         .sortedWith(compareBy<Map.Entry<String, HerdrSessionSnapshot>> { !HerdrSessions.isDefault(it.key) }.thenBy { it.key })
         .flatMap { (session, snapshot) -> rows(session, snapshot) }
-        .takeIf { it.size >= 2 }
 
     private fun rows(session: String, snapshot: HerdrSessionSnapshot): List<WorkspaceChoice> = snapshot.workspaces.sortedBy { it.number }.map { workspace ->
         val id = workspace.workspaceId

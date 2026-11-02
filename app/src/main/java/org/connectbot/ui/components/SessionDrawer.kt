@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AddToQueue
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Groups
@@ -72,7 +73,8 @@ import solutions.ormus.logos.herd.HerdrConsoles
  * sessions. Lists every open bridge across all hosts (not just the host the
  * console was launched for), so it doubles as a session hub. [onOpenHerd], when
  * a session runs Herdr, adds a Herd item that lists its agents by who needs you.
- * A host's consoles are one row each, named by the Herdr session each one shows.
+ * [onOpenWorkspace], on a Herdr host, adds Open a workspace: one more console of the
+ * host, on a workspace of its own. A host's consoles are one row each.
  */
 @Composable
 fun SessionDrawer(
@@ -84,6 +86,7 @@ fun SessionDrawer(
     onOpenHostList: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenHerd: (() -> Unit)? = null,
+    onOpenWorkspace: (() -> Unit)? = null,
     machines: @Composable ColumnScope.() -> Unit = {},
 ) {
     val usage = LocalUsageLog.current
@@ -166,6 +169,19 @@ fun SessionDrawer(
                 },
                 icon = { Icon(Icons.Default.Groups, contentDescription = null) },
                 label = { Text(stringResource(R.string.drawer_herd)) },
+                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+            )
+        }
+
+        if (onOpenWorkspace != null) {
+            NavigationDrawerItem(
+                selected = false,
+                onClick = {
+                    usage.log(UsageActions.DRAWER_OPEN_WORKSPACE)
+                    onOpenWorkspace()
+                },
+                icon = { Icon(Icons.Default.AddToQueue, contentDescription = null) },
+                label = { Text(stringResource(R.string.drawer_open_workspace)) },
                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             )
         }

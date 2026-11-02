@@ -45,6 +45,10 @@ management come from ConnectBot. Mercurio is maintained by
   host. There is no setting for it.
 - **Workspace picker.** Connecting to a Herdr host offers its workspaces before
   attaching.
+- **More consoles.** The session drawer of a Herdr host has Open a workspace:
+  every workspace of every running Herdr session. A row opens it in a console of
+  its own, and the open consoles stay where they are. Herdr gives each client its
+  own workspace, so two consoles can show two workspaces of one session.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.

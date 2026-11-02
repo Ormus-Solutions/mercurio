@@ -73,6 +73,8 @@ drawer:switch
 drawer:disconnect
 drawer:quick-connect
 drawer:host-list
+drawer:open-workspace
+herdr-console:open
 title:pull-drawer
 title:pull-disconnect
 machines:connect

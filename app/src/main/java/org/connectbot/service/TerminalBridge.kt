@@ -961,6 +961,14 @@ class TerminalBridge {
     val runsHerdr: Boolean
         get() = Herd.runsHerdr(host) || herd?.snapshot?.value != null
 
+    /**
+     * Whether this host can open more consoles on its Herdr workspaces
+     * ([TerminalManager.openHerdrConsole]): an SSH host whose post-login attaches Herdr's
+     * default session, the one a console's attach can retarget ([HerdrWorkspacePicker.offers]).
+     */
+    val offersConsoles: Boolean
+        get() = herd != null && HerdrWorkspacePicker.offers(host.postLogin)
+
     private fun newHerdSession(): HerdSession = HerdSession(
         hostName = host.nickname,
         // Null (never ran) until an SSH session is up.

@@ -167,6 +167,7 @@ import org.connectbot.ui.commands.slashTarget
 import org.connectbot.ui.components.AuthBannerDialog
 import org.connectbot.ui.components.DictationDraft
 import org.connectbot.ui.components.DraftDialog
+import org.connectbot.ui.components.HerdrOpenWorkspaceSheet
 import org.connectbot.ui.components.InlinePrompt
 import org.connectbot.ui.components.ResizeDialog
 import org.connectbot.ui.components.SessionDrawer
@@ -204,6 +205,7 @@ import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdResult
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrConsoles
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSwipe
@@ -386,6 +388,11 @@ fun ConsoleScreen(
     // compose bar, above the keys) is open, if any.
     var herdScreenBridge by remember { mutableStateOf<TerminalBridge?>(null) }
     var herdrPanelBridge by remember { mutableStateOf<TerminalBridge?>(null) }
+
+    // The drawer's Open a workspace list, for this Herdr host; and a console it just opened,
+    // shown as soon as the list of consoles has it.
+    var openWorkspaceBridge by remember { mutableStateOf<TerminalBridge?>(null) }
+    var openedConsole by remember { mutableStateOf<TerminalBridge?>(null) }
     // The session whose diff viewer is open, if any.
     var diffBridge by remember { mutableStateOf<TerminalBridge?>(null) }
     // The session whose slash menu is open, if any, and whether the palette is.
@@ -424,7 +431,7 @@ fun ConsoleScreen(
     val anyModalActive = filesBridge != null || showMenu || showUrlScanDialog || showResizeDialog ||
         showDisconnectDialog || showTextInputDialog || isBiometricPromptActive || currentAuthBanner != null || previewBridge != null ||
         showOutputReader || chatBridge != null || herdScreenBridge != null || boardBridge != null ||
-        slashBridge != null || showPalette || diffBridge != null
+        slashBridge != null || showPalette || diffBridge != null || openWorkspaceBridge != null
 
     /**
      * Unified interaction handler for terminal and keyboard.
@@ -679,6 +686,15 @@ fun ConsoleScreen(
         }
     }
 
+    LaunchedEffect(uiState.bridges, openedConsole) {
+        val opened = openedConsole ?: return@LaunchedEffect
+        val index = uiState.bridges.indexOf(opened)
+        if (index >= 0) {
+            viewModel.selectBridge(index)
+            openedConsole = null
+        }
+    }
+
     // Picking a session from the drawer: if it belongs to this host-scoped
     // console, just switch the active index; otherwise jump to that host's
     // console. Either way, close the drawer.
@@ -864,6 +880,13 @@ fun ConsoleScreen(
                             herdScreenBridge = herdBridge
                         }
                     },
+                // More consoles of this Herdr host, each on a workspace of its own.
+                onOpenWorkspace = currentBridge?.takeIf { it.offersConsoles && it.isSessionOpen }?.let { hostBridge ->
+                    {
+                        coroutineScope.launch { drawerState.close() }
+                        openWorkspaceBridge = hostBridge
+                    }
+                },
                 onOpenHostList = {
                     coroutineScope.launch { drawerState.close() }
                     onNavigateToHostList()
@@ -1327,6 +1350,23 @@ fun ConsoleScreen(
 
             filesBridge?.let { bridge ->
                 FilesDialog(bridge = bridge, onDismiss = { filesBridge = null })
+            }
+
+            openWorkspaceBridge?.let { hostBridge ->
+                hostBridge.herd?.let { herd ->
+                    HerdrOpenWorkspaceSheet(
+                        session = herd,
+                        onOpen = { choice ->
+                            usage.log(UsageActions.HERDR_CONSOLE_OPEN)
+                            openWorkspaceBridge = null
+                            coroutineScope.launch {
+                                val console = HerdrConsole(choice.session, choice.workspaceId, choice.label)
+                                openedConsole = viewModel.openHerdrConsole(hostBridge.host, console)
+                            }
+                        },
+                        onDismiss = { openWorkspaceBridge = null },
+                    )
+                }
             }
 
             slashBridge?.let { bridge ->

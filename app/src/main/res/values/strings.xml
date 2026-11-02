@@ -1136,6 +1136,8 @@
 	<string name="herd_title">Herd</string>
 	<!-- Session drawer: item that opens the Herd screen listing every AI agent and its state -->
 	<string name="drawer_herd">Herd (agents)</string>
+	<!-- Session drawer: item on a Herdr host that lists its workspaces, to open one in a console of its own beside the open ones -->
+	<string name="drawer_open_workspace">Open a workspace</string>
 	<!-- Herd screen: content description of the back button that closes the screen -->
 	<string name="herd_close">Close herd</string>
 	<!-- Herd screen: content description of the button that reloads the agent list now -->
@@ -1265,6 +1267,10 @@
 	<string name="herdr_picker_attach_to">Attach · %1$s</string>
 	<!-- Herdr connect picker: main button when no workspace has focus -->
 	<string name="herdr_picker_attach">Attach</string>
+	<!-- Open a workspace sheet (from the session drawer): label above every workspace of every running Herdr session on the host; a row opens it in a console of its own -->
+	<string name="herdr_open_workspace_title">Open in a new console</string>
+	<!-- Open a workspace sheet: shown while the host's Herdr workspaces are read, or when Herdr answers with none -->
+	<string name="herdr_open_workspace_reading">Reading Herdr…</string>
 	<!-- Herdr command sheet: label of the one-line field for a new name (pane, tab or workspace) -->
 	<string name="herdr_name_label">New name</string>
 	<!-- Herdr command sheet: button that runs the rename with the typed name -->

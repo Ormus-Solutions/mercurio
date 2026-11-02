@@ -130,6 +130,10 @@ object UsageActions {
     const val DRAWER_QUICK_CONNECT = "drawer:quick-connect"
     const val DRAWER_HOST_LIST = "drawer:host-list"
 
+    // The drawer's Open a workspace list (a Herdr host): opened, then a row opened in a console of its own.
+    const val DRAWER_OPEN_WORKSPACE = "drawer:open-workspace"
+    const val HERDR_CONSOLE_OPEN = "herdr-console:open"
+
     // A downward pull on the console title bar: past one mark the drawer, past two Disconnect.
     const val TITLE_PULL_DRAWER = "title:pull-drawer"
     const val TITLE_PULL_DISCONNECT = "title:pull-disconnect"
@@ -395,6 +399,7 @@ object UsageActions {
         CHAT_OPEN, CHAT_CLOSE, CHAT_REFRESH, CHAT_SEND, CHAT_APPROVE, CHAT_DENY, CHAT_TOOL, CHAT_TERMINAL, CHAT_PANE, CHAT_SWIPE_PANE, CHAT_ASK, CHAT_TOOLS, CHAT_MORE, CHAT_OPTION,
         DIFF_OPEN, HERDR_SHEET_DIFF, DIFF_FILE, DIFF_BACK, DIFF_DIR, DIFF_REFRESH, DIFF_CLOSE,
         DRAWER_OPEN, DRAWER_SWITCH, DRAWER_DISCONNECT, DRAWER_QUICK_CONNECT, DRAWER_HOST_LIST,
+        DRAWER_OPEN_WORKSPACE, HERDR_CONSOLE_OPEN,
         TITLE_PULL_DRAWER, TITLE_PULL_DISCONNECT,
         MACHINES_CONNECT, MACHINES_REFRESH, MACHINES_FIX_PROMPT, MACHINES_API_SECRET,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,

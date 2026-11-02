@@ -70,6 +70,9 @@ class HerdrWorkspacePickerTest {
         assertNull(choices(null))
         val one = snapshot("snapshot-picker-test.json").let { it.copy(workspaces = it.workspaces.take(1)) }
         assertNull(choices(one))
+        // The drawer's Open a workspace list still shows one workspace, or none.
+        assertEquals(listOf("tmp"), HerdrWorkspacePicker.rows(mapOf("default" to one)).map { it.label })
+        assertEquals(emptyList<WorkspaceChoice>(), HerdrWorkspacePicker.rows(emptyMap()))
     }
 
     @Test
