@@ -219,6 +219,8 @@ notify:finished-open
 notify:approve
 notify:deny
 notify:answer-connect
+launch:chat
+launch:board
 palette:open
 palette:run
 slash:send

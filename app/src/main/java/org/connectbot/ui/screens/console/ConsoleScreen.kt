@@ -203,6 +203,7 @@ import solutions.ormus.logos.commands.SlashCommand
 import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdResult
+import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrConsole
@@ -381,6 +382,27 @@ fun ConsoleScreen(
 
     // The session whose Agents board is open, if any.
     var boardBridge by remember { mutableStateOf<TerminalBridge?>(null) }
+
+    // A host URI intent asked for the chat or the Agents board (MainActivity.EXTRA_HERD_VIEW):
+    // open it over its session once that session's Herdr side has a snapshot.
+    LaunchedEffect(allBridges) {
+        allBridges.forEach { bridge ->
+            val herd = bridge.herd ?: return@forEach
+            launch {
+                while (true) {
+                    when (val view = herd.takeView()) {
+                        is HerdView.Chat -> {
+                            chatSession = view.session
+                            chatPane = view.pane
+                            chatBridge = bridge
+                        }
+
+                        HerdView.Board -> boardBridge = bridge
+                    }
+                }
+            }
+        }
+    }
     var showWishDialog by remember { mutableStateOf(false) }
     // The session whose dev preview is open, if any.
     var previewBridge by remember { mutableStateOf<TerminalBridge?>(null) }

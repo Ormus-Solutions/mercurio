@@ -60,11 +60,13 @@ import org.connectbot.service.TerminalManager
 import org.connectbot.ui.components.DisconnectAllDialog
 import org.connectbot.ui.navigation.NavDestinations
 import org.connectbot.ui.theme.ConnectBotTheme
+import org.connectbot.usage.UsageActions
 import org.connectbot.usage.UsageTracker
 import org.connectbot.util.IconStyle
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.ShortcutIconGenerator
 import org.connectbot.util.isNotificationPermissionGranted
+import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
 import timber.log.Timber
@@ -87,6 +89,13 @@ class MainActivity : AppCompatActivity() {
 
         /** Extra beside [EXTRA_HERD_PANE]: the usage id of the notification that was tapped. */
         const val EXTRA_HERD_NOTICE = "solutions.ormus.logos.extra.HERD_NOTICE"
+
+        /**
+         * Extra on a host URI intent: open the agent chat ([HerdView.CHAT], on [EXTRA_HERD_PANE]
+         * or the session's focused pane) or the Agents board ([HerdView.BOARD]) over the console.
+         * Missing or unknown, the console shows the terminal.
+         */
+        const val EXTRA_HERD_VIEW = "solutions.ormus.logos.extra.HERD_VIEW"
     }
 
     internal lateinit var appViewModel: AppViewModel
@@ -96,15 +105,23 @@ class MainActivity : AppCompatActivity() {
     private var bound = false
     private var requestedUri: Uri? by mutableStateOf(null)
 
-    // The Herdr pane a notification asked to focus, and its session, used with requestedUri.
+    // The Herdr pane a notification asked to focus, its session, and the view to open over
+    // the console (the terminal when null), used with requestedUri.
     private var requestedHerdPane: String? = null
     private var requestedHerdSession: String = HerdrCommands.DEFAULT_SESSION
+    private var requestedHerdView: HerdView? = null
 
     /** Remember a tapped Herdr notification's pane and log the tap (an id only). */
     private fun takeHerdNotification(intent: Intent?) {
         requestedHerdPane = intent?.getStringExtra(EXTRA_HERD_PANE)
         requestedHerdSession = intent?.getStringExtra(EXTRA_HERD_SESSION) ?: HerdrCommands.DEFAULT_SESSION
+        requestedHerdView = HerdView.parse(intent?.getStringExtra(EXTRA_HERD_VIEW), requestedHerdPane, requestedHerdSession)
         intent?.getStringExtra(EXTRA_HERD_NOTICE)?.let { usageTracker.log(it) }
+        when (requestedHerdView) {
+            is HerdView.Chat -> usageTracker.log(UsageActions.LAUNCH_CHAT)
+            HerdView.Board -> usageTracker.log(UsageActions.LAUNCH_BOARD)
+            null -> Unit
+        }
     }
     private var pendingHostConnection: Host? by mutableStateOf(null)
 
@@ -420,6 +437,9 @@ class MainActivity : AppCompatActivity() {
                 // From a Herdr notification: focus that agent in Herdr as the console opens.
                 requestedHerdPane?.let { pane -> bridge.herd?.perform(HerdrAction.FocusAgent(pane), session = requestedHerdSession) }
                 requestedHerdPane = null
+                // The chat or the Agents board instead of the terminal: the console opens it once Herdr answers.
+                requestedHerdView?.let { view -> bridge.herd?.requestView(view) }
+                requestedHerdView = null
 
                 controller.navigate("${NavDestinations.CONSOLE}/${bridge.host.id}") {
                     launchSingleTop = true

@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -149,6 +151,26 @@ class HerdSession(
      * swipes then go through Herdr's switcher, the one way to reach another machine.
      */
     val crossesMachines: StateFlow<Boolean> = _crossesMachines.asStateFlow()
+
+    // The view a host URI intent asked for on this host, until the console takes it.
+    private val _requestedView = MutableStateFlow<HerdView?>(null)
+
+    /** Ask the console to open [view] on this host; it replaces a request not taken yet. */
+    fun requestView(view: HerdView) {
+        _requestedView.value = view
+    }
+
+    /**
+     * Wait for a requested view and for the first snapshot (the SSH session is up and Herdr
+     * answered), then hand the view over and clear it, so it opens once. A view asked for before
+     * the snapshot lands waits for it rather than being dropped.
+     */
+    suspend fun takeView(): HerdView {
+        _snapshot.first { it != null }
+        val view = _requestedView.filterNotNull().first()
+        _requestedView.compareAndSet(view, null)
+        return view
+    }
 
     private val monitor = HerdrMonitor(
         hostName = hostName,

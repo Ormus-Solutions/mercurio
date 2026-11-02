@@ -329,6 +329,11 @@ object UsageActions {
     const val NOTIFY_DENY = "notify:deny"
     const val NOTIFY_ANSWER_CONNECT = "notify:answer-connect"
 
+    // A host URI intent (a launcher's widget) that asked for the agent chat or the Agents
+    // board over the console instead of the terminal.
+    const val LAUNCH_CHAT = "launch:chat"
+    const val LAUNCH_BOARD = "launch:board"
+
     // Command palette: the search icon in the console top bar, then a result run.
     const val PALETTE_OPEN = "palette:open"
     const val PALETTE_RUN = "palette:run"
@@ -440,6 +445,7 @@ object UsageActions {
         HERDR_PICKER_SHOW, HERDR_PICKER_PICK, HERDR_PICKER_ATTACH, HERDR_PICKER_DISMISS, HERDR_PICKER_ALSO_OPEN,
         HERDR_CONSOLES_ON_CONNECT,
         NOTIFY_NEEDS_YOU_OPEN, NOTIFY_FINISHED_OPEN, NOTIFY_APPROVE, NOTIFY_DENY, NOTIFY_ANSWER_CONNECT,
+        LAUNCH_CHAT, LAUNCH_BOARD,
         PALETTE_OPEN, PALETTE_RUN,
         SLASH_SEND, SLASH_INSERT, SLASH_AGENT, SLASH_REFRESH,
         SWIPE_PREV_TAB, SWIPE_NEXT_TAB, SWIPE_PANE_LEFT, SWIPE_PANE_RIGHT, SWIPE_PREV_WORKSPACE, SWIPE_NEXT_WORKSPACE,
