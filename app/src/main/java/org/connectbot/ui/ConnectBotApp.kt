@@ -33,6 +33,7 @@ import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.NoUsageLog
 import org.connectbot.usage.UsageLog
 import org.connectbot.util.IconStyle
+import solutions.ormus.logos.herd.HerdrConsole
 
 val LocalTerminalManager = compositionLocalOf<TerminalManager?> {
     null
@@ -53,6 +54,7 @@ fun ConnectBotApp(
     shouldShowNotificationWarning: () -> Boolean = { false },
     onNotificationSnackbarFinish: () -> Unit = {},
     usageLog: UsageLog = NoUsageLog,
+    onOpenWorkspace: (Host, HerdrConsole) -> Unit = { _, _ -> },
 ) {
     ConnectBotTheme {
         when (appUiState) {
@@ -98,6 +100,7 @@ fun ConnectBotApp(
                             onNavigateToConsole = onNavigateToConsole,
                             shouldShowNotificationWarning = shouldShowNotificationWarning,
                             onNotificationSnackbarFinish = onNotificationSnackbarFinish,
+                            onOpenWorkspace = onOpenWorkspace,
                             modifier = modifier,
                         )
                     }

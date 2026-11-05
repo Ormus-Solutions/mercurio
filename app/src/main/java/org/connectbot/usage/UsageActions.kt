@@ -144,6 +144,9 @@ object UsageActions {
     // Settings: the Tailscale API secret was saved or cleared (never the secret itself).
     const val MACHINES_API_SECRET = "machines:api-secret"
 
+    // A workboard key on the host list: open that Herdr console of its host.
+    const val WORKSPACES_OPEN = "workspaces:open"
+
     // Console top bar, overflow menu and the disconnected overlay.
     const val CONSOLE_BACK = "console:back"
     const val CONSOLE_TEXT_INPUT = "console:text-input"
@@ -413,6 +416,7 @@ object UsageActions {
         DRAWER_OPEN_WORKSPACE, HERDR_CONSOLE_OPEN,
         TITLE_PULL_DRAWER, TITLE_PULL_DISCONNECT,
         MACHINES_CONNECT, MACHINES_REFRESH, MACHINES_FIX_PROMPT, MACHINES_API_SECRET,
+        WORKSPACES_OPEN,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,
         MENU_RECONNECT, MENU_DISCONNECT, MENU_URL_SCAN, MENU_RESIZE, MENU_PORT_FORWARDS,
         MENU_FULLSCREEN, MENU_TITLE_BAR, MENU_WISH, MENU_COPY_DETAILS, MENU_SEND_ERROR,

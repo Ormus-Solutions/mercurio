@@ -1411,6 +1411,12 @@
 	<!-- File browser: in place of a binary file\'s text; %1$d is its size in bytes -->
 	<string name="files_binary">binary, %1$d bytes</string>
 
+	<!-- Workspaces: the Herdr workboards a host lists, as keys at the top of the host list -->
+	<!-- Heading above the workboard keys on the host list, shown as a small uppercase label -->
+	<string name="workspaces_title">Workspaces</string>
+	<!-- Spoken name of a workboard key; %1$s is the workboard, %2$s the host it is on -->
+	<string name="workspaces_open">Open %1$s on %2$s</string>
+
 	<!-- Machines: Tailscale machines listed in the session drawer and on the host list -->
 	<!-- Heading of the list of machines on the user's Tailscale network -->
 	<string name="machines_title">Machines</string>

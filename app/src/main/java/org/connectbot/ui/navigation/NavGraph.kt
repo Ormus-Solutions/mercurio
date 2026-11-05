@@ -47,6 +47,7 @@ import org.connectbot.ui.screens.pubkeyeditor.PubkeyEditorScreen
 import org.connectbot.ui.screens.pubkeylist.PubkeyListScreen
 import org.connectbot.ui.screens.settings.SettingsScreen
 import org.connectbot.util.IconStyle
+import solutions.ormus.logos.herd.HerdrConsole
 import timber.log.Timber
 
 @Composable
@@ -59,6 +60,7 @@ fun ConnectBotNavHost(
     onSelectShortcut: (Host, String?, IconStyle) -> Unit = { _, _, _ -> },
     shouldShowNotificationWarning: () -> Boolean = { false },
     onNotificationSnackbarFinish: () -> Unit = {},
+    onOpenWorkspace: (Host, HerdrConsole) -> Unit = { _, _ -> },
 ) {
     NavHost(
         navController = navController,
@@ -69,6 +71,7 @@ fun ConnectBotNavHost(
             HostListScreen(
                 makingShortcut = makingShortcut,
                 onNavigateToConsole = onNavigateToConsole,
+                onOpenWorkspace = onOpenWorkspace,
                 onSelectShortcut = onSelectShortcut,
                 onNavigateToEditHost = { host ->
                     if (host != null) {
@@ -101,9 +104,17 @@ fun ConnectBotNavHost(
         }
 
         composable(
-            route = "${NavDestinations.CONSOLE}/{${NavArgs.HOST_ID}}",
+            route = NavDestinations.CONSOLE_ROUTE,
             arguments = listOf(
                 navArgument(NavArgs.HOST_ID) { type = NavType.LongType },
+                navArgument(NavArgs.SESSION) {
+                    type = NavType.StringType
+                    nullable = true
+                },
+                navArgument(NavArgs.LABEL) {
+                    type = NavType.StringType
+                    nullable = true
+                },
             ),
         ) {
             ConsoleScreen(
@@ -119,8 +130,8 @@ fun ConnectBotNavHost(
                 // it. Navigate directly and pop the current console so the back
                 // stack doesn't grow with every switch.
                 onNavigateToConsole = { hostIdToShow ->
-                    navController.navigate("${NavDestinations.CONSOLE}/$hostIdToShow") {
-                        popUpTo("${NavDestinations.CONSOLE}/{${NavArgs.HOST_ID}}") {
+                    navController.navigate(NavDestinations.console(hostIdToShow)) {
+                        popUpTo(NavDestinations.CONSOLE_ROUTE) {
                             inclusive = true
                         }
                     }

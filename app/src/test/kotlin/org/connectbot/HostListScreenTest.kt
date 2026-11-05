@@ -39,11 +39,14 @@ import org.connectbot.ui.screens.hostlist.HostListScreenContent
 import org.connectbot.ui.screens.hostlist.HostListTestTags
 import org.connectbot.ui.screens.hostlist.HostListUiState
 import org.connectbot.ui.theme.ConnectBotTheme
+import org.connectbot.ui.workspaces.WorkspacesSection
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.herd.HerdrWorkspace
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -494,6 +497,7 @@ class HostListScreenTest {
         onExportHosts: () -> Unit = {},
         onImportHosts: () -> Unit = {},
         machines: @Composable () -> Unit = {},
+        workspaces: (@Composable () -> Unit)? = null,
     ) {
         composeTestRule.setContent {
             ConnectBotTheme {
@@ -517,9 +521,31 @@ class HostListScreenTest {
                     onExportHosts = onExportHosts,
                     onImportHosts = onImportHosts,
                     machines = machines,
+                    workspaces = workspaces,
                 )
             }
         }
+    }
+
+    @Test
+    fun workspacesSection_onlyWhenTheScreenHasOne() {
+        setHostListContent(uiState = HostListUiState(hosts = listOf(testHost(1L, "box")), isLoading = false))
+        composeTestRule.onNodeWithText("Workspaces").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Hosts").assertIsDisplayed()
+    }
+
+    @Test
+    fun workspacesSection_firstAboveTheHosts() {
+        val box = testHost(1L, "box").copy(postLogin = "herdr\n")
+        setHostListContent(
+            uiState = HostListUiState(hosts = listOf(box), isLoading = false),
+            workspaces = { WorkspacesSection(workspaces = listOf(HerdrWorkspace(box, HerdrConsole("review"))), onOpen = { _, _ -> }) },
+        )
+        composeTestRule.onNodeWithText("Workspaces").assertIsDisplayed()
+        composeTestRule.onNodeWithText("review").assertIsDisplayed()
+        val keys = composeTestRule.onNodeWithText("Workspaces").fetchSemanticsNode().positionInRoot.y
+        val hosts = composeTestRule.onNodeWithText("Hosts").fetchSemanticsNode().positionInRoot.y
+        assertTrue("the Workspaces heading sits above the Hosts heading", keys < hosts)
     }
 
     private fun testHost(

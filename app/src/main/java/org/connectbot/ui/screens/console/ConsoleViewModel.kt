@@ -38,9 +38,11 @@ import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.terminal.ProgressState
+import org.connectbot.ui.navigation.NavArgs
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.herd.HerdrSessions
 import javax.inject.Inject
 
 data class ConsoleUiState(
@@ -65,6 +67,14 @@ class ConsoleViewModel @Inject constructor(
     private val diagnosticsReporter: DiagnosticsReporter,
 ) : ViewModel() {
     private val hostId: Long = savedStateHandle.get<Long>("hostId") ?: -1L
+
+    // The Herdr console this screen was asked to show (a Workspaces key); null for the host's own.
+    private val requested: HerdrConsole? = savedStateHandle.get<String>(NavArgs.SESSION)
+        ?.takeIf(HerdrSessions::isName)
+        ?.let { HerdrConsole(it, workspaceLabel = savedStateHandle.get<String>(NavArgs.LABEL)) }
+
+    // Whether the requested console was selected once it appeared; later changes keep the user's pick.
+    private var requestedShown = false
     private var terminalManager: TerminalManager? = null
 
     private val _uiState = MutableStateFlow(ConsoleUiState())
@@ -182,9 +192,9 @@ class ConsoleViewModel @Inject constructor(
             try {
                 val allBridges = terminalManager?.bridgesFlow?.value ?: emptyList()
 
-                // Check if we already have a bridge for this host
+                // Check if we already have a bridge for this host (and, when one was asked, that console of it)
                 val existingBridge = allBridges.find { bridge ->
-                    bridge.host.id == hostId
+                    bridge.host.id == hostId && (requested == null || bridge.console?.shows(requested) == true)
                 }
 
                 // If no bridge exists, create one using the service method
@@ -198,8 +208,13 @@ class ConsoleViewModel @Inject constructor(
                             )
                         }
                     } else {
-                        // Permanent host - create from database
-                        val bridge = terminalManager?.openConnectionForHostId(hostId)
+                        // Permanent host - create from database; a requested console opens as its own
+                        // bridge, beside the host's others or as its first.
+                        val bridge = if (requested != null) {
+                            terminalManager?.openHerdrConsoleForHostId(hostId, requested)
+                        } else {
+                            terminalManager?.openConnectionForHostId(hostId)
+                        }
                         if (bridge == null) {
                             _uiState.update {
                                 it.copy(
@@ -231,9 +246,16 @@ class ConsoleViewModel @Inject constructor(
             allBridges
         }
 
+        // The requested console, the first time it is in the list: show it. Only this host's
+        // consoles count: another host's console of the same name is not it.
+        val asked = requested?.takeIf { !requestedShown }?.let { console ->
+            filteredBridges.indexOfFirst { it.console?.shows(console) == true }.takeIf { it >= 0 }
+        }
+        if (asked != null) requestedShown = true
+
         _uiState.update {
             val newBridges = filteredBridges.ifEmpty { allBridges }
-            val newIndex = if (it.currentBridgeIndex >= newBridges.size) {
+            val newIndex = asked ?: if (it.currentBridgeIndex >= newBridges.size) {
                 // Adjust index if it's now out of range
                 (newBridges.size - 1).coerceAtLeast(0)
             } else {

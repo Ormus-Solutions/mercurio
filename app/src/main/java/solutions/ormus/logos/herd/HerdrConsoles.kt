@@ -38,6 +38,14 @@ data class HerdrConsole(
     init {
         require(HerdrSessions.isName(session)) { "Unexpected Herdr session name: $session" }
     }
+
+    /**
+     * Whether this console answers [request], a console asked for by session and label (a
+     * Workspaces key, which never carries a workspace id): the same session, and the same
+     * label when the request names one. A request with no label is content with any console
+     * of its session, whatever workspace that one opened on.
+     */
+    fun shows(request: HerdrConsole): Boolean = session == request.session && (request.workspaceLabel == null || workspaceLabel == request.workspaceLabel)
 }
 
 /** How a new console reaches its workspace. */

@@ -47,7 +47,10 @@ import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import solutions.ormus.logos.herd.HerdrConsole
 
 /**
  * Tests for ConsoleViewModel.
@@ -512,12 +515,128 @@ class ConsoleViewModelTest {
         assertFalse("Should not show warning when connPersist is true and permission granted", viewModel.shouldShowNotificationWarning())
     }
 
+    private fun viewModel(): ConsoleViewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
+
+    @Test
+    fun aRequestedConsole_opensItOnTheHost_notTheHostsOwnConsole() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        whenever(savedStateHandle.get<String>("session")).thenReturn("work")
+        whenever(savedStateHandle.get<String>("label")).thenReturn("main")
+        val console = HerdrConsole("work", workspaceLabel = "main")
+        val opened = createMockBridge(1L, "host1", console = console)
+        whenever(terminalManager.openHerdrConsoleForHostId(1L, console)).thenReturn(opened)
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+
+        verify(terminalManager).openHerdrConsoleForHostId(1L, console)
+        verify(terminalManager, never()).openConnectionForHostId(any())
+    }
+
+    @Test
+    fun aRequestedConsole_opensBesideTheHostsOtherConsoles_andIsShownOnceItIsThere() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        whenever(savedStateHandle.get<String>("session")).thenReturn("work")
+        val own = createMockBridge(1L, "host1")
+        bridgesFlow.value = listOf(own)
+        val console = HerdrConsole("work")
+        val opened = createMockBridge(1L, "host1", console = console)
+        whenever(terminalManager.openHerdrConsoleForHostId(1L, console)).thenReturn(opened)
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+
+        // The host's own console is open, but it is not the one asked for.
+        verify(terminalManager).openHerdrConsoleForHostId(1L, console)
+        assertEquals(0, viewModel.uiState.value.currentBridgeIndex)
+
+        bridgesFlow.value = listOf(own, opened)
+        advanceUntilIdle()
+        assertEquals("The requested console is shown once it is open", 1, viewModel.uiState.value.currentBridgeIndex)
+
+        // From then on the list follows the user's own pick.
+        viewModel.selectBridge(0)
+        bridgesFlow.value = listOf(own, opened, createMockBridge(1L, "host1", console = HerdrConsole("review")))
+        advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.currentBridgeIndex)
+    }
+
+    @Test
+    fun aRequestedConsoleAlreadyOpen_opensNothingAndIsShown() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        whenever(savedStateHandle.get<String>("session")).thenReturn("work")
+        val console = HerdrConsole("work")
+        bridgesFlow.value = listOf(createMockBridge(1L, "host1"), createMockBridge(1L, "host1", console = console))
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+
+        verify(terminalManager, never()).openHerdrConsoleForHostId(any(), any())
+        verify(terminalManager, never()).openConnectionForHostId(any())
+        assertEquals(1, viewModel.uiState.value.currentBridgeIndex)
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun aRequestedConsole_isContentWithTheSessionsConsoleFromTheDrawer_whateverItsWorkspace() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        whenever(savedStateHandle.get<String>("session")).thenReturn("review")
+        // Opened from the drawer's sheet: it carries the workspace id and label; the key asks by session only.
+        bridgesFlow.value = listOf(createMockBridge(1L, "host1"), createMockBridge(1L, "host1", console = HerdrConsole("review", "w3", "gamma")))
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+
+        verify(terminalManager, never()).openHerdrConsoleForHostId(any(), any())
+        assertEquals(1, viewModel.uiState.value.currentBridgeIndex)
+    }
+
+    @Test
+    fun aRequestedConsole_ofAnotherHostWithTheSameName_isNotTakenForThisHost() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        whenever(savedStateHandle.get<String>("session")).thenReturn("review")
+        val console = HerdrConsole("review")
+        val elsewhere = createMockBridge(2L, "host2", console = console)
+        bridgesFlow.value = listOf(elsewhere)
+        val opened = createMockBridge(1L, "host1", console = console)
+        whenever(terminalManager.openHerdrConsoleForHostId(1L, console)).thenReturn(opened)
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+
+        verify(terminalManager).openHerdrConsoleForHostId(1L, console)
+        bridgesFlow.value = listOf(elsewhere, opened)
+        advanceUntilIdle()
+        assertEquals(listOf(opened), viewModel.uiState.value.bridges)
+        assertEquals(0, viewModel.uiState.value.currentBridgeIndex)
+    }
+
+    @Test
+    fun aSessionNameHerdrWouldNotGive_isIgnored() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        whenever(savedStateHandle.get<String>("session")).thenReturn("bad;name")
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+
+        verify(terminalManager, never()).openHerdrConsoleForHostId(any(), any())
+        verify(terminalManager).openConnectionForHostId(1L)
+    }
+
     private fun createMockBridge(
         id: Long,
         hostname: String,
         progressFlow: MutableStateFlow<TerminalBridge.ProgressInfo?> = MutableStateFlow(null),
+        console: HerdrConsole? = null,
     ): TerminalBridge {
         val bridge = mock<TerminalBridge>()
+        whenever(bridge.console).thenReturn(console)
         val host = Host(
             id = id,
             hostname = hostname,
@@ -526,7 +645,8 @@ class ConsoleViewModelTest {
             port = 22,
             username = "test",
         )
-        bridge.host = host
+        // A mock's setter does nothing: stub the getter, so a test that filters by host sees it.
+        whenever(bridge.host).thenReturn(host)
         whenever(bridge.isSessionOpen).thenReturn(true)
         whenever(bridge.isDisconnected).thenReturn(false)
         whenever(bridge.bellEvents).thenReturn(MutableSharedFlow())

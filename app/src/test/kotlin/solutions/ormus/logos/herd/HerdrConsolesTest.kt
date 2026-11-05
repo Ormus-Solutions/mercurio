@@ -87,6 +87,18 @@ class HerdrConsolesTest {
     }
 
     @Test
+    fun shows_theSameSession_andTheLabelWhenTheRequestNamesOne() {
+        val fromTheDrawer = HerdrConsole("beta", "w3", "gamma")
+        assertEquals(true, fromTheDrawer.shows(HerdrConsole("beta")))
+        assertEquals(true, fromTheDrawer.shows(HerdrConsole("beta", workspaceLabel = "gamma")))
+        assertEquals(false, fromTheDrawer.shows(HerdrConsole("beta", workspaceLabel = "tmp")))
+        assertEquals(false, fromTheDrawer.shows(HerdrConsole("alpha")))
+        // A console on the session's focus answers only a request with no label.
+        assertEquals(true, HerdrConsole("beta").shows(HerdrConsole("beta")))
+        assertEquals(false, HerdrConsole("beta").shows(HerdrConsole("beta", workspaceLabel = "gamma")))
+    }
+
+    @Test
     fun console_refusesANameHerdrWouldNotGive() {
         assertThrows(IllegalArgumentException::class.java) { HerdrConsole("beta; rm -rf ~") }
         assertThrows(IllegalArgumentException::class.java) { HerdrConsole("") }

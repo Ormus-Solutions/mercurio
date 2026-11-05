@@ -54,6 +54,11 @@ management come from ConnectBot. Mercurio is maintained by
   after a space, the label of a workspace to land on. The first console attaches
   the first line and the others open beside it, with no picker. Sessions that do
   not run are left out; with no list, the picker runs as before.
+- **Workspaces.** The host list opens with one key per line of that list, for
+  every saved Herdr host that has connected once: named by the session, or by
+  the workspace the line lands on. A tap connects the host with that one
+  console and nothing else; while the host is connected, the key opens the
+  console beside the others, or shows it when it is already open.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.

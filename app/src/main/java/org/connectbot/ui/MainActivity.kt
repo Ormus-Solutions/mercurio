@@ -69,6 +69,7 @@ import org.connectbot.util.isNotificationPermissionGranted
 import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.HerdrConsole
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -123,10 +124,13 @@ class MainActivity : AppCompatActivity() {
             null -> Unit
         }
     }
-    private var pendingHostConnection: Host? by mutableStateOf(null)
+    private var pendingHostConnection: ConsoleRequest? by mutableStateOf(null)
 
     // Holds the host waiting for permission result; not compose state so it doesn't trigger navigation.
-    private var hostAwaitingPermission: Host? = null
+    private var hostAwaitingPermission: ConsoleRequest? = null
+
+    /** A console to show: [host], and the Herdr [console] to open on it (a Workspaces key), null for the host's own. */
+    private data class ConsoleRequest(val host: Host, val console: HerdrConsole?)
     internal var makingShortcut by mutableStateOf(false)
     private var showDisconnectAllDialog by mutableStateOf(false)
 
@@ -143,9 +147,9 @@ class MainActivity : AppCompatActivity() {
         }
         // Prefs are now written; move the waiting host into pendingHostConnection so
         // the LaunchedEffect that watches it triggers navigation after the warning state is set.
-        hostAwaitingPermission?.let { host ->
-            Timber.d("Permission result received; proceeding to console for ${host.nickname}")
-            pendingHostConnection = host
+        hostAwaitingPermission?.let { request ->
+            Timber.d("Permission result received; proceeding to console for ${request.host.nickname}")
+            pendingHostConnection = request
             hostAwaitingPermission = null
         }
     }
@@ -294,10 +298,10 @@ class MainActivity : AppCompatActivity() {
             // Navigate to console when pending host connection is set
             LaunchedEffect(pendingHostConnection, appUiState) {
                 if (appUiState is AppUiState.Ready) {
-                    pendingHostConnection?.let { host ->
-                        Timber.d("Navigating to console for pending host: ${host.nickname}")
+                    pendingHostConnection?.let { request ->
+                        Timber.d("Navigating to console for pending host: ${request.host.nickname}")
                         pendingHostConnection = null
-                        navController.navigate("${NavDestinations.CONSOLE}/${host.id}")
+                        navController.navigate(NavDestinations.console(request.host.id, request.console))
                     }
                 }
             }
@@ -314,9 +318,9 @@ class MainActivity : AppCompatActivity() {
                                 appViewModel.clearPendingConnectionUri()
                             }
                             // Handle host waiting for permission result
-                            hostAwaitingPermission?.let { host ->
+                            hostAwaitingPermission?.let { request ->
                                 appViewModel.onNotificationPermissionResult(isGranted = false)
-                                navController.navigate("${NavDestinations.CONSOLE}/${host.id}")
+                                navController.navigate(NavDestinations.console(request.host.id, request.console))
                                 hostAwaitingPermission = null
                             }
                         },
@@ -331,9 +335,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Callback to check permission before navigating to console
-            val onNavigateToConsole: (Host) -> Unit = { host ->
-                Timber.d("onNavigateToConsole called for host: ${host.nickname}")
+            // Callback to check permission before navigating to console. [console] is a Herdr
+            // console to open on the host (a Workspaces key); null shows the host's own console.
+            val openConsole: (Host, HerdrConsole?) -> Unit = { host, console ->
+                Timber.d("openConsole called for host: ${host.nickname}")
 
                 // Check if connection persistence is enabled
                 val prefs = PreferenceManager.getDefaultSharedPreferences(context)
@@ -341,13 +346,13 @@ class MainActivity : AppCompatActivity() {
 
                 if (!persistConnections || isNotificationPermissionGranted(context)) {
                     // Either persistence is disabled (no permission needed) or permission granted, navigate immediately
-                    navController.navigate("${NavDestinations.CONSOLE}/${host.id}")
+                    navController.navigate(NavDestinations.console(host.id, console))
                 } else {
                     // Persistence is enabled but no permission - need to request permission.
                     // Store in hostAwaitingPermission (not compose state) so we don't navigate
                     // until after the permission result is written to prefs.
                     Timber.d("Requesting notification permission before connection")
-                    hostAwaitingPermission = host
+                    hostAwaitingPermission = ConsoleRequest(host, console)
                     val shouldShowRationale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         this@MainActivity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
@@ -356,6 +361,8 @@ class MainActivity : AppCompatActivity() {
                     appViewModel.requestNotificationPermission(shouldShowRationale)
                 }
             }
+
+            val onNavigateToConsole: (Host) -> Unit = { host -> openConsole(host, null) }
 
             ConnectBotApp(
                 appUiState = appUiState,
@@ -369,6 +376,7 @@ class MainActivity : AppCompatActivity() {
                     createShortcutAndFinish(host, color, iconStyle)
                 },
                 onNavigateToConsole = onNavigateToConsole,
+                onOpenWorkspace = openConsole,
                 shouldShowNotificationWarning = {
                     !appViewModel.hostListSnackbarShownThisLaunch && appViewModel.shouldShowNotificationWarning()
                 },
@@ -441,7 +449,7 @@ class MainActivity : AppCompatActivity() {
                 requestedHerdView?.let { view -> bridge.herd?.requestView(view) }
                 requestedHerdView = null
 
-                controller.navigate("${NavDestinations.CONSOLE}/${bridge.host.id}") {
+                controller.navigate(NavDestinations.console(bridge.host.id)) {
                     launchSingleTop = true
                 }
             } catch (e: Exception) {

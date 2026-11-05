@@ -394,15 +394,26 @@ class TerminalManager :
      * that target when there is one. The host's first console stays the one
      * [getConnectedBridge] finds, so the host list and the per-host lookups see it as before.
      */
-    fun openHerdrConsole(host: Host, console: HerdrConsole): TerminalBridge {
-        val shown = synchronized(_bridges) {
-            _bridges.firstOrNull { it.host.id == host.id && it.console == console }?.let { return it }
-            _bridges.firstOrNull { it.host.id == host.id }
-        }
+    fun openHerdrConsole(host: Host, console: HerdrConsole): TerminalBridge = synchronized(_bridges) {
+        // One lock from the look-up to the listing (startBridge adds under the same lock, re-entered):
+        // two opens of one host at once (a double tap) see each other, and only one is the host's first.
+        _bridges.firstOrNull { it.host.id == host.id && it.console == console }?.let { return it }
+        val shown = _bridges.firstOrNull { it.host.id == host.id }
         val bridge = TerminalBridge(this, host, dispatchers, console)
         // Out of sight until it is shown: start at the size of the host's first console.
         shown?.let(bridge::sizeLike)
-        return startBridge(bridge, first = false)
+        // With nothing of the host open (a Workspaces key), this console is the host's bridge:
+        // the one a nickname or a URI finds, so a later tap on the host reuses the connection.
+        startBridge(bridge, first = shown == null)
+    }
+
+    /** Whether [bridge] is what the per-host maps find for its host: its first console, or a console opened with nothing else of the host up. */
+    private fun isHostBridge(bridge: TerminalBridge): Boolean = synchronized(_bridges) { hostBridgeMap[bridge.host]?.get() === bridge }
+
+    /** Open [console] on the saved host [hostId] ([openHerdrConsole]); null when no such host. */
+    suspend fun openHerdrConsoleForHostId(hostId: Long, console: HerdrConsole): TerminalBridge? {
+        val host = hostRepository.findHostById(hostId) ?: return null
+        return openHerdrConsole(host, console)
     }
 
     /** Whether [bridge] is the first console open on its host: the lowest console id among the host's. */
@@ -1194,8 +1205,9 @@ class TerminalManager :
 
     internal fun onSessionOpened(bridge: TerminalBridge) {
         if (::usageTracker.isInitialized) usageTracker.sessionOpened(bridge, bridge.runsHerdr)
-        // The host's first console already syncs usage and the push endpoint there.
-        if (bridge.console != null) return
+        // An extra console beside the host's bridge: that bridge already syncs usage and the push
+        // endpoint. A console that is the host's bridge (a Workspaces key with nothing open) does it.
+        if (bridge.console != null && !isHostBridge(bridge)) return
         if (::sunSync.isInitialized) sunSync.onSessionOpen(bridge, bridge.host, (bridge.transport as? SSH)?.let(::SshSunLink))
         if (::pushEndpoints.isInitialized) syncPushEndpoint(bridge)
     }

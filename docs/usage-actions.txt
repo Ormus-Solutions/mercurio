@@ -81,6 +81,7 @@ machines:connect
 machines:refresh
 machines:fix-prompt
 machines:api-secret
+workspaces:open
 console:back
 console:text-input
 console:paste

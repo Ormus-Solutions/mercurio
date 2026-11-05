@@ -118,10 +118,13 @@ import org.connectbot.ui.theme.OrmusMono
 import org.connectbot.ui.theme.OrmusTokens
 import org.connectbot.ui.wish.WishDialog
 import org.connectbot.ui.wish.WishViewModel
+import org.connectbot.ui.workspaces.WorkspacesSection
+import org.connectbot.ui.workspaces.WorkspacesViewModel
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.IconStyle
 import solutions.ormus.logos.herd.Herd
+import solutions.ormus.logos.herd.HerdrConsole
 
 internal object HostListTestTags {
     fun itemRow(hostId: Long): String = "host_item_${hostId}_row"
@@ -144,11 +147,14 @@ fun HostListScreen(
     onSelectShortcut: (Host, String?, IconStyle) -> Unit = { _, _, _ -> },
     shouldShowNotificationWarning: () -> Boolean = { false },
     onNotificationSnackbarFinish: () -> Unit = {},
+    onOpenWorkspace: (Host, HerdrConsole) -> Unit = { _, _ -> },
     viewModel: HostListViewModel = hiltViewModel(),
     wishViewModel: WishViewModel = hiltViewModel(),
+    workspacesViewModel: WorkspacesViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val terminalManager = LocalTerminalManager.current
+    val workspaces by workspacesViewModel.workspaces.collectAsState()
 
     LaunchedEffect(terminalManager) {
         terminalManager?.let { viewModel.setTerminalManager(it) }
@@ -299,6 +305,12 @@ fun HostListScreen(
         shouldShowNotificationWarning = shouldShowNotificationWarning,
         onNotificationSnackbarFinish = onNotificationSnackbarFinish,
         modifier = modifier,
+        // The Herdr hosts' workboards, one key each; no item at all until a host has listed some.
+        workspaces = if (!makingShortcut && workspaces.isNotEmpty()) {
+            { WorkspacesSection(workspaces = workspaces, onOpen = onOpenWorkspace) }
+        } else {
+            null
+        },
         machines = {
             // Cached tailnet machines; hidden until a list has been fetched once.
             if (!makingShortcut) {
@@ -336,6 +348,7 @@ fun HostListScreenContent(
     diagnosticsReport: suspend (Host) -> String? = { null },
     saveErrorToWishList: (Host, () -> Unit) -> Unit = { _, _ -> },
     machines: @Composable () -> Unit = {},
+    workspaces: (@Composable () -> Unit)? = null,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectAllDialog by remember { mutableStateOf(false) }
@@ -539,7 +552,9 @@ fun HostListScreenContent(
                         ),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        // Saved hosts first: the tailnet can list many machines.
+                        // The workboards first: they are what the phone is for; then the saved
+                        // hosts, then the tailnet, which can list many machines.
+                        if (workspaces != null) item(key = "workspaces") { workspaces() }
                         item(key = "hosts_label") {
                             MonoLabel(
                                 text = stringResource(R.string.host_list_section),
