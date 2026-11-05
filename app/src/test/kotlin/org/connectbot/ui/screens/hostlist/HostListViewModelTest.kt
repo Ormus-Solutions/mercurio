@@ -45,6 +45,7 @@ import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import solutions.ormus.logos.herd.HerdrConsoleCache
 
 /**
  * Tests for HostListViewModel, focusing on sort order preference persistence.
@@ -90,7 +91,7 @@ class HostListViewModelTest {
     private fun createViewModel(sortedByColor: Boolean = false): HostListViewModel {
         whenever(sharedPreferences.getBoolean(PreferenceConstants.SORT_BY_COLOR, false))
             .thenReturn(sortedByColor)
-        return HostListViewModel(context, repository, dispatchers, sharedPreferences, mock<DiagnosticsReporter>())
+        return HostListViewModel(context, repository, dispatchers, sharedPreferences, mock<DiagnosticsReporter>(), HerdrConsoleCache(sharedPreferences, dispatchers))
     }
 
     private fun createTerminalManager(): TerminalManager {

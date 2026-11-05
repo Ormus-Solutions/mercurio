@@ -237,6 +237,52 @@ class HerdrConsolesTest {
         assertEquals(listOf(HerdrConsoles.LIST_COMMAND, HerdrSessions.listCommand), commands)
     }
 
+    /** Runs [HerdrConsoles.read] with a real IO pool against [answers], recording each command. */
+    private fun read(answers: (String) -> CommandOutput?): Pair<List<HerdrConsole>?, List<String>> = runBlocking {
+        val commands = mutableListOf<String>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            HerdrConsoles.read(scope, Dispatchers.IO) { command, _ ->
+                synchronized(commands) { commands += command }
+                answers(command)
+            } to commands
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun read_whatTheHostLists_emptyWithNoFile_nullWhenTheReadDidNotAnswer() {
+        // No file: cat prints nothing and exits 0 (|| true). Only the list is read: stopped sessions stay listed.
+        val (none, commands) = read { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("", "", 0) else sessionList }
+        assertEquals(emptyList<HerdrConsole>(), none)
+        assertEquals(listOf(HerdrConsoles.LIST_COMMAND), commands)
+        val (listed, read) = read { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("review\nlab\nwork main\n", "", 0) else sessionList }
+        assertEquals(listOf(HerdrConsole("review"), HerdrConsole("lab"), HerdrConsole("work", workspaceLabel = "main")), listed)
+        assertEquals(listOf(HerdrConsoles.LIST_COMMAND), read)
+        // A read that fails, does not answer, or ends with no exit status (a dropped channel) says nothing.
+        assertEquals(null, read { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("", "", 1) else sessionList }.first)
+        assertEquals(null, read { if (it == HerdrConsoles.LIST_COMMAND) null else sessionList }.first)
+        assertEquals(null, read { if (it == HerdrConsoles.LIST_COMMAND) CommandOutput("", "", null) else sessionList }.first)
+    }
+
+    @Test
+    fun running_keepsTheListedSessionsThatRun_nullWhenTheSessionListDidNotAnswer() = runBlocking {
+        val listed = listOf(HerdrConsole("review"), HerdrConsole("lab"), HerdrConsole("work", workspaceLabel = "main"))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val running = { answer: CommandOutput? -> { _: String, _: Long -> answer } }
+            assertEquals(listOf(HerdrConsole("review"), HerdrConsole("work", workspaceLabel = "main")), HerdrConsoles.running(listed, scope, Dispatchers.IO, running(sessionList)))
+            assertEquals(emptyList<HerdrConsole>(), HerdrConsoles.running(listOf(HerdrConsole("lab")), scope, Dispatchers.IO, running(sessionList)))
+            assertEquals(null, HerdrConsoles.running(listed, scope, Dispatchers.IO, running(null)))
+            assertEquals(null, HerdrConsoles.running(listed, scope, Dispatchers.IO, running(CommandOutput("", "", null))))
+            // Nothing listed: nothing to ask the host.
+            assertEquals(emptyList<HerdrConsole>(), HerdrConsoles.running(emptyList(), scope, Dispatchers.IO) { _, _ -> error("not asked") })
+        } finally {
+            scope.cancel()
+        }
+    }
+
     @Test
     fun onConnect_nothingWithoutAList_soThePickerRuns() {
         // No file: cat prints nothing (2>/dev/null); the session list is never read.

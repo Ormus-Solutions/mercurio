@@ -80,8 +80,11 @@ object HerdrConsoles {
      */
     const val LIST_PATH = "~/.config/mercurio/consoles"
 
-    /** Prints [LIST_PATH], or nothing when the host has none. */
-    const val LIST_COMMAND = "cat $LIST_PATH 2>/dev/null"
+    /**
+     * Prints [LIST_PATH], or nothing and exits 0 when the host has none, so a missing file
+     * reads as an empty list and only a read that fails reads as unknown ([read]).
+     */
+    const val LIST_COMMAND = "cat $LIST_PATH 2>/dev/null || true"
 
     /** At most this many consoles open on connect, the host's first one included. */
     const val MAX_ON_CONNECT = 8
@@ -114,16 +117,44 @@ object HerdrConsoles {
         scope: CoroutineScope,
         io: CoroutineDispatcher,
         run: (command: String, timeoutMs: Long) -> CommandOutput?,
+    ): List<HerdrConsole>? = read(scope, io, run)?.let { running(it, scope, io, run) }?.ifEmpty { null }
+
+    /**
+     * What the host lists ([LIST_PATH]), in its order, stopped sessions included. Empty when it
+     * lists nothing (no file, or no line with a name Herdr could give); null when the read did
+     * not answer within the picker's wait, failed, or ended with no exit status (a dropped
+     * channel), so a slow host says nothing about its list. [run] is as in [land].
+     */
+    suspend fun read(
+        scope: CoroutineScope,
+        io: CoroutineDispatcher,
+        run: (command: String, timeoutMs: Long) -> CommandOutput?,
     ): List<HerdrConsole>? {
         val waitMs = HerdrWorkspacePicker.SNAPSHOT_WAIT_MS
-        val listed = HerdrWorkspacePicker.within(scope, io, waitMs) { run(LIST_COMMAND, waitMs) }.ok()?.let(::parseList).orEmpty()
-        if (listed.isEmpty()) return null
-        val running = HerdrWorkspacePicker.within(scope, io, waitMs) { run(HerdrSessions.listCommand, waitMs) }.ok()?.let(HerdrSessions::parse)
+        return HerdrWorkspacePicker.within(scope, io, waitMs) { run(LIST_COMMAND, waitMs) }.exited()?.let(::parseList)
+    }
+
+    /**
+     * [listed] kept to the Herdr sessions that run now (`herdr session list`), in its order:
+     * empty when none of them runs; null when the session list did not answer. [run] is as in [land].
+     */
+    suspend fun running(
+        listed: List<HerdrConsole>,
+        scope: CoroutineScope,
+        io: CoroutineDispatcher,
+        run: (command: String, timeoutMs: Long) -> CommandOutput?,
+    ): List<HerdrConsole>? {
+        if (listed.isEmpty()) return emptyList()
+        val waitMs = HerdrWorkspacePicker.SNAPSHOT_WAIT_MS
+        val running = HerdrWorkspacePicker.within(scope, io, waitMs) { run(HerdrSessions.listCommand, waitMs) }.exited()?.let(HerdrSessions::parse)
             ?: return null
-        return listed.filter { it.session in running }.ifEmpty { null }
+        return listed.filter { it.session in running }
     }
 
     private fun CommandOutput?.ok(): String? = this?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout
+
+    // The output of a command that ran to its end and exited 0: a channel closed with no exit status says nothing.
+    private fun CommandOutput?.exited(): String? = this?.takeIf { it.exitCode == 0 }?.stdout
 
     /**
      * How [console] lands: [snapshot] is its session's, read just before the attach; [keys]

@@ -42,6 +42,8 @@ import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.ServiceError
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.HerdrConsoleCache
+import timber.log.Timber
 import javax.inject.Inject
 
 enum class ConnectionState {
@@ -82,6 +84,7 @@ class HostListViewModel @Inject constructor(
     private val dispatchers: CoroutineDispatchers,
     private val sharedPreferences: SharedPreferences,
     private val diagnosticsReporter: DiagnosticsReporter,
+    private val herdrConsoles: HerdrConsoleCache,
 ) : ViewModel() {
 
     private var terminalManager: TerminalManager? = null
@@ -233,6 +236,8 @@ class HostListViewModel @Inject constructor(
             try {
                 terminalManager?.disconnectHost(host.id)
                 repository.deleteHost(host)
+                // What the phone kept of the host's console list goes with it; a failure here is no failed delete.
+                runCatching { herdrConsoles.forget(host.id) }.onFailure { Timber.w(it, "the deleted host's console list could not be dropped") }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(error = e.message ?: "Failed to delete host")

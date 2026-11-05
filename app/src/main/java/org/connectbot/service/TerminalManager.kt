@@ -79,6 +79,7 @@ import solutions.ormus.logos.herd.HerdAttention
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.herd.HerdrConsoleCache
 import solutions.ormus.logos.push.PushEndpoints
 import timber.log.Timber
 import java.io.IOException
@@ -176,6 +177,9 @@ class TerminalManager :
 
     @Inject
     internal lateinit var pushEndpoints: PushEndpoints
+
+    @Inject
+    internal lateinit var herdrConsoles: HerdrConsoleCache
 
     private val binder: IBinder = TerminalBinder()
 
@@ -399,6 +403,19 @@ class TerminalManager :
         // Out of sight until it is shown: start at the size of the host's first console.
         shown?.let(bridge::sizeLike)
         return startBridge(bridge, first = false)
+    }
+
+    /** Whether [bridge] is the first console open on its host: the lowest console id among the host's. */
+    internal fun isFirstConsole(bridge: TerminalBridge): Boolean = synchronized(_bridges) {
+        _bridges.filter { it.host.id == bridge.host.id }.minByOrNull { it.consoleId } === bridge
+    }
+
+    /**
+     * Keep [consoles] as what [host] lists ([HerdrConsoles.LIST_PATH]), for the surfaces that
+     * offer a host's workboards before it connects. A temporary host (a URI open) keeps nothing.
+     */
+    internal suspend fun rememberHerdrConsoles(host: Host, consoles: List<HerdrConsole>) {
+        if (host.id > 0L) herdrConsoles.remember(host.id, consoles)
     }
 
     /**

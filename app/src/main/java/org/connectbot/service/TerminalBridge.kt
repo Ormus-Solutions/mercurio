@@ -58,6 +58,7 @@ import org.connectbot.terminal.TerminalEmulatorFactory
 import org.connectbot.terminal.UrlScanScope
 import org.connectbot.terminal.VTermKey
 import org.connectbot.transport.AbsTransport
+import org.connectbot.transport.CommandOutput
 import org.connectbot.transport.SSH
 import org.connectbot.transport.TransportFactory
 import org.connectbot.usage.UsageActions
@@ -887,12 +888,16 @@ class TerminalBridge {
             injectString(host.postLogin)
             return
         }
-        val run = { command: String, timeoutMs: Long -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) }
+        val run = runner(ssh)
         scope.launch {
-            HerdrConsoles.onConnect(scope, dispatchers.io, run)?.let { listed ->
+            // The host's list: kept on the phone as listed, then opened as far as its sessions run.
+            val listed = HerdrConsoles.read(scope, dispatchers.io, run)
+            listed?.let { manager.rememberHerdrConsoles(host, it) }
+            val open = listed?.let { HerdrConsoles.running(it, scope, dispatchers.io, run) }?.ifEmpty { null }
+            if (open != null) {
                 manager.logUsage(UsageActions.HERDR_CONSOLES_ON_CONNECT)
-                attachConsole(ssh, listed.first())
-                withContext(dispatchers.io) { listed.drop(1).forEach { manager.openHerdrConsole(host, it) } }
+                attachConsole(ssh, open.first())
+                withContext(dispatchers.io) { open.drop(1).forEach { manager.openHerdrConsole(host, it) } }
                 return@launch
             }
             // The rows marked with their + key: each opens in a console of its own after the attach.
@@ -930,6 +935,11 @@ class TerminalBridge {
         }
     }
 
+    // One command over an exec channel of [ssh] while it is connected, as [HerdrConsoles.land] runs them.
+    private fun runner(ssh: SSH): (String, Long) -> CommandOutput? = { command, timeoutMs ->
+        ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs)
+    }
+
     /**
      * An extra console's post-login, with no picker: land on its workspace
      * ([HerdrConsoles.land]), then attach its session. Switcher keys wait until Herdr's
@@ -937,7 +947,16 @@ class TerminalBridge {
      * come up in [HerdrConsoles.ON_SCREEN_WAIT_MS] gets none and stays where it opened.
      */
     private fun openConsole(ssh: SSH, console: HerdrConsole) {
-        scope.launch { attachConsole(ssh, console) }
+        scope.launch {
+            attachConsole(ssh, console)
+            // Then keep what the host lists ([HerdrConsoles.LIST_PATH]) on the phone, so the host
+            // list offers its workboards before a connection is up: once per host, by the first
+            // of its consoles, after its landing, so the read never races the switcher keys. A
+            // read that does not answer keeps what was known.
+            if (HerdrWorkspacePicker.offers(host.postLogin) && manager.isFirstConsole(this@TerminalBridge)) {
+                HerdrConsoles.read(scope, dispatchers.io, runner(ssh))?.let { manager.rememberHerdrConsoles(host, it) }
+            }
+        }
     }
 
     // Land this console's terminal on [console] and attach its session ([openConsole]).
@@ -953,7 +972,7 @@ class TerminalBridge {
                 console = console,
                 scope = scope,
                 io = dispatchers.io,
-                run = { command, timeoutMs -> ssh.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs) },
+                run = runner(ssh),
                 keys = herd.keys.value,
                 crossesMachines = herd.crossesMachines.value,
                 shared = manager.showsHerdrSession(this@TerminalBridge, console.session),
