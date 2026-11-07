@@ -97,4 +97,7 @@ object PreferenceConstants {
 
     /* Theme: retired, the app is dark only. AppViewModel removes a saved value at launch. */
     const val THEME_MODE: String = "themeMode"
+
+    /** The URL of the sessions feed the home reads its workboards from; absent when none is set. */
+    const val HOME_FEED_URL: String = "homeFeedUrl"
 }

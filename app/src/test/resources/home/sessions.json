@@ -1,0 +1,61 @@
+{
+  "generated": 1700000000,
+  "agents": 7,
+  "needs": 1,
+  "waiting": 2,
+  "boards": [
+    {
+      "name": "work",
+      "machine": "box",
+      "session": "work",
+      "agents": {"blocked": 1, "working": 2, "done": 3, "idle": 0},
+      "waiting": 2,
+      "projects": [
+        {
+          "name": "review",
+          "machine": "box",
+          "session": "work",
+          "agents": {"blocked": 1, "working": 0, "done": 1, "idle": 0},
+          "chats": [
+            {"k": "0123456789ab", "name": "a chat", "label": "WORK", "text": "a line nobody reads here", "waiting": true, "open": "https://chat.example/x", "age_min": 5, "group": true, "mine": false, "slot": null}
+          ],
+          "top": [
+            {"kind": "agent", "machine": "box", "session": "work", "pane": "w1:p1", "status": "blocked", "needs": "yes?", "seq": 3, "term": 12, "tab": "w1", "title": "review"}
+          ]
+        },
+        {
+          "name": "ops",
+          "machine": "box",
+          "session": "work",
+          "agents": {"blocked": 0, "working": 2, "done": 2, "idle": 0},
+          "chats": [],
+          "top": []
+        }
+      ]
+    },
+    {
+      "name": "lab",
+      "agents": {"blocked": 0, "working": 0, "done": 0, "idle": 0},
+      "waiting": 0,
+      "projects": [
+        {"name": "bench", "agents": {"blocked": 0, "working": 0, "done": 0, "idle": 0}, "chats": [], "top": []}
+      ]
+    },
+    {
+      "name": "far",
+      "machine": "far",
+      "session": "far",
+      "agents": {"blocked": 0, "working": 0, "done": 1, "idle": 0},
+      "waiting": 0,
+      "projects": []
+    }
+  ],
+  "hosts": {"box": ["box", "box.example", "192.0.2.10"], "far": ["far", "far.example", "192.0.2.11"]},
+  "links": {"box": "ssh://me@box.example:22", "far": "ssh://me@far.example:22"},
+  "machines": {"box": {"up": true}},
+  "moves": [],
+  "moves_epoch": 1700000000,
+  "unsorted": [],
+  "errors": [],
+  "game": {"score": 3}
+}
