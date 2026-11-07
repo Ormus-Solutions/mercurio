@@ -83,6 +83,7 @@ machines:fix-prompt
 machines:api-secret
 workspaces:open
 home:feed-set
+workboards:open
 console:back
 console:text-input
 console:paste

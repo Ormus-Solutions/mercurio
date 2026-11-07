@@ -68,8 +68,13 @@ management come from ConnectBot. Mercurio is maintained by
 - **Home feed.** Settings can name the URL of a sessions feed: one JSON
   document that lists every workboard with its machine, Herdr session, agents
   and workspaces. The phone reads it while the host list shows and keeps the
-  last read with its time; with no URL set, nothing is read. The boards reach
-  the home in a later change.
+  last read with its time; with no URL set, nothing is read.
+- **Workboards.** With a feed, the host list opens with one block per
+  workboard (its name, its machine, how many of its agents wait on you) and
+  one key per workspace. A tap opens that Herdr session on the saved host the
+  machine's names pick, landed on the workspace; a key with no saved host on
+  its machine is off and says so. The kept Workspaces keys for workspaces the
+  feed already opens step aside; the rest stay beside the blocks.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.

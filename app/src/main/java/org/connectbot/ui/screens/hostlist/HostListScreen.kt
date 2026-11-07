@@ -114,6 +114,7 @@ import org.connectbot.ui.components.ShortcutCustomizationDialog
 import org.connectbot.ui.components.StatusChip
 import org.connectbot.ui.components.copyDiagnostics
 import org.connectbot.ui.home.HomeBoardsViewModel
+import org.connectbot.ui.home.WorkboardsSection
 import org.connectbot.ui.machines.MachinesSection
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
@@ -129,6 +130,7 @@ import org.connectbot.usage.UsageActions
 import org.connectbot.util.IconStyle
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.home.HomeWorkboards
 
 internal object HostListTestTags {
     fun itemRow(hostId: Long): String = "host_item_${hostId}_row"
@@ -173,6 +175,14 @@ fun HostListScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // The feed's workboards, joined with the saved hosts: one key per workspace that can open,
+    // a connected host first, as a launcher's tap picks it.
+    val home by homeViewModel.state.collectAsState()
+    val connected = remember(uiState.connectionStates) { uiState.connectionStates.filterValues { it == ConnectionState.CONNECTED }.keys }
+    val blocks = remember(home.boards, uiState.hosts, connected) { HomeWorkboards.blocks(home.boards, uiState.hosts, connected) }
+    // The kept Workspaces keys no feed key stands for stay beside the blocks.
+    val uncovered = remember(workspaces, blocks) { HomeWorkboards.uncovered(workspaces, blocks) }
 
     // File picker for export
     val exportLauncher = rememberLauncherForActivityResult(
@@ -316,9 +326,16 @@ fun HostListScreen(
         shouldShowNotificationWarning = shouldShowNotificationWarning,
         onNotificationSnackbarFinish = onNotificationSnackbarFinish,
         modifier = modifier,
-        // The Herdr hosts' workboards, one key each; no item at all until a host has listed some.
-        workspaces = if (!makingShortcut && workspaces.isNotEmpty()) {
-            { WorkspacesSection(workspaces = workspaces, onOpen = onOpenWorkspace) }
+        // The feed's workboards first; no item at all while the feed has none.
+        workboards = if (!makingShortcut && blocks.isNotEmpty()) {
+            { WorkboardsSection(blocks = blocks, fetchedAt = home.fetchedAt, error = home.error, onOpen = onOpenWorkspace) }
+        } else {
+            null
+        },
+        // The Herdr hosts' kept workboards, one key each, less those a feed key already opens:
+        // one key per workspace, and none goes missing.
+        workspaces = if (!makingShortcut && uncovered.isNotEmpty()) {
+            { WorkspacesSection(workspaces = uncovered, onOpen = onOpenWorkspace) }
         } else {
             null
         },
@@ -360,6 +377,7 @@ fun HostListScreenContent(
     saveErrorToWishList: (Host, () -> Unit) -> Unit = { _, _ -> },
     machines: @Composable () -> Unit = {},
     workspaces: (@Composable () -> Unit)? = null,
+    workboards: (@Composable () -> Unit)? = null,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectAllDialog by remember { mutableStateOf(false) }
@@ -565,6 +583,7 @@ fun HostListScreenContent(
                     ) {
                         // The workboards first: they are what the phone is for; then the saved
                         // hosts, then the tailnet, which can list many machines.
+                        if (workboards != null) item(key = "workboards") { workboards() }
                         if (workspaces != null) item(key = "workspaces") { workspaces() }
                         item(key = "hosts_label") {
                             MonoLabel(

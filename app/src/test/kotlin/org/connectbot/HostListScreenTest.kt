@@ -33,6 +33,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.connectbot.data.entity.Host
 import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.home.WorkboardsSection
 import org.connectbot.ui.screens.hostlist.ConnectionState
 import org.connectbot.ui.screens.hostlist.HostListScreen
 import org.connectbot.ui.screens.hostlist.HostListScreenContent
@@ -47,6 +48,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrWorkspace
+import solutions.ormus.logos.home.HomeBoard
+import solutions.ormus.logos.home.HomeWorkspace
+import solutions.ormus.logos.home.WorkboardBlock
+import solutions.ormus.logos.home.WorkboardKey
+import solutions.ormus.logos.home.WorkboardTarget
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -498,6 +504,7 @@ class HostListScreenTest {
         onImportHosts: () -> Unit = {},
         machines: @Composable () -> Unit = {},
         workspaces: (@Composable () -> Unit)? = null,
+        workboards: (@Composable () -> Unit)? = null,
     ) {
         composeTestRule.setContent {
             ConnectBotTheme {
@@ -522,6 +529,7 @@ class HostListScreenTest {
                     onImportHosts = onImportHosts,
                     machines = machines,
                     workspaces = workspaces,
+                    workboards = workboards,
                 )
             }
         }
@@ -532,6 +540,22 @@ class HostListScreenTest {
         setHostListContent(uiState = HostListUiState(hosts = listOf(testHost(1L, "box")), isLoading = false))
         composeTestRule.onNodeWithText("Workspaces").assertDoesNotExist()
         composeTestRule.onNodeWithText("Hosts").assertIsDisplayed()
+    }
+
+    @Test
+    fun workboardsSection_firstAboveTheHosts() {
+        val box = testHost(1L, "box").copy(postLogin = "herdr\n")
+        val board = HomeBoard("work", machine = "box", session = "work", workspaces = listOf(HomeWorkspace("review")))
+        val key = WorkboardKey(board, board.workspaces.single(), WorkboardTarget(box, HerdrConsole("work", workspaceLabel = "review")))
+        setHostListContent(
+            uiState = HostListUiState(hosts = listOf(box), isLoading = false),
+            workboards = { WorkboardsSection(blocks = listOf(WorkboardBlock(board, listOf(key))), fetchedAt = 0L, error = null, onOpen = { _, _ -> }) },
+        )
+        composeTestRule.onNodeWithText("Workboards").assertIsDisplayed()
+        composeTestRule.onNodeWithText("review").assertIsDisplayed()
+        val boards = composeTestRule.onNodeWithText("Workboards").fetchSemanticsNode().positionInRoot.y
+        val hosts = composeTestRule.onNodeWithText("Hosts").fetchSemanticsNode().positionInRoot.y
+        assertTrue("the Workboards heading sits above the Hosts heading", boards < hosts)
     }
 
     @Test

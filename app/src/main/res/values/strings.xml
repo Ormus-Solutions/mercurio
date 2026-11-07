@@ -1417,6 +1417,32 @@
 	<!-- Spoken name of a workboard key; %1$s is the workboard, %2$s the host it is on -->
 	<string name="workspaces_open">Open %1$s on %2$s</string>
 
+	<!-- Workboards: the sessions feed's workboards at the top of the host list, one key per workspace -->
+	<!-- Heading above the workboard blocks, shown as a small uppercase label -->
+	<string name="workboards_title">Workboards</string>
+	<!-- Beside the heading: when the feed was last read; %1$s is a relative time ("3 minutes ago") -->
+	<string name="workboards_as_of">as of %1$s</string>
+	<!-- A workboard's line: its name and the machine it lives on -->
+	<string name="workboards_board">%1$s · %2$s</string>
+	<!-- Under the heading when the feed's last read failed; %1$s is the reason -->
+	<string name="workboards_not_read">Not read: %1$s</string>
+	<!-- Beside a workboard's name: how many of its agents wait on the user -->
+	<string name="workboards_needs_you">Needs you · %1$d</string>
+	<!-- Spoken name of a workspace key that opens; %1$s the workspace, %2$s its workboard, %3$s the machine -->
+	<string name="workboards_open">Open %1$s of %2$s on %3$s</string>
+	<!-- Spoken name of a workspace key that opens and whose agents wait on the user; %1$s is the "Open ..." name -->
+	<string name="workboards_open_needs_you">%1$s; needs you</string>
+	<!-- Spoken name of a workspace key that cannot open: no saved host is on its machine -->
+	<string name="workboards_no_host">%1$s of %2$s: no saved host on %3$s</string>
+	<!-- Spoken name of a workspace key that cannot open: the feed names no session for it -->
+	<string name="workboards_no_session">%1$s of %2$s: no session known</string>
+	<!-- Spoken name of a workspace key that cannot open: the session the feed names is not a Herdr session name; %3$s is that name -->
+	<string name="workboards_bad_session">%1$s of %2$s: %3$s is not a session name</string>
+	<!-- Spoken name of a workspace key that cannot open: the feed places it on no machine -->
+	<string name="workboards_no_machine">%1$s of %2$s: no machine known</string>
+	<!-- Spoken name of a workspace key that cannot open: the feed lists no names for its machine -->
+	<string name="workboards_unnamed_machine">%1$s of %2$s: no names for %3$s in the feed</string>
+
 	<!-- Machines: Tailscale machines listed in the session drawer and on the host list -->
 	<!-- Heading of the list of machines on the user's Tailscale network -->
 	<string name="machines_title">Machines</string>
