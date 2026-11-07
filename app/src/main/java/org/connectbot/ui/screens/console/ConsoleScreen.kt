@@ -403,6 +403,27 @@ fun ConsoleScreen(
             }
         }
     }
+    // A tap asked for the chat or the Agents board over the console it opened (TerminalManager.showConsole,
+    // through the view model's state): this screen, the one that shows the console, opens the view once that
+    // session's Herdr side has a snapshot. Through the state, not the session, so a console screen on its
+    // way out (the one before, during its exit) cannot take it.
+    val openView = uiState.openView
+    val openOn = uiState.openOn
+    LaunchedEffect(openView, openOn) {
+        if (openView == null || openOn == null) return@LaunchedEffect
+        viewModel.viewOpened()
+        val herd = openOn.herd ?: return@LaunchedEffect
+        herd.snapshot.first { it != null }
+        when (openView) {
+            is HerdView.Chat -> {
+                chatSession = openView.session
+                chatPane = openView.pane
+                chatBridge = openOn
+            }
+
+            HerdView.Board -> boardBridge = openOn
+        }
+    }
     var showWishDialog by remember { mutableStateOf(false) }
     // The session whose dev preview is open, if any.
     var previewBridge by remember { mutableStateOf<TerminalBridge?>(null) }

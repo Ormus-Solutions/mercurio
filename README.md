@@ -59,6 +59,12 @@ management come from ConnectBot. Mercurio is maintained by
   the workspace the line lands on. A tap connects the host with that one
   console and nothing else; while the host is connected, the key opens the
   console beside the others, or shows it when it is already open.
+- **A tap from the launcher.** A host URI intent with the Herdr extras (the
+  pane, the session, the view) may name the agent's machine as the tailnet
+  names it (`HERD_HOSTS`: `name,dns,ip`). Mercurio then opens the saved host on
+  that machine whose post-login attaches the session, or a plain `herdr` host
+  with a console for it, whatever the phone calls the host; with neither, the
+  URI as before.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.

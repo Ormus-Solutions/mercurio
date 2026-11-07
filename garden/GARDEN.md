@@ -1,10 +1,10 @@
 # Garden: Mercurio
 
-As of 2026-11-04.
+As of 2026-11-07.
 
 ## Plot
 
-- Copy: repo clone at ddac2870 (.)
+- Copy: repo clone at e9b30924 (.)
 - Planted: 0 skills (0 principles), 0 commands, 0 guide pages
 
 ## Beds
@@ -21,13 +21,13 @@ As of 2026-11-04.
 ## Weeds
 
 - No gardener PR open
-- Weed pulls in history: 25 (last: ddac2870 2026-11-03 chore(garden): garden report 2026-11-03 (#211))
+- Weed pulls in history: 28 (last: e9b30924 2026-11-06 chore(garden): garden report 2026-11-06 (#218))
 - Checks planted: 152 commits touched scripts/check.sh or .github/workflows (last: 4272bb6a 2026-10-04 chore(ci): remove hosted CI; the local gate is the gate (#64))
 - Weed kinds in WEEDS.md: 4, 3 with a check
 
 ## Soil
 
-- This clone: ddac287, current
+- This clone: e9b3092, current
 
 ## Water
 

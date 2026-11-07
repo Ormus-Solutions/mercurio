@@ -55,7 +55,9 @@ import androidx.preference.PreferenceManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.connectbot.R
+import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
+import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.ui.components.DisconnectAllDialog
 import org.connectbot.ui.navigation.NavDestinations
@@ -70,6 +72,7 @@ import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.herd.HerdrOpen
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -97,28 +100,44 @@ class MainActivity : AppCompatActivity() {
          * Missing or unknown, the console shows the terminal.
          */
         const val EXTRA_HERD_VIEW = "solutions.ormus.logos.extra.HERD_VIEW"
+
+        /**
+         * Extra on a host URI intent beside [EXTRA_HERD_SESSION]: the agent's machine as the
+         * tailnet names it (`name,dns,ip`), so the saved host that attaches that session is
+         * opened whatever the phone calls it ([HerdrOpen]).
+         */
+        const val EXTRA_HERD_HOSTS = HerdrOpen.EXTRA_HERD_HOSTS
     }
 
     internal lateinit var appViewModel: AppViewModel
 
     @Inject
     internal lateinit var usageTracker: UsageTracker
+
+    @Inject
+    internal lateinit var hostRepository: HostRepository
     private var bound = false
     private var requestedUri: Uri? by mutableStateOf(null)
 
-    // The Herdr pane a notification asked to focus, its session, and the view to open over
-    // the console (the terminal when null), used with requestedUri.
-    private var requestedHerdPane: String? = null
-    private var requestedHerdSession: String = HerdrCommands.DEFAULT_SESSION
-    private var requestedHerdView: HerdView? = null
+    /**
+     * What a Herdr notification or a launcher's tap asked for beside the host URI: the [pane]
+     * to focus, its [session], the [view] to open over the console (the terminal when null),
+     * and the machine's names ([hosts], a launcher's tap only: see [HerdrOpen]).
+     */
+    private data class HerdRequest(val pane: String?, val session: String, val view: HerdView?, val hosts: String?)
+
+    // The request beside requestedUri, taken whole when the URI is handled, so a second tap
+    // while the first is in flight cannot mix the two.
+    private var requestedHerd: HerdRequest? = null
 
     /** Remember a tapped Herdr notification's pane and log the tap (an id only). */
     private fun takeHerdNotification(intent: Intent?) {
-        requestedHerdPane = intent?.getStringExtra(EXTRA_HERD_PANE)
-        requestedHerdSession = intent?.getStringExtra(EXTRA_HERD_SESSION) ?: HerdrCommands.DEFAULT_SESSION
-        requestedHerdView = HerdView.parse(intent?.getStringExtra(EXTRA_HERD_VIEW), requestedHerdPane, requestedHerdSession)
+        val pane = intent?.getStringExtra(EXTRA_HERD_PANE)
+        val session = intent?.getStringExtra(EXTRA_HERD_SESSION) ?: HerdrCommands.DEFAULT_SESSION
+        val view = HerdView.parse(intent?.getStringExtra(EXTRA_HERD_VIEW), pane, session)
+        requestedHerd = HerdRequest(pane, session, view, intent?.getStringExtra(EXTRA_HERD_HOSTS))
         intent?.getStringExtra(EXTRA_HERD_NOTICE)?.let { usageTracker.log(it) }
-        when (requestedHerdView) {
+        when (view) {
             is HerdView.Chat -> usageTracker.log(UsageActions.LAUNCH_CHAT)
             HerdView.Board -> usageTracker.log(UsageActions.LAUNCH_BOARD)
             null -> Unit
@@ -430,31 +449,65 @@ class MainActivity : AppCompatActivity() {
         }
 
         val manager = state.terminalManager
+        // Taken whole, before anything suspends: a second tap meanwhile is its own request.
+        val herd = requestedHerd
+        requestedHerd = null
 
         lifecycleScope.launch {
             try {
-                val nickname = uri.fragment ?: uri.authority
-                Timber.d("handleConnectionUri: nickname=$nickname")
-                var bridge = manager.getConnectedBridge(nickname)
+                // A launcher's tap on an agent (it names the machine): the saved host that shows the
+                // agent's Herdr session there, whatever this phone calls it, before the URI's own name.
+                var bridge = herd?.hosts?.let { hosts ->
+                    val names = HerdrOpen.names(hosts, uri.host)
+                    val port = uri.port
+                    HerdrOpen.resolve(hostRepository.getHosts(), herd.session, names, uri.userInfo, port, manager.connectedHostIds())
+                        ?.let { target -> runCatching { openTarget(manager, target, herd.session) }.onFailure { Timber.w(it, "handleConnectionUri: the resolved host did not open") }.getOrNull() }
+                }
 
                 if (bridge == null) {
-                    Timber.d("Creating new connection for URI: $uri with nickname: $nickname")
+                    val nickname = uri.fragment ?: uri.authority
+                    Timber.d("handleConnectionUri: nickname=$nickname")
+                    bridge = manager.getConnectedBridge(nickname)
+                }
+
+                if (bridge == null) {
+                    Timber.d("Creating new connection for URI: $uri")
                     bridge = manager.openConnection(uri)
                 }
 
-                // From a Herdr notification: focus that agent in Herdr as the console opens.
-                requestedHerdPane?.let { pane -> bridge.herd?.perform(HerdrAction.FocusAgent(pane), session = requestedHerdSession) }
-                requestedHerdPane = null
-                // The chat or the Agents board instead of the terminal: the console opens it once Herdr answers.
-                requestedHerdView?.let { view -> bridge.herd?.requestView(view) }
-                requestedHerdView = null
+                // From a Herdr notification or a tap: focus that agent in Herdr as the console opens.
+                herd?.pane?.let { pane -> bridge.herd?.perform(HerdrAction.FocusAgent(pane), session = herd.session) }
 
-                controller.navigate(NavDestinations.console(bridge.host.id)) {
+                // The console screen shows this console: its own screen opens over the host list (a console
+                // screen that is up, another host's or this one's, read its route when it opened, so it is
+                // left), and the request names the console, with the chat or the Agents board to open over it
+                // once Herdr answers, for the screen that shows it.
+                manager.requestShow(bridge, herd?.view)
+                controller.navigate(NavDestinations.console(bridge.host.id, bridge.console)) {
+                    popUpTo(NavDestinations.HOST_LIST)
                     launchSingleTop = true
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Error handling connection URI: $uri")
             }
+        }
+    }
+
+    /**
+     * The console [target] names for [session], open already or opened now: the host's own
+     * console when its post-login attaches the session, else a console of the host for it beside
+     * its own. Null when the host is up but no console of it shows the session and its own
+     * console is the one that would (it was taken elsewhere): the URI path then finds the host
+     * by its name, as before.
+     */
+    private suspend fun openTarget(manager: TerminalManager, target: HerdrOpen.Target, session: String): TerminalBridge? {
+        val (host, console) = target
+        Timber.d("handleConnectionUri: session resolved to host ${host.id}, console=$console")
+        manager.consoleFor(host.id, session)?.let { return it }
+        return when {
+            console != null -> manager.openHerdrConsole(host, console)
+            manager.hasBridge(host.id) -> null
+            else -> manager.openConnectionForHostId(host.id)
         }
     }
 

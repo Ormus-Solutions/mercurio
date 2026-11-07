@@ -41,6 +41,7 @@ import org.connectbot.terminal.ProgressState
 import org.connectbot.ui.navigation.NavArgs
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrSessions
 import javax.inject.Inject
@@ -55,6 +56,9 @@ data class ConsoleUiState(
     // Progress state from OSC 9;4 escape sequences
     val progressState: ProgressState? = null,
     val progressValue: Int = 0,
+    // The Herdr view a tap asked for over [openOn], a console this screen shows, until the screen opens it (viewOpened).
+    val openView: HerdView? = null,
+    val openOn: TerminalBridge? = null,
 )
 
 @HiltViewModel
@@ -113,6 +117,11 @@ class ConsoleViewModel @Inject constructor(
                 manager.hostStatusChangedFlow.collect {
                     _uiState.update { it.copy(revision = it.revision + 1) }
                 }
+            }
+
+            // A console a tap asked to show while this screen is up: select it ([updateBridges]).
+            viewModelScope.launch {
+                manager.showConsole.collect { if (it != null) updateBridges(_allBridges.value) }
             }
 
             // First, try to find or create the bridge for this host
@@ -252,10 +261,22 @@ class ConsoleViewModel @Inject constructor(
             filteredBridges.indexOfFirst { it.console?.shows(console) == true }.takeIf { it >= 0 }
         }
         if (asked != null) requestedShown = true
+        // A console a tap asked for (TerminalManager.showConsole), once it is in this host's list: shown, and the
+        // view the tap asked for over it goes to this screen through the state, so that only the screen that shows
+        // the console opens it (a view asked of the session itself could be taken by a console screen on its way out).
+        val request = terminalManager?.let { manager ->
+            manager.showConsole.value?.let { request ->
+                filteredBridges.indexOfFirst { it.consoleId == request.consoleId }.takeIf { it >= 0 }?.let { index ->
+                    manager.consoleShown(request.consoleId)
+                    index to request.view
+                }
+            }
+        }
+        val shown = request?.first
 
         _uiState.update {
             val newBridges = filteredBridges.ifEmpty { allBridges }
-            val newIndex = asked ?: if (it.currentBridgeIndex >= newBridges.size) {
+            val newIndex = shown ?: asked ?: if (it.currentBridgeIndex >= newBridges.size) {
                 // Adjust index if it's now out of range
                 (newBridges.size - 1).coerceAtLeast(0)
             } else {
@@ -275,9 +296,16 @@ class ConsoleViewModel @Inject constructor(
                 currentBridgeIndex = newIndex,
                 isLoading = if (shouldStopLoading) false else it.isLoading,
                 error = null,
+                openView = request?.second ?: it.openView,
+                openOn = if (request?.second != null) filteredBridges[request.first] else it.openOn,
             )
         }
         publishVisibleHost()
+    }
+
+    /** The screen opened the view a tap asked for ([ConsoleUiState.openView]). */
+    fun viewOpened() {
+        _uiState.update { it.copy(openView = null, openOn = null) }
     }
 
     fun selectBridge(index: Int) {

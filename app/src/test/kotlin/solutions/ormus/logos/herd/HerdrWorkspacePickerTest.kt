@@ -253,4 +253,11 @@ class HerdrWorkspacePickerTest {
         assertEquals("herdr\n", HerdrWorkspacePicker.postLogin("herdr\n", WorkspacePick.Attach))
         assertEquals("herdr\n", HerdrWorkspacePicker.postLogin("herdr\n", null))
     }
+
+    @Test
+    fun attachPostLogin_findsTheLaunchBeforeAShellBreak() {
+        assertEquals("exec herdr session attach 'work'; exit", HerdrWorkspacePicker.attachPostLogin("exec herdr; exit", "work"))
+        assertEquals("herdr session attach 'work' && exit", HerdrWorkspacePicker.attachPostLogin("herdr && exit", "work"))
+        assertEquals("the default session attaches as it is", "herdr; exit", HerdrWorkspacePicker.attachPostLogin("herdr; exit", "default"))
+    }
 }

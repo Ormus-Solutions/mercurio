@@ -41,6 +41,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -50,6 +51,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrConsole
 
 /**
@@ -67,6 +69,7 @@ class ConsoleViewModelTest {
     private lateinit var terminalManager: TerminalManager
     private lateinit var savedStateHandle: SavedStateHandle
     private lateinit var bridgesFlow: MutableStateFlow<List<TerminalBridge>>
+    private lateinit var showConsole: MutableStateFlow<TerminalManager.ShowRequest?>
     private lateinit var prefs: SharedPreferences
     private lateinit var notificationPermissionHelper: NotificationPermissionHelper
     private lateinit var hostRepository: HostRepository
@@ -85,6 +88,8 @@ class ConsoleViewModelTest {
         bridgesFlow = MutableStateFlow(emptyList())
         whenever(terminalManager.bridgesFlow).thenReturn(bridgesFlow)
         whenever(terminalManager.hostStatusChangedFlow).thenReturn(MutableSharedFlow())
+        showConsole = MutableStateFlow(null)
+        whenever(terminalManager.showConsole).thenReturn(showConsole)
         whenever(notificationPermissionHelper.isGranted()).thenReturn(true)
     }
 
@@ -627,6 +632,51 @@ class ConsoleViewModelTest {
 
         verify(terminalManager, never()).openHerdrConsoleForHostId(any(), any())
         verify(terminalManager).openConnectionForHostId(1L)
+    }
+
+    @Test
+    fun aConsoleATapAsksForWhileTheScreenIsUp_isSelected_andTheRequestTaken() = runTest {
+        whenever(savedStateHandle.get<Long>("hostId")).thenReturn(1L)
+        val own = createMockBridge(1L, "host1")
+        whenever(own.consoleId).thenReturn(11L)
+        val work = createMockBridge(1L, "host1", console = HerdrConsole("work"))
+        whenever(work.consoleId).thenReturn(12L)
+        val elsewhere = createMockBridge(2L, "host2", console = HerdrConsole("work"))
+        whenever(elsewhere.consoleId).thenReturn(13L)
+        bridgesFlow.value = listOf(own, work, elsewhere)
+
+        val viewModel = viewModel()
+        viewModel.setTerminalManager(terminalManager)
+        advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.currentBridgeIndex)
+
+        // The screen is up on the host's own console; a tap asks for its work console, with the chat over it.
+        showConsole.value = TerminalManager.ShowRequest(12L, HerdView.Chat("work", "w1:p2"))
+        advanceUntilIdle()
+        assertEquals("the asked console is shown", 1, viewModel.uiState.value.currentBridgeIndex)
+        assertEquals("the view to open, for the screen", HerdView.Chat("work", "w1:p2"), viewModel.uiState.value.openView)
+        assertSame(work, viewModel.uiState.value.openOn)
+        verify(terminalManager).consoleShown(12L)
+        viewModel.viewOpened()
+        assertEquals(null, viewModel.uiState.value.openView)
+        assertEquals(null, viewModel.uiState.value.openOn)
+
+        // A console of another host is not this screen's to show: the request waits for its own screen.
+        showConsole.value = TerminalManager.ShowRequest(13L, null)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.currentBridgeIndex)
+        verify(terminalManager, never()).consoleShown(13L)
+
+        // One not open yet is shown once it is.
+        val extra = createMockBridge(1L, "host1", console = HerdrConsole("extra"))
+        whenever(extra.consoleId).thenReturn(14L)
+        showConsole.value = TerminalManager.ShowRequest(14L, null)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.currentBridgeIndex)
+        bridgesFlow.value = listOf(own, work, elsewhere, extra)
+        advanceUntilIdle()
+        assertEquals("the third of this host's consoles (the other host's is not in its list)", 2, viewModel.uiState.value.currentBridgeIndex)
+        verify(terminalManager).consoleShown(14L)
     }
 
     private fun createMockBridge(

@@ -184,6 +184,7 @@ object HerdrWorkspacePicker {
     // Post-login words that attach something other than the default session.
     private val OTHER_SESSION = listOf("--session", "session attach", "--remote")
 
-    // The `herdr` word that launches Herdr in a post-login (`herdr`, `exec herdr`, a path to it).
-    private val HERDR_LAUNCH = Regex("""(?<![\w.-])herdr(?=\s|$)""")
+    // The `herdr` word that launches Herdr in a post-login (`herdr`, `exec herdr`, a path to it), up to a
+    // space, the end, or a shell break (`herdr; exit`, `herdr && exit`).
+    internal val HERDR_LAUNCH = Regex("""(?<![\w.-])herdr(?=[\s;&|)]|$)""")
 }

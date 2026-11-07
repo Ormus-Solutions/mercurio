@@ -77,9 +77,11 @@ import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdAttention
 import solutions.ormus.logos.herd.HerdSession
+import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrConsoleCache
+import solutions.ormus.logos.herd.HerdrOpen
 import solutions.ormus.logos.push.PushEndpoints
 import timber.log.Timber
 import java.io.IOException
@@ -409,6 +411,44 @@ class TerminalManager :
 
     /** Whether [bridge] is what the per-host maps find for its host: its first console, or a console opened with nothing else of the host up. */
     private fun isHostBridge(bridge: TerminalBridge): Boolean = synchronized(_bridges) { hostBridgeMap[bridge.host]?.get() === bridge }
+
+    /**
+     * The console of host [hostId] that shows Herdr [session] now ([HerdrOpen.shown]), connected
+     * or connecting; null when none is.
+     */
+    fun consoleFor(hostId: Long, session: String): TerminalBridge? = synchronized(_bridges) {
+        _bridges.firstOrNull { it.host.id == hostId && !it.isDisconnected && HerdrOpen.shown(it.console, it.host.postLogin, it.herd?.attached?.value) == session }
+    }
+
+    /** Whether any console of host [hostId] is up (connected or connecting). */
+    fun hasBridge(hostId: Long): Boolean = synchronized(_bridges) { _bridges.any { it.host.id == hostId && !it.isDisconnected } }
+
+    /** The ids of the saved hosts with a console up. */
+    fun connectedHostIds(): Set<Long> = synchronized(_bridges) { _bridges.filter { !it.isDisconnected }.map { it.host.id }.toSet() }
+
+    /** A console a tap asked the console screen to show ([showConsole]), and the view to open over it, if any. */
+    data class ShowRequest(val consoleId: Long, val view: HerdView?)
+
+    private val _showConsole = MutableStateFlow<ShowRequest?>(null)
+
+    /**
+     * The console a tap asked the console screen to show, by its [TerminalBridge.consoleId], with
+     * the Herdr view to open over it, until the screen shows it ([consoleShown]). The route
+     * carries the console too; this reaches a console screen that is already up, whose route was
+     * read when it opened, and hands the view to the screen that shows the console: a view
+     * requested on the session itself could be taken by a console screen on its way out.
+     */
+    val showConsole: StateFlow<ShowRequest?> = _showConsole.asStateFlow()
+
+    /** Ask the console screen to show [bridge], and [view] over it ([showConsole]). */
+    fun requestShow(bridge: TerminalBridge, view: HerdView? = null) {
+        _showConsole.value = ShowRequest(bridge.consoleId, view)
+    }
+
+    /** The console screen shows the console [consoleId]: the request is taken. */
+    fun consoleShown(consoleId: Long) {
+        _showConsole.value?.takeIf { it.consoleId == consoleId }?.let { _showConsole.compareAndSet(it, null) }
+    }
 
     /** Open [console] on the saved host [hostId] ([openHerdrConsole]); null when no such host. */
     suspend fun openHerdrConsoleForHostId(hostId: Long, console: HerdrConsole): TerminalBridge? {
