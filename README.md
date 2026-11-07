@@ -65,6 +65,11 @@ management come from ConnectBot. Mercurio is maintained by
   that machine whose post-login attaches the session, or a plain `herdr` host
   with a console for it, whatever the phone calls the host; with neither, the
   URI as before.
+- **Home feed.** Settings can name the URL of a sessions feed: one JSON
+  document that lists every workboard with its machine, Herdr session, agents
+  and workspaces. The phone reads it while the host list shows and keeps the
+  last read with its time; with no URL set, nothing is read. The boards reach
+  the home in a later change.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.

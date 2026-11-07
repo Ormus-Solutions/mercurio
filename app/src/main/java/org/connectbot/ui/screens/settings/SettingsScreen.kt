@@ -82,6 +82,7 @@ import org.connectbot.ui.PreviewScreen
 import org.connectbot.ui.common.getLocalizedFontDisplayName
 import org.connectbot.ui.components.FontDownloadProgressDialog
 import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.home.HomeFeedSetting
 import org.connectbot.ui.machines.MachineUsernamesSetting
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.util.LanguageDownloadState
@@ -203,6 +204,7 @@ fun SettingsScreen(
         onBellVibrateChange = viewModel::updateBellVibrate,
         onBellNotificationChange = viewModel::updateBellNotification,
         modifier = modifier,
+        homeSection = { HomeFeedSetting() },
         machinesSection = { MachineUsernamesSetting() },
         usageSection = { UsageSettingsSection() },
     )
@@ -249,6 +251,7 @@ fun SettingsScreenContent(
     onBellNotificationChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     highlightItem: String? = null,
+    homeSection: @Composable () -> Unit = {},
     machinesSection: @Composable () -> Unit = {},
     usageSection: @Composable () -> Unit = {},
 ) {
@@ -674,6 +677,8 @@ fun SettingsScreenContent(
                     onCheckedChange = onBellNotificationChange,
                 )
             }
+
+            item { homeSection() }
 
             item { machinesSection() }
 

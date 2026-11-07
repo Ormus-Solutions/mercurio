@@ -1892,6 +1892,20 @@
 	<string name="pref_machine_api_none">None. An OAuth client secret with devices:core:read lists machines with no host connected.</string>
 	<!-- Settings: placeholder in the "Tailscale API secret" editor; leaving it empty clears the saved secret -->
 	<string name="pref_machine_api_hint">tskey-client-… (empty clears it)</string>
+	<!-- Settings: heading of the section for the sessions feed the home reads -->
+	<string name="pref_home_category">Home</string>
+	<!-- Settings: item holding the URL of the sessions feed the home reads its workboards from -->
+	<string name="pref_home_feed_title">Home feed</string>
+	<!-- Settings: shown under "Home feed" when no URL is set -->
+	<string name="pref_home_feed_none">None. The URL of a sessions feed puts its workboards on the home.</string>
+	<!-- Settings: placeholder in the "Home feed" editor; leaving it empty clears the URL -->
+	<string name="pref_home_feed_hint">https://…/feeds/sessions.json (empty clears it)</string>
+	<!-- Settings: under the feed URL before its first read -->
+	<string name="pref_home_feed_pending">Not read yet.</string>
+	<!-- Settings: under the feed URL after a read. %1$d is how many workboards it holds, %2$s how long ago it was read -->
+	<string name="pref_home_feed_read">Workboards: %1$d, read %2$s.</string>
+	<!-- Settings: under the feed URL after a read that failed. %1$s is the reason -->
+	<string name="pref_home_feed_failed">Not read: %1$s</string>
 	<!-- Settings: item that opens the wish list -->
 	<string name="pref_wishes_title">Wish list</string>
 	<!-- Settings: status under "Wish list". %1$d is how many entries are open, %2$d how many changes wait to upload to the usage host -->

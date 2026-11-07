@@ -82,6 +82,7 @@ machines:refresh
 machines:fix-prompt
 machines:api-secret
 workspaces:open
+home:feed-set
 console:back
 console:text-input
 console:paste

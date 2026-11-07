@@ -98,6 +98,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import org.connectbot.R
 import org.connectbot.data.entity.Host
@@ -110,6 +113,7 @@ import org.connectbot.ui.components.OrmusCard
 import org.connectbot.ui.components.ShortcutCustomizationDialog
 import org.connectbot.ui.components.StatusChip
 import org.connectbot.ui.components.copyDiagnostics
+import org.connectbot.ui.home.HomeBoardsViewModel
 import org.connectbot.ui.machines.MachinesSection
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
@@ -151,6 +155,7 @@ fun HostListScreen(
     viewModel: HostListViewModel = hiltViewModel(),
     wishViewModel: WishViewModel = hiltViewModel(),
     workspacesViewModel: WorkspacesViewModel = hiltViewModel(),
+    homeViewModel: HomeBoardsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val terminalManager = LocalTerminalManager.current
@@ -158,6 +163,12 @@ fun HostListScreen(
 
     LaunchedEffect(terminalManager) {
         terminalManager?.let { viewModel.setTerminalManager(it) }
+    }
+
+    // The sessions feed, read while the home shows and again as it stays; nothing with no feed set.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(homeViewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { homeViewModel.watch() }
     }
 
     val uiState by viewModel.uiState.collectAsState()
