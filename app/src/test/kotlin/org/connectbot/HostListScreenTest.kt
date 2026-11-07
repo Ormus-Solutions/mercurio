@@ -50,6 +50,7 @@ import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrWorkspace
 import solutions.ormus.logos.home.HomeBoard
 import solutions.ormus.logos.home.HomeWorkspace
+import solutions.ormus.logos.home.HostPlace
 import solutions.ormus.logos.home.WorkboardBlock
 import solutions.ormus.logos.home.WorkboardKey
 import solutions.ormus.logos.home.WorkboardTarget
@@ -505,6 +506,8 @@ class HostListScreenTest {
         machines: @Composable () -> Unit = {},
         workspaces: (@Composable () -> Unit)? = null,
         workboards: (@Composable () -> Unit)? = null,
+        places: Map<Long, HostPlace> = emptyMap(),
+        sortedByPlace: Boolean = false,
     ) {
         composeTestRule.setContent {
             ConnectBotTheme {
@@ -530,6 +533,8 @@ class HostListScreenTest {
                     machines = machines,
                     workspaces = workspaces,
                     workboards = workboards,
+                    places = places,
+                    sortedByPlace = sortedByPlace,
                 )
             }
         }
@@ -540,6 +545,27 @@ class HostListScreenTest {
         setHostListContent(uiState = HostListUiState(hosts = listOf(testHost(1L, "box")), isLoading = false))
         composeTestRule.onNodeWithText("Workspaces").assertDoesNotExist()
         composeTestRule.onNodeWithText("Hosts").assertIsDisplayed()
+    }
+
+    @Test
+    fun aHostRow_readsItsPlaceUnderTheNickname_elseItsAddress() {
+        val lab = testHost(1L, "Lab")
+        val far = testHost(2L, "Far")
+        setHostListContent(
+            uiState = HostListUiState(hosts = listOf(lab, far), isLoading = false),
+            places = mapOf(lab.id to HostPlace("lab", "work")),
+        )
+        composeTestRule.onNodeWithText("lab · work").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ssh://Lab.example.com:22").assertDoesNotExist()
+        composeTestRule.onNodeWithText("ssh://Far.example.com:22").assertIsDisplayed()
+    }
+
+    @Test
+    fun theSortMenu_offersPlace_whileAFeedOrdersTheRows() {
+        setHostListContent(uiState = HostListUiState(sortedByColor = true), sortedByPlace = true)
+        openTopMenu()
+        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.list_menu_sortplace)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.list_menu_sortname)).assertDoesNotExist()
     }
 
     @Test

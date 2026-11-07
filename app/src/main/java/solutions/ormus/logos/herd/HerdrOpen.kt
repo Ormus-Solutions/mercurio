@@ -100,7 +100,8 @@ object HerdrOpen {
         return Target(plain, HerdrConsole(session))
     }
 
-    private fun canon(name: String): String = name.trim().removeSuffix(".").lowercase()
+    /** [name] as the saved hosts are matched: trimmed, lower-cased, without a trailing dot. */
+    internal fun canon(name: String): String = name.trim().removeSuffix(".").lowercase()
 
     // A session name as a shell word: bare up to a space or a shell break, or in single or double quotes.
     private const val NAME = """(?:'([^']+)'|"([^"]+)"|([^\s;&|)'"]+))"""

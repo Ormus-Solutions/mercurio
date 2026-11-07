@@ -75,6 +75,13 @@ management come from ConnectBot. Mercurio is maintained by
   machine's names pick, landed on the workspace; a key with no saved host on
   its machine is off and says so. The kept Workspaces keys for workspaces the
   feed already opens step aside; the rest stay beside the blocks.
+- **Hosts by place.** A saved host reads, under its nickname, the machine the
+  feed or the tailnet names and the Herdr session its post-login attaches
+  (`lab · work`, with the port when it is not 22), instead of its address; a
+  host nobody names keeps its address. The tailnet names every machine but the
+  one its list was read from; the feed names them all. With a Home feed read,
+  the rows go by machine, then session, then nickname, unless you sort by
+  colour; without one the list keeps its order.
 - **Herdr panel.** Every Herdr action, one group at a time, with numbered keys
   for the focused workspace's tabs. Long press a key to hide or change it, or
   add your own keystroke keys.

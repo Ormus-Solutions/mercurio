@@ -116,6 +116,7 @@ import org.connectbot.ui.components.copyDiagnostics
 import org.connectbot.ui.home.HomeBoardsViewModel
 import org.connectbot.ui.home.WorkboardsSection
 import org.connectbot.ui.machines.MachinesSection
+import org.connectbot.ui.machines.MachinesViewModel
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
@@ -130,7 +131,9 @@ import org.connectbot.usage.UsageActions
 import org.connectbot.util.IconStyle
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.home.HomeHosts
 import solutions.ormus.logos.home.HomeWorkboards
+import solutions.ormus.logos.home.HostPlace
 
 internal object HostListTestTags {
     fun itemRow(hostId: Long): String = "host_item_${hostId}_row"
@@ -158,6 +161,7 @@ fun HostListScreen(
     wishViewModel: WishViewModel = hiltViewModel(),
     workspacesViewModel: WorkspacesViewModel = hiltViewModel(),
     homeViewModel: HomeBoardsViewModel = hiltViewModel(),
+    machinesViewModel: MachinesViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val terminalManager = LocalTerminalManager.current
@@ -183,6 +187,13 @@ fun HostListScreen(
     val blocks = remember(home.boards, uiState.hosts, connected) { HomeWorkboards.blocks(home.boards, uiState.hosts, connected) }
     // The kept Workspaces keys no feed key stands for stay beside the blocks.
     val uncovered = remember(workspaces, blocks) { HomeWorkboards.uncovered(workspaces, blocks) }
+    // Each host's place (the machine the feed or the tailnet names, the Herdr session it attaches)
+    // under its nickname; with a Home feed read, the rows go by machine, session and nickname
+    // unless he sorts by colour. Without one the list keeps its own order and only gains the line.
+    val machines by machinesViewModel.machines.collectAsState()
+    val places = remember(uiState.hosts, machines.devices, home.boards?.hosts) { HomeHosts.places(uiState.hosts, machines.devices, home.boards?.hosts.orEmpty()) }
+    val byPlace = home.boards != null && !uiState.sortedByColor
+    val shown = remember(uiState, places, byPlace) { if (byPlace) uiState.copy(hosts = HomeHosts.order(uiState.hosts, places)) else uiState }
 
     // File picker for export
     val exportLauncher = rememberLauncherForActivityResult(
@@ -300,7 +311,9 @@ fun HostListScreen(
     }
 
     HostListScreenContent(
-        uiState = uiState,
+        uiState = shown,
+        places = places,
+        sortedByPlace = home.boards != null,
         makingShortcut = makingShortcut,
         onNavigateToConsole = onNavigateToConsole,
         onSelectShortcut = { host -> shortcutHost = host },
@@ -378,6 +391,8 @@ fun HostListScreenContent(
     machines: @Composable () -> Unit = {},
     workspaces: (@Composable () -> Unit)? = null,
     workboards: (@Composable () -> Unit)? = null,
+    places: Map<Long, HostPlace> = emptyMap(),
+    sortedByPlace: Boolean = false,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectAllDialog by remember { mutableStateOf(false) }
@@ -439,10 +454,13 @@ fun HostListScreenContent(
                                 text = {
                                     Text(
                                         stringResource(
-                                            if (uiState.sortedByColor) {
-                                                R.string.list_menu_sortname
-                                            } else {
-                                                R.string.list_menu_sortcolor
+                                            when {
+                                                // The other order: by place when a feed orders the rows, else by name.
+                                                uiState.sortedByColor && sortedByPlace -> R.string.list_menu_sortplace
+
+                                                uiState.sortedByColor -> R.string.list_menu_sortname
+
+                                                else -> R.string.list_menu_sortcolor
                                             },
                                         ),
                                     )
@@ -597,6 +615,9 @@ fun HostListScreenContent(
                         ) { host ->
                             HostListItem(
                                 host = host,
+                                place = places[host.id]?.line,
+                                // A row slides to its place when the feed or the tailnet lands, instead of jumping.
+                                modifier = Modifier.animateItem(),
                                 connectionState = uiState.connectionStates[host.id] ?: ConnectionState.UNKNOWN,
                                 onClick = {
                                     if (makingShortcut) {
@@ -654,6 +675,7 @@ fun HostListScreenContent(
 @Composable
 private fun HostListItem(
     host: Host,
+    place: String?,
     connectionState: ConnectionState,
     onClick: () -> Unit,
     onEdit: () -> Unit,
@@ -722,8 +744,9 @@ private fun HostListItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // Where the host is, when the feed or the tailnet names it; else its address.
                 Text(
-                    text = endpoint,
+                    text = place ?: endpoint,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = OrmusMono),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

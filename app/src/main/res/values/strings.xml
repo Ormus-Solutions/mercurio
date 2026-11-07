@@ -1443,6 +1443,9 @@
 	<!-- Spoken name of a workspace key that cannot open: the feed lists no names for its machine -->
 	<string name="workboards_unnamed_machine">%1$s of %2$s: no names for %3$s in the feed</string>
 
+	<!-- Hosts by place: the menu's other order while a Home feed orders the rows by machine and session -->
+	<string name="list_menu_sortplace">Sort by place</string>
+
 	<!-- Machines: Tailscale machines listed in the session drawer and on the host list -->
 	<!-- Heading of the list of machines on the user's Tailscale network -->
 	<string name="machines_title">Machines</string>
