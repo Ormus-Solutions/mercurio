@@ -100,6 +100,38 @@ object HerdrOpen {
         return Target(plain, HerdrConsole(session))
     }
 
+    /**
+     * The host to save for a tap that [resolve] found nothing for: the URI's account ([user]) on its [hostname]
+     * and [port], with a plain `herdr` post-login, so a console for [session] opens on it now and every later tap
+     * resolves to it. Named by the URI's fragment ([nickname]), else the host's first label (an address whole),
+     * and kept apart from the [hosts] saved already (` 2`, ` 3`, ... after it: a nickname is unique). Null for a
+     * tap that is not SSH ([scheme]), names no account or host, or asks for a session Herdr could not have given:
+     * the caller then opens the URI as it always did.
+     */
+    fun newHost(hosts: List<Host>, scheme: String?, session: String, user: String?, hostname: String?, port: Int, nickname: String?, now: Long): Host? {
+        if (scheme != "ssh" || !HerdrSessions.isName(session)) return null
+        val account = user?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val name = hostname?.trim()?.removeSurrounding("[", "]")?.removeSuffix(".")?.takeIf { it.isNotEmpty() } ?: return null
+        val wanted = nickname?.trim()?.takeIf { it.isNotEmpty() } ?: if (ADDRESS.matches(name)) name else name.substringBefore('.')
+        val taken = hosts.map { it.nickname.trim() }.toSet()
+        val free = generateSequence(1) { it + 1 }.map { if (it == 1) wanted else "$wanted $it" }.first { it !in taken }
+        return Host(
+            nickname = free,
+            protocol = "ssh",
+            username = account,
+            hostname = name,
+            port = if (port > 0) port else 22,
+            postLogin = PLAIN_LAUNCH,
+            lastConnect = now,
+        )
+    }
+
+    /** The post-login of a host saved by a tap: Herdr, its default session, so a console for any session opens beside. */
+    const val PLAIN_LAUNCH = "herdr\n"
+
+    /** An IPv4 or IPv6 address: a host named by one is named by the whole of it, not by a first label. */
+    private val ADDRESS = Regex("""[0-9.]+|[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*""")
+
     /** [name] as the saved hosts are matched: trimmed, lower-cased, without a trailing dot. */
     internal fun canon(name: String): String = name.trim().removeSuffix(".").lowercase()
 

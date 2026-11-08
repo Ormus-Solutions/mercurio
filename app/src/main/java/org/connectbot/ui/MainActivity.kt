@@ -54,6 +54,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.preference.PreferenceManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.connectbot.R
 import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
@@ -129,6 +131,10 @@ class MainActivity : AppCompatActivity() {
     // The request beside requestedUri, taken whole when the URI is handled, so a second tap
     // while the first is in flight cannot mix the two.
     private var requestedHerd: HerdRequest? = null
+
+    // A launcher's taps resolve and save one at a time (handleConnectionUri): two quick taps on a machine with
+    // no saved host must save one host, not two.
+    private val openTapLock = Mutex()
 
     /** Remember a tapped Herdr notification's pane and log the tap (an id only). */
     private fun takeHerdNotification(intent: Intent?) {
@@ -456,12 +462,25 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 // A launcher's tap on an agent (it names the machine): the saved host that shows the
-                // agent's Herdr session there, whatever this phone calls it, before the URI's own name.
+                // agent's Herdr session there, whatever this phone calls it, before the URI's own name. When
+                // no saved host there shows it or launches a plain `herdr` for the tap's account, one is saved
+                // from the tap and a console for the session opens on it; every later tap resolves to it. The
+                // URI path below would make a temporary host: a new connection each tap, on no session. One
+                // tap at a time, so a second tap finds the first tap's host instead of saving its own.
                 var bridge = herd?.hosts?.let { hosts ->
-                    val names = HerdrOpen.names(hosts, uri.host)
-                    val port = uri.port
-                    HerdrOpen.resolve(hostRepository.getHosts(), herd.session, names, uri.userInfo, port, manager.connectedHostIds())
-                        ?.let { target -> runCatching { openTarget(manager, target, herd.session) }.onFailure { Timber.w(it, "handleConnectionUri: the resolved host did not open") }.getOrNull() }
+                    openTapLock.withLock {
+                        val names = HerdrOpen.names(hosts, uri.host)
+                        val saved = hostRepository.getHosts()
+                        val target = HerdrOpen.resolve(saved, herd.session, names, uri.userInfo, uri.port, manager.connectedHostIds())
+                            ?: HerdrOpen.newHost(saved, uri.scheme, herd.session, uri.userInfo, uri.host, uri.port, uri.fragment, System.currentTimeMillis())?.let { fresh ->
+                                runCatching { hostRepository.saveHost(fresh) }
+                                    .onFailure { Timber.w(it, "handleConnectionUri: could not save a host for the tap") }
+                                    .getOrNull()
+                                    ?.takeIf { it.id > 0L }
+                                    ?.let { HerdrOpen.Target(it, HerdrConsole(herd.session)) }
+                            }
+                        target?.let { runCatching { openTarget(manager, it, herd.session) }.onFailure { Timber.w(it, "handleConnectionUri: the resolved host did not open") }.getOrNull() }
+                    }
                 }
 
                 if (bridge == null) {

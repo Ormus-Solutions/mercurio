@@ -63,8 +63,13 @@ management come from ConnectBot. Mercurio is maintained by
   pane, the session, the view) may name the agent's machine as the tailnet
   names it (`HERD_HOSTS`: `name,dns,ip`). Mercurio then opens the saved host on
   that machine whose post-login attaches the session, or a plain `herdr` host
-  with a console for it, whatever the phone calls the host; with neither, the
-  URI as before.
+  with a console for it, whatever the phone calls the host. When no saved host
+  there does either for the tap's account (none at all, or only hosts that run
+  something else or attach another session), one is saved from the tap (the
+  URI's account, a plain `herdr` post-login, named by the URI's fragment else the
+  machine, a free name), so the tap lands on the session and every later tap
+  resolves to it; only a tap that is not SSH or names no account or host falls to
+  the URI as before.
 - **Home feed.** Settings can name the URL of a sessions feed: one JSON
   document that lists every workboard with its machine, Herdr session, agents
   and workspaces. The phone reads it while the host list shows and keeps the
