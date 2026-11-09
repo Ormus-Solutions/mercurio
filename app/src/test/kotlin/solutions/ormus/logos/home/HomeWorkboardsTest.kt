@@ -143,17 +143,19 @@ class HomeWorkboardsTest {
     }
 
     @Test
-    fun aBlock_carriesTheHostASaveWouldMake_untilOneAttachesTheSession() {
+    fun aBlock_carriesTheHostsASaveWouldMake_untilOneAttachesTheSession() {
         val block = HomeWorkboards.blocks(feed(board("work", workspaces = arrayOf("review"))), listOf(plain)).single()
 
         // The plain host on Box lends its account; the session is the board's.
-        assertEquals("work", block.shortcut?.nickname)
-        assertEquals(plain.hostname, block.shortcut?.hostname)
-        assertEquals("herdr session attach 'work'\n", block.shortcut?.postLogin)
+        val made = block.shortcuts.single()
+        assertEquals(HomeShortcuts.Place("box", "work"), made.place)
+        assertEquals("work", made.host.nickname)
+        assertEquals(plain.hostname, made.host.hostname)
+        assertEquals("herdr session attach 'work'\n", made.host.postLogin)
         // A copy that attaches the session is the shortcut already: nothing to make.
-        assertNull(HomeWorkboards.blocks(feed(board("work", workspaces = arrayOf("review"))), listOf(plain, copy)).single().shortcut)
+        assertEquals(emptyList<HomeShortcuts.Shortcut>(), HomeWorkboards.blocks(feed(board("work", workspaces = arrayOf("review"))), listOf(plain, copy)).single().shortcuts)
         // A board the feed places nowhere, or one with no host and no link on its machine, has none.
-        assertNull(HomeWorkboards.blocks(feed(board("lab", machine = null, session = null, "bench")), listOf(plain)).single().shortcut)
-        assertNull(HomeWorkboards.blocks(feed(board("edge", machine = "far", workspaces = arrayOf("x"))), listOf(plain)).single().shortcut)
+        assertEquals(emptyList<HomeShortcuts.Shortcut>(), HomeWorkboards.blocks(feed(board("lab", machine = null, session = null, "bench")), listOf(plain)).single().shortcuts)
+        assertEquals(emptyList<HomeShortcuts.Shortcut>(), HomeWorkboards.blocks(feed(board("edge", machine = "far", workspaces = arrayOf("x"))), listOf(plain)).single().shortcuts)
     }
 }

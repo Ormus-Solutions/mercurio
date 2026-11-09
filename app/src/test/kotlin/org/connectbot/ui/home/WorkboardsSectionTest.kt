@@ -155,4 +155,49 @@ class WorkboardsSectionTest {
         composeTestRule.onAllNodesWithTag(WORKBOARD_SAVE_TAG).assertCountEquals(0)
         composeTestRule.onNodeWithText("Save").assertDoesNotExist()
     }
+
+    // A board the feed leaves spread over two machines: a session of its name runs on both.
+    private val wide = HomeBoard("wide", workspaces = listOf(HomeWorkspace("a", machine = "box", session = "wide"), HomeWorkspace("b", machine = "far", session = "wide")))
+    private val wideFeed = HomeBoards(boards = listOf(wide), hosts = feed.hosts, links = mapOf("far" to "ssh://ops@far.example"))
+
+    @Test
+    fun aBoardSpreadOverMachines_hasASaveKeyPerMachine_eachNamingIt() {
+        show(HomeWorkboards.blocks(wideFeed, listOf(box)))
+
+        composeTestRule.onAllNodesWithTag(WORKBOARD_SAVE_TAG).assertCountEquals(2)
+        composeTestRule.onNodeWithText("Save").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Save on box").assertIsDisplayed().performClick()
+        composeTestRule.onNodeWithContentDescription("Save wide on far as a host").assertIsDisplayed().performClick()
+
+        // Box's key hands its saved host's account; Far's, with no host there, the feed's link. Both carry the
+        // board's name: the host list frees the second against the rows when it saves (HostListViewModel.addHost).
+        assertEquals(listOf(box.hostname, "far.example"), saved.map { it.hostname })
+        assertEquals(listOf("wide", "wide"), saved.map { it.nickname })
+        assertEquals(listOf("herdr session attach 'wide'\n"), saved.map { it.postLogin }.distinct())
+        assertEquals(listOf(UsageActions.WORKBOARDS_SAVE_HOST, UsageActions.WORKBOARDS_SAVE_HOST), logged)
+    }
+
+    @Test
+    fun aSpreadBoardSavedOnOneMachine_keepsTheOtherMachinesKey_stillNamingIt() {
+        val onBox = Host(id = 2L, nickname = "wide", protocol = "ssh", username = "me", hostname = "box.example", postLogin = "herdr session attach 'wide'\n")
+
+        show(HomeWorkboards.blocks(wideFeed, listOf(box, onBox)))
+
+        composeTestRule.onAllNodesWithTag(WORKBOARD_SAVE_TAG).assertCountEquals(1)
+        // The block's heading names no machine, so the one key left still does.
+        composeTestRule.onNodeWithText("Save").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Save on far").assertIsDisplayed()
+    }
+
+    @Test
+    fun aBoardWhoseOneKeyIsNotOnTheHeadingsMachine_namesTheMachine() {
+        // The feed gives the board a machine but no session; its one workspace stands elsewhere.
+        val away = HomeBoard("away", machine = "box", workspaces = listOf(HomeWorkspace("a", machine = "far", session = "away")))
+
+        show(HomeWorkboards.blocks(HomeBoards(boards = listOf(away), hosts = feed.hosts, links = wideFeed.links), listOf(box)))
+
+        composeTestRule.onAllNodesWithTag(WORKBOARD_SAVE_TAG).assertCountEquals(1)
+        composeTestRule.onNodeWithText("Save").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Save on far").assertIsDisplayed()
+    }
 }

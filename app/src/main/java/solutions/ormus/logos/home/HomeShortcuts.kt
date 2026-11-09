@@ -25,50 +25,58 @@ import java.net.URI
 import java.net.URISyntaxException
 
 /**
- * A workboard's shortcut: a saved host whose post-login attaches the board's Herdr session on
- * its machine. The host list, the board's keys, a launcher's tap and the Needs you notices all
- * meet on such a row; the Save key on a board makes it when none exists. Pure.
+ * The host a workboard's Save key saves: a row named after the board whose post-login attaches
+ * the board's Herdr session on its machine, with the account and keys of the host saved there.
+ * Pure: the home shows a key per [Shortcut] and the host list saves what a tap hands it.
  */
 object HomeShortcuts {
-    /** Where a board lives: the feed's alias of its machine and its Herdr session. */
+    /** A machine of the feed and a Herdr session on it. */
     data class Place(val machine: String, val session: String)
 
+    /** A host a Save key would make, and the place it attaches. */
+    data class Shortcut(val place: Place, val host: Host)
+
     /**
-     * The place of [board]: its own machine and session (the board's session, even where a
-     * workspace of it names another), else the one place all its named, placed workspaces share
-     * (a workspace's machine or session is the board's unless it says otherwise). Null when
-     * nothing places it, or its workspaces live in two places. A blank name is no name.
+     * Where the board lives. Its own place when the feed gives it a machine and a session; else
+     * one place per machine its named workspaces stand on, in the order the workspaces name
+     * them. The feed leaves a board unplaced when its workspaces are spread (another machine
+     * runs a session of the same name): then the board is the session named like it, on every
+     * machine that runs one, and a machine without it gives no place. With no such session
+     * anywhere, a machine with one session is a place; one with several is none. Names match
+     * exactly, trimmed.
      */
-    fun place(board: HomeBoard): Place? {
+    fun places(board: HomeBoard): List<Place> {
         val own = board.machine.named()?.let { machine -> board.session.named()?.let { Place(machine, it) } }
-        if (own != null) return own
-        return board.workspaces.filter { it.name.isNotBlank() }.mapNotNull { workspace ->
-            (workspace.machine ?: board.machine).named()?.let { machine -> (workspace.session ?: board.session).named()?.let { Place(machine, it) } }
-        }.toSet().singleOrNull()
+        if (own != null) return listOf(own)
+        val name = board.name.trim()
+        val byMachine = board.workspaces.filter { it.name.isNotBlank() }
+            .mapNotNull { workspace -> (workspace.machine.named() ?: board.machine.named())?.let { machine -> (workspace.session.named() ?: board.session.named())?.let { Place(machine, it) } } }
+            .distinct()
+            .groupBy { it.machine }
+            .values
+        val named = byMachine.mapNotNull { there -> there.firstOrNull { it.session == name } }
+        if (byMachine.size > 1 && named.isNotEmpty()) return named
+        return byMachine.mapNotNull { there -> there.singleOrNull() ?: there.firstOrNull { it.session == name } }
     }
 
-    /**
-     * The saved SSH host on [board]'s machine (as [feed] names it) whose post-login attaches the
-     * board's session, the one connected last among several; null when there is none: the Save
-     * key then shows.
-     */
-    fun saved(board: HomeBoard, feed: HomeBoards, hosts: List<Host>): Host? {
-        val place = place(board) ?: return null
-        return there(place, feed, hosts).filter { HerdrOpen.attached(it.postLogin) == place.session }.maxByOrNull { it.lastConnect }
-    }
+    /** The hosts the board's Save keys would make: one per place of the board that no saved host attaches yet. */
+    fun shortcuts(board: HomeBoard, feed: HomeBoards, hosts: List<Host>): List<Shortcut> = places(board).filter { saved(it, feed, hosts) == null }.mapNotNull { place -> newHost(board, place, feed, hosts)?.let { Shortcut(place, it) } }
 
     /**
-     * The host a Save on [board] makes: named after the board (a free name among [hosts]), with a
-     * post-login that attaches its session. The saved SSH host on its machine with an account,
-     * connected last, lends its account, address, port and key settings (the phone can log in
-     * there); with none, the feed's SSH link for the machine gives the account, the address and
-     * the port, when that address is one of the feed's names for the machine (else the row would
-     * never be found again: not by [saved], not by the board's keys). Null when nothing places
-     * the board, its session is not a name Herdr gives, the board has no name, or neither a host
-     * nor a link gives an account.
+     * The saved host on the place's machine whose post-login attaches its session; the one
+     * connected last when several do. Two feed aliases for one machine are taken as two machines.
      */
-    fun newHost(board: HomeBoard, feed: HomeBoards, hosts: List<Host>): Host? {
-        val place = place(board) ?: return null
+    fun saved(place: Place, feed: HomeBoards, hosts: List<Host>): Host? = there(place, feed, hosts).filter { HerdrOpen.attached(it.postLogin) == place.session }.maxByOrNull { it.lastConnect }
+
+    /**
+     * The host a Save makes for the board at [place]: named after the board (a name free among
+     * [hosts]), on the account, address, port and key settings of the SSH host connected last
+     * among those on the machine with an account, with a post-login that attaches the session. With no saved host there, the feed's
+     * SSH link for the machine gives the account and address, if that address is one of the
+     * feed's names for it. Null when the session is not one Herdr could have given, the board has
+     * no name, or no account is known.
+     */
+    fun newHost(board: HomeBoard, place: Place, feed: HomeBoards, hosts: List<Host>): Host? {
         if (!HerdrSessions.isName(place.session)) return null
         val name = board.name.trim().takeIf { it.isNotEmpty() } ?: return null
         val nickname = HerdrOpen.freeNickname(hosts, name)
@@ -95,17 +103,17 @@ object HomeShortcuts {
         return Host(nickname = nickname, protocol = "ssh", username = link.userInfo.substringBefore(':'), hostname = hostname, port = if (link.port > 0) link.port else 22, postLogin = postLogin)
     }
 
-    /** The feed's names for the place's machine, canon ([HerdrOpen.names]). */
+    /** The feed's names for the place's machine, as the host rows are matched. */
     private fun names(place: Place, feed: HomeBoards): Set<String> = HerdrOpen.names(feed.hosts[place.machine]?.joinToString(","), null)
 
-    /** The saved SSH hosts whose hostname is one of the feed's names for the place's machine. */
+    /** The saved SSH hosts whose address is one of the feed's names for the place's machine; none when the feed names none. */
     private fun there(place: Place, feed: HomeBoards, hosts: List<Host>): List<Host> {
         val names = names(place, feed)
         if (names.isEmpty()) return emptyList()
         return hosts.filter { it.protocol == "ssh" && HerdrOpen.canon(it.hostname) in names }
     }
 
-    /** [value] as an SSH link with an account and a host (`ssh://user@host[:port]`); null for anything else. */
+    /** The link as an SSH URI with an account and a host, else null. */
     private fun link(value: String): URI? {
         val uri = try {
             URI(value.trim())
@@ -116,6 +124,5 @@ object HomeShortcuts {
         return uri
     }
 
-    /** This when it says something (an alias is a key of the feed's maps, so it is kept as it is); null for null or blank. */
-    private fun String?.named(): String? = this?.takeIf { it.isNotBlank() }
+    private fun String?.named(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 }

@@ -69,11 +69,11 @@ data class WorkboardKey(
 }
 
 /**
- * One block of the home: a workboard and its keys, in the feed's order. [shortcut] is the host a
- * Save on the board makes ([HomeShortcuts.newHost]) while no saved host attaches the board's
- * session on its machine; null once one does, or when none can be made.
+ * One block of the home: a workboard and its keys, in the feed's order. [shortcuts] are the
+ * hosts a Save on the board makes ([HomeShortcuts.shortcuts]): one per place of the board that
+ * no saved host attaches yet; empty once each does, or when none can be made.
  */
-data class WorkboardBlock(val board: HomeBoard, val keys: List<WorkboardKey>, val shortcut: Host? = null)
+data class WorkboardBlock(val board: HomeBoard, val keys: List<WorkboardKey>, val shortcuts: List<HomeShortcuts.Shortcut> = emptyList())
 
 /** The workboards the home draws from the feed, joined with the saved hosts. Pure. */
 object HomeWorkboards {
@@ -91,7 +91,7 @@ object HomeWorkboards {
             WorkboardBlock(
                 board,
                 board.workspaces.filter { it.name.isNotBlank() }.map { key(board, it, feed.hosts, hosts, connected) },
-                shortcut = if (HomeShortcuts.saved(board, feed, hosts) == null) HomeShortcuts.newHost(board, feed, hosts) else null,
+                shortcuts = HomeShortcuts.shortcuts(board, feed, hosts),
             )
         }
     }

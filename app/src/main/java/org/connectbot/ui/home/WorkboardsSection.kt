@@ -45,6 +45,7 @@ import org.connectbot.ui.theme.Ormus
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.home.HomeBoard
 import solutions.ormus.logos.home.HomeShortcuts
 import solutions.ormus.logos.home.WorkboardBlock
 import solutions.ormus.logos.home.WorkboardKey
@@ -69,9 +70,10 @@ private const val AGE_TICK_MS = 30_000L
  * the machine's names pick ([solutions.ormus.logos.home.HomeWorkboards]), landed on the
  * workspace. A key with no saved host on its machine, or no session known, is there and off:
  * its spoken name says what it lacks. A board no saved host attaches ends its line with a Save
- * key: a tap hands the host to save ([WorkboardBlock.shortcut]), so the board gets a row of its
- * own. The host list leaves the section out while the feed has no boards. No gold here: the
- * screen's one gold action stays its own.
+ * key, one per machine when the feed leaves the board spread over several: a tap hands the host
+ * to save ([WorkboardBlock.shortcuts]), so the board gets a row of its own there. The host list
+ * leaves the section out while the feed has no boards. No gold here: the screen's one gold
+ * action stays its own.
  *
  * @param fetchedAt epoch millis of the read that gave the boards; 0 shows no time
  * @param error why the feed's last read failed, shown under the heading; null when it worked
@@ -144,17 +146,18 @@ fun WorkboardsSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                block.shortcut?.let { host ->
-                    OrmusKey(
-                        label = stringResource(R.string.workboards_save),
-                        onClick = {
-                            usage.log(UsageActions.WORKBOARDS_SAVE_HOST)
-                            onSave(host)
-                        },
-                        contentPadding = WORD_KEY_PADDING,
-                        description = stringResource(R.string.workboards_save_host, board.name, HomeShortcuts.place(board)?.machine.orEmpty()),
-                        modifier = Modifier.testTag(WORKBOARD_SAVE_TAG),
-                    )
+                block.shortcuts.singleOrNull()?.let { shortcut -> SaveKey(board, shortcut, alone = true, onSave = onSave) }
+            }
+            if (block.shortcuts.size > 1) {
+                // Several Save keys get a line of their own: the heading row has no room to wrap.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                ) {
+                    block.shortcuts.forEach { shortcut -> SaveKey(board, shortcut, alone = false, onSave = onSave) }
                 }
             }
             FlowRow(
@@ -200,4 +203,24 @@ internal fun keyDescription(key: WorkboardKey): String {
         WorkboardOff.UNNAMED_MACHINE -> stringResource(R.string.workboards_unnamed_machine, key.name, board, key.machine.orEmpty())
         WorkboardOff.NO_HOST -> stringResource(R.string.workboards_no_host, key.name, board, key.machine.orEmpty())
     }
+}
+
+/**
+ * A board's Save key for one place. Its label says the machine unless it is the board's only key
+ * and the heading already names that machine; its spoken name always does.
+ */
+@Composable
+private fun SaveKey(board: HomeBoard, shortcut: HomeShortcuts.Shortcut, alone: Boolean, onSave: (Host) -> Unit) {
+    val usage = LocalUsageLog.current
+    val machine = shortcut.place.machine
+    OrmusKey(
+        label = if (alone && machine == board.machine) stringResource(R.string.workboards_save) else stringResource(R.string.workboards_save_on, machine),
+        onClick = {
+            usage.log(UsageActions.WORKBOARDS_SAVE_HOST)
+            onSave(shortcut.host)
+        },
+        contentPadding = WORD_KEY_PADDING,
+        description = stringResource(R.string.workboards_save_host, board.name, machine),
+        modifier = Modifier.testTag(WORKBOARD_SAVE_TAG),
+    )
 }

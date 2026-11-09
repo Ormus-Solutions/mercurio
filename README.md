@@ -84,7 +84,8 @@ management come from ConnectBot. Mercurio is maintained by
   after the board whose post-login attaches its session, with the account and
   key of the saved host on its machine (else the feed's SSH link for it), so
   the row, the board's keys, the launcher's taps and the Needs you notices all
-  meet on it.
+  meet on it. A board the feed leaves spread over machines (another runs a
+  session of the same name) gets one Save key per machine, each naming it.
 - **Hosts by place.** A saved host reads, under its nickname, the machine the
   feed or the tailnet names and the Herdr session its post-login attaches
   (`lab · work`, with the port when it is not 22), instead of its address; a

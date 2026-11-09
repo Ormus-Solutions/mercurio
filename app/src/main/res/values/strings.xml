@@ -1447,6 +1447,8 @@
 	<string name="workboards_unnamed_machine">%1$s of %2$s: no names for %3$s in the feed</string>
 	<!-- Key at the end of a workboard's line while no saved host attaches its session: a tap saves that host -->
 	<string name="workboards_save">Save</string>
+	<!-- The same key when it is one of several (the board is spread over machines) or the block's heading names no machine; %1$s is the machine -->
+	<string name="workboards_save_on">Save on %1$s</string>
 	<!-- Spoken name of that key; %1$s is the workboard, %2$s the machine it lives on -->
 	<string name="workboards_save_host">Save %1$s on %2$s as a host</string>
 	<!-- Toast after the key saved the host; %1$s is its nickname (the workboard's name) -->
