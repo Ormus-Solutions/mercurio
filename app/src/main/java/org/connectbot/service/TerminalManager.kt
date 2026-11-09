@@ -76,6 +76,7 @@ import org.connectbot.util.PubkeyUtils
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdAttention
+import solutions.ormus.logos.herd.HerdNoticeRoute
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrCommands
@@ -1063,8 +1064,8 @@ class TerminalManager :
      * jumps straight to that host's console.
      */
     fun onAgentAttention(bridge: TerminalBridge, reason: TerminalBridge.AttentionReason) {
-        // A Herdr session notifies from Herdr's own status instead (onHerdNotices).
-        if (HerdAttention.bellMayNotify(bridge.host, away = !isOnScreen(bridge))) {
+        // A session where Herdr answered notifies from Herdr's own status instead (onHerdNotices).
+        if (HerdAttention.bellMayNotify(runsHerdr = bridge.runsHerdr, away = !isOnScreen(bridge))) {
             connectionNotifier.showAgentNotification(this, bridge.host, reason)
         }
     }
@@ -1077,10 +1078,13 @@ class TerminalManager :
      * already left out the agent the user is looking at). Called off the main thread.
      */
     fun onHerdNotices(bridge: TerminalBridge, notices: List<HerdAttention.Notice>) {
-        // Every console of a host reads the same default session, so only its first open one posts.
-        val poster = synchronized(_bridges) { _bridges.firstOrNull { it.host.id == bridge.host.id && it.isSessionOpen } }
-        if (poster !== bridge) return
-        notices.forEach { connectionNotifier.showHerdNotification(this, bridge.host, it) }
+        // Every console of a machine reads the same default session, and several can attach one named
+        // session: one console per machine and session posts, the one on screen first (HerdNoticeRoute).
+        val consoles = synchronized(_bridges) { _bridges.toList() }
+        notices.forEach { notice ->
+            val poster = HerdNoticeRoute.poster(consoles, bridge, notice.session, { it.host }, { it.herd?.attached?.value ?: HerdrCommands.DEFAULT_SESSION }, { it.isSessionOpen }, { isOnScreen(it) })
+            if (poster === bridge) connectionNotifier.showHerdNotification(this, bridge.host, notice)
+        }
     }
 
     /**

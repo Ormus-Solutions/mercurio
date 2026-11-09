@@ -46,7 +46,7 @@ class HerdPushNotices @Inject constructor(
             usageTracker.log(UsageActions.PUSH_IGNORED)
             return false
         }
-        if (!notifier.isHerdNoticeShowing(context, host.id, notice)) notifier.showHerdNotification(context, host, notice)
+        if (!notifier.isHerdNoticeShowing(context, host, notice)) notifier.showHerdNotification(context, host, notice)
         return true
     }
 }

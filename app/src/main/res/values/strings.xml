@@ -1055,6 +1055,9 @@
 	<string name="notification_herd_needs_you">%1$s needs you on %2$s</string>
 	<!-- Notification title when a Herdr agent finished its turn; %1$s is the agent, %2$s the host name -->
 	<string name="notification_herd_finished">%1$s finished on %2$s</string>
+	<!-- The same titles when the agent is in a named Herdr session (one of his workboards); %3$s is the session -->
+	<string name="notification_herd_needs_you_in">%1$s needs you on %2$s · %3$s</string>
+	<string name="notification_herd_finished_in">%1$s finished on %2$s · %3$s</string>
 	<!-- Action on a "Needs you" notification: presses Enter in the agent's pane, which takes the highlighted option -->
 	<string name="notification_herd_approve">Approve</string>
 	<!-- Action on a "Needs you" notification: presses Esc in the agent's pane, which declines -->

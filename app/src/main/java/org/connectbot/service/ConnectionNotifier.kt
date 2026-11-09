@@ -149,15 +149,18 @@ class ConnectionNotifier @Inject constructor() {
      */
     fun showHerdNotification(context: Context, host: Host, notice: HerdAttention.Notice) {
         val agent = notice.agent
-        val tag = herdTag(host.id, notice.session, agent.paneId)
+        val tag = herdTag(host, notice.session, agent.paneId)
         val needsYou = notice is HerdAttention.Notice.NeedsYou
         val res = context.resources
         val name = agentName(context, agent.agent)
         val place = listOfNotNull(notice.workspaceLabel, notice.tabLabel).joinToString(" / ").ifEmpty { null }
-        val title = if (needsYou) {
-            res.getString(R.string.notification_herd_needs_you, name, host.nickname)
-        } else {
-            res.getString(R.string.notification_herd_finished, name, host.nickname)
+        // A named Herdr session is one of his workboards: the title says which.
+        val named = !HerdrSessions.isDefault(notice.session)
+        val title = when {
+            needsYou && named -> res.getString(R.string.notification_herd_needs_you_in, name, host.nickname, notice.session)
+            needsYou -> res.getString(R.string.notification_herd_needs_you, name, host.nickname)
+            named -> res.getString(R.string.notification_herd_finished_in, name, host.nickname, notice.session)
+            else -> res.getString(R.string.notification_herd_finished, name, host.nickname)
         }
         val text = listOfNotNull(place, agent.title()).joinToString(" · ")
         val tail = (notice as? HerdAttention.Notice.NeedsYou)?.paneTail
@@ -174,6 +177,10 @@ class ConnectionNotifier @Inject constructor() {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setAutoCancel(true)
 
+        // The time shown is when the agent blocked, so the shade says how long it has waited; never ahead of
+        // the phone's clock (a push carries the host's).
+        (notice as? HerdAttention.Notice.NeedsYou)?.since?.let { builder.setWhen(minOf(it, System.currentTimeMillis())).setShowWhen(true) }
+
         if (needsYou && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && HerdApproval.offersAnswers(agent)) {
             builder.addAction(answerAction(context, host, notice.session, agent, HerdAnswer.APPROVE, R.string.notification_herd_approve))
             builder.addAction(answerAction(context, host, notice.session, agent, HerdAnswer.DENY, R.string.notification_herd_deny))
@@ -182,6 +189,12 @@ class ConnectionNotifier @Inject constructor() {
         val manager = getNotificationManager(context)
         // A finished agent no longer waits on the user.
         if (!needsYou) manager.cancel(tag, HERD_NEEDS_YOU_NOTIFICATION)
+        // Before the tag keyed on the machine it keyed on the host row: a notice posted by the build before
+        // this one would stay in the shade beside the new one.
+        legacyTag(host, notice.session, agent.paneId).let {
+            manager.cancel(it, HERD_NEEDS_YOU_NOTIFICATION)
+            manager.cancel(it, HERD_FINISHED_NOTIFICATION)
+        }
         manager.notify(tag, if (needsYou) HERD_NEEDS_YOU_NOTIFICATION else HERD_FINISHED_NOTIFICATION, builder.build())
     }
 
@@ -190,7 +203,7 @@ class ConnectionNotifier @Inject constructor() {
      * otherwise it is replaced, without actions, by why nothing (or nothing known) reached the pane.
      */
     fun showHerdAnswer(context: Service, host: Host, session: String, paneId: String, agentKind: String?, outcome: HerdAnswerOutcome) {
-        val tag = herdTag(host.id, session, paneId)
+        val tag = herdTag(host, session, paneId)
         val manager = getNotificationManager(context)
         val res = context.resources
         val name = agentName(context, agentKind)
@@ -219,15 +232,22 @@ class ConnectionNotifier @Inject constructor() {
         manager.notify(tag, HERD_NEEDS_YOU_NOTIFICATION, builder.build())
     }
 
-    /** Whether [notice]'s kind of notification is already showing for its pane on [hostId]. */
-    fun isHerdNoticeShowing(context: Context, hostId: Long, notice: HerdAttention.Notice): Boolean {
-        val tag = herdTag(hostId, notice.session, notice.agent.paneId)
+    /** Whether [notice]'s kind of notification is already showing for its pane on [host]'s machine. */
+    fun isHerdNoticeShowing(context: Context, host: Host, notice: HerdAttention.Notice): Boolean {
+        val tag = herdTag(host, notice.session, notice.agent.paneId)
         val id = if (notice is HerdAttention.Notice.NeedsYou) HERD_NEEDS_YOU_NOTIFICATION else HERD_FINISHED_NOTIFICATION
         return getNotificationManager(context).activeNotifications.any { it.tag == tag && it.id == id }
     }
 
-    // Pane ids repeat across Herdr sessions; the default session keeps its old tags.
-    private fun herdTag(hostId: Long, session: String, paneId: String) = if (HerdrSessions.isDefault(session)) "herd:$hostId:$paneId" else "herd:$hostId:$session/$paneId"
+    // Keyed to the machine (account, host, port), not the host row, so copies of one machine share one notice;
+    // pane ids repeat across Herdr sessions, so a named session's pane carries its session.
+    private fun herdTag(host: Host, session: String, paneId: String): String {
+        val machine = "${host.username}@${host.hostname.lowercase()}:${host.port}"
+        return if (HerdrSessions.isDefault(session)) "herd:$machine:$paneId" else "herd:$machine:$session/$paneId"
+    }
+
+    /** The tag the builds before this one used: the host row's id. */
+    internal fun legacyTag(host: Host, session: String, paneId: String): String = if (HerdrSessions.isDefault(session)) "herd:${host.id}:$paneId" else "herd:${host.id}:$session/$paneId"
 
     private fun agentName(context: Context, kind: String?) = kind?.ifBlank { null } ?: context.getString(R.string.herd_agent_unnamed)
 
@@ -252,7 +272,7 @@ class ConnectionNotifier @Inject constructor() {
             putExtra(EXTRA_HERD_AGENT, agent.agent)
             putExtra(EXTRA_HERD_ANSWER, answer.name)
         }
-        val code = "${herdTag(host.id, session, agent.paneId)}:${answer.name}".hashCode()
+        val code = "${herdTag(host, session, agent.paneId)}:${answer.name}".hashCode()
         val pending = PendingIntent.getService(context, code, intent, pendingIntentFlags)
         return NotificationCompat.Action.Builder(null, context.getString(label), pending)
             .setAuthenticationRequired(true)
@@ -334,8 +354,8 @@ class ConnectionNotifier @Inject constructor() {
         private const val FINISHED_CHANNEL = "logos_agent_finished_channel"
 
         // Herdr notices are tagged per host and pane; these ids tell the kinds apart.
-        private const val HERD_NEEDS_YOU_NOTIFICATION = 20
-        private const val HERD_FINISHED_NOTIFICATION = 21
+        internal const val HERD_NEEDS_YOU_NOTIFICATION = 20
+        internal const val HERD_FINISHED_NOTIFICATION = 21
 
         // Approve and Deny on a "Needs you", handled by TerminalManager.onStartCommand.
         const val ACTION_HERD_ANSWER = "solutions.ormus.logos.action.HERD_ANSWER"

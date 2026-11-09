@@ -62,7 +62,8 @@ class HerdPushNoticesTest {
         val approve = shadowOf(posted.actions[0].actionIntent).savedIntent
         assertEquals(7L, approve.getLongExtra(ConnectionNotifier.EXTRA_HERD_HOST, 0))
         assertEquals("w1:p3", approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_PANE))
-        assertEquals("herd:7:w1:p3", manager.activeNotifications.single().tag)
+        // The monitor's tag: the machine (account, host, port), not the host row.
+        assertEquals("herd:@100.100.1.1:22:w1:p3", manager.activeNotifications.single().tag)
     }
 
     @Test

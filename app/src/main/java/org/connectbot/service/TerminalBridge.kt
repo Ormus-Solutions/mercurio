@@ -1001,7 +1001,7 @@ class TerminalBridge {
      * command).
      */
     val runsHerdr: Boolean
-        get() = Herd.runsHerdr(host) || herd?.snapshot?.value != null
+        get() = Herd.runsHerdr(host) || herd?.herdrAnswered == true
 
     /**
      * Whether this host can open more consoles on its Herdr workspaces

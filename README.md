@@ -107,7 +107,14 @@ management come from ConnectBot. Mercurio is maintained by
 ### Notifications and approvals
 
 - **Needs you.** A notification when an agent is blocked on you, and one when
-  it finishes, from Herdr's agent state.
+  it finishes, from Herdr's agent state, in the default session and in the
+  session the console attached. The title names the agent, the host and, for
+  a named session, the session; the text the workspace, the tab and the
+  agent's title; a "Needs you" expanded shows the end of the pane, and its
+  time is when the agent was first seen blocked. Host rows with the same
+  user, host name and port share one notice. Once Herdr answers on a host,
+  the terminal's own idle and bell guesses stay quiet for every console of
+  that host, including a shell there that runs an agent outside Herdr.
 - **Approve or deny.** Answer a blocked Claude Code or Codex agent from its
   notification. This works with no session open: Mercurio logs in with the
   host's saved key, sends the answer and logs out. Other agents get the

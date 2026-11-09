@@ -19,7 +19,6 @@ package solutions.ormus.logos.herd
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import org.connectbot.data.entity.Host
 import org.connectbot.transport.CommandOutput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -108,6 +107,14 @@ class HerdAttentionTest {
     }
 
     @Test
+    fun needsYou_saysWhenTheBlockBegan() {
+        poll(0, snapshot("w1:p1" to WORKING))
+        poll(2_500, snapshot("w1:p1" to BLOCKED))
+        val posted = poll(8_000, snapshot("w1:p1" to BLOCKED))
+        assertEquals(2_500L, (posted.single() as Notice.NeedsYou).since)
+    }
+
+    @Test
     fun blockedToDone_postsOneFinished() {
         poll(0, snapshot("w1:p1" to BLOCKED))
 
@@ -179,14 +186,12 @@ class HerdAttentionTest {
     }
 
     @Test
-    fun bellAndIdle_postNothingForAHerdrSession_butStillForOtherHosts() {
-        val herdrHost = Host(nickname = "Sun", postLogin = "herdr\n")
-        val plainHost = Host(nickname = "NAS", postLogin = null)
-
-        assertFalse(HerdAttention.bellMayNotify(herdrHost, away = true))
-        assertFalse(HerdAttention.bellMayNotify(herdrHost, away = false))
-        assertTrue(HerdAttention.bellMayNotify(plainHost, away = true))
-        assertFalse(HerdAttention.bellMayNotify(plainHost, away = false))
+    fun bellAndIdle_postNothingOnceHerdrAnswered_butStillForOtherHosts() {
+        // The bridge knows Herdr answered on the host, whatever the post-login command says.
+        assertFalse(HerdAttention.bellMayNotify(runsHerdr = true, away = true))
+        assertFalse(HerdAttention.bellMayNotify(runsHerdr = true, away = false))
+        assertTrue(HerdAttention.bellMayNotify(runsHerdr = false, away = true))
+        assertFalse(HerdAttention.bellMayNotify(runsHerdr = false, away = false))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -233,6 +238,176 @@ class HerdAttentionTest {
         assertEquals(listOf("NeedsYou", "Finished"), posted.map { it::class.simpleName })
         // The "Needs you" carries the end of the pane: what Approve would answer.
         assertEquals("Do you want to proceed?\n\u276F 1. Yes\n  2. No", (posted[0] as Notice.NeedsYou).paneTail)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun session_attachedToAnother_postsForItsAgentsToo_andReadsThePaneThere() = runTest {
+        // The console shows `board`; its pane blocks, and so does the default session's focused pane.
+        // Both post: the default's focused pane is not what he looks at while the console is attached elsewhere.
+        val boardScript = ArrayDeque(listOf(snapshot("w1:p1" to WORKING)) + List(6) { snapshot("w1:p1" to BLOCKED) })
+        var board = boardScript.first()
+        val defaultScript = ArrayDeque(listOf(snapshot("w1:p1" to WORKING, focused = "w1:p1")) + List(6) { snapshot("w1:p1" to BLOCKED, focused = "w1:p1") })
+        var default = defaultScript.first()
+        val reads = mutableListOf<String>()
+        val posted = mutableListOf<Notice>()
+        val session = HerdSession(
+            hostName = "sg",
+            runner = { command ->
+                when {
+                    command == HerdrPrefix.readCommand || command == HerdrSessions.listCommand || command == HerdrMachines.listCommand -> CommandOutput("", "", 0)
+
+                    "pane read" in command -> {
+                        reads += command
+                        CommandOutput("Run the tests?\n\u276F 1. Yes\n  2. No\n", "", 0)
+                    }
+
+                    command == HerdrSessions.snapshotCommand("board") -> {
+                        board = boardScript.removeFirstOrNull() ?: board
+                        CommandOutput(snapshotJson(board), "", 0)
+                    }
+
+                    else -> {
+                        default = defaultScript.removeFirstOrNull() ?: default
+                        CommandOutput(snapshotJson(default), "", 0)
+                    }
+                }
+            },
+            sendKeys = {},
+            scope = backgroundScope,
+            io = coroutineContext[kotlinx.coroutines.CoroutineDispatcher]!!,
+            pollIntervalMs = 2_500,
+            clock = { testScheduler.currentTime },
+            isOnScreen = { true },
+            onNotices = { posted += it },
+        )
+        session.attach("board")
+        session.start()
+        testScheduler.advanceTimeBy(20_000)
+        session.stop()
+
+        assertEquals(listOf("board", "default"), posted.map { it.session }.sorted())
+        val boardNotice = posted.single { it.session == "board" } as Notice.NeedsYou
+        assertEquals("Run the tests?\n\u276F 1. Yes\n  2. No", boardNotice.paneTail)
+        // Its pane was read in its session, the default's in the default.
+        assertTrue(reads.toString(), reads.any { "--session" in it && "board" in it && "pane read" in it })
+        assertTrue(reads.toString(), reads.any { "--session" !in it })
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun answerInTheAttachedSession_makesItsNextBlockNewsInsideTheWindow() = runTest {
+        var state = WORKING
+        val posted = mutableListOf<Notice>()
+        val session = HerdSession(
+            hostName = "sg",
+            runner = { command ->
+                when {
+                    command == HerdrPrefix.readCommand || command == HerdrSessions.listCommand || command == HerdrMachines.listCommand -> CommandOutput("", "", 0)
+                    "pane read" in command -> CommandOutput("Run the tests?\n", "", 0)
+                    command == HerdrSessions.snapshotCommand("board") -> CommandOutput(snapshotJson(snapshot("w1:p1" to state)), "", 0)
+                    "api snapshot" in command -> CommandOutput(snapshotJson(snapshot("w1:p1" to WORKING)), "", 0)
+                    else -> CommandOutput("""{"id":"cli","result":{}}""", "", 0)
+                }
+            },
+            sendKeys = {},
+            scope = backgroundScope,
+            io = coroutineContext[kotlinx.coroutines.CoroutineDispatcher]!!,
+            pollIntervalMs = 2_500,
+            clock = { testScheduler.currentTime },
+            onNotices = { posted += it },
+        )
+        session.attach("board")
+        session.start()
+        testScheduler.advanceTimeBy(1_000)
+        state = BLOCKED
+        testScheduler.advanceTimeBy(14_000)
+        assertEquals(1, posted.size)
+
+        assertEquals(HerdAnswerOutcome.Sent, session.answer("w1:p1", "1", session = "board"))
+        state = WORKING
+        testScheduler.advanceTimeBy(5_000)
+        state = BLOCKED
+        testScheduler.advanceTimeBy(10_000)
+        session.stop()
+
+        // Thirty seconds in all: inside the repeat window, so only the answer makes the second block news.
+        assertEquals(listOf("board", "board"), posted.map { it.session })
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun attachedSession_isPolledOnItsOwn_whenTheDefaultSessionDoesNotAnswer() = runTest {
+        // A host that runs only named sessions: the console's session still tells, and the host counts as running Herdr.
+        var state = WORKING
+        val posted = mutableListOf<Notice>()
+        val session = HerdSession(
+            hostName = "sg",
+            runner = { command ->
+                when {
+                    command == HerdrPrefix.readCommand || command == HerdrSessions.listCommand || command == HerdrMachines.listCommand -> CommandOutput("", "", 0)
+                    "pane read" in command -> CommandOutput("Run the tests?\n", "", 0)
+                    command == HerdrSessions.snapshotCommand("board") -> CommandOutput(snapshotJson(snapshot("w1:p1" to state)), "", 0)
+                    else -> CommandOutput("", "herdr: no server", 1)
+                }
+            },
+            sendKeys = {},
+            scope = backgroundScope,
+            io = coroutineContext[kotlinx.coroutines.CoroutineDispatcher]!!,
+            pollIntervalMs = 2_500,
+            clock = { testScheduler.currentTime },
+            onNotices = { posted += it },
+        )
+        session.attach("board")
+        session.start()
+        testScheduler.advanceTimeBy(1_000)
+        assertTrue(session.herdrAnswered)
+        state = BLOCKED
+        testScheduler.advanceTimeBy(14_000)
+        session.stop()
+
+        assertEquals(listOf("board"), posted.map { it.session })
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun aSessionAttachedAgain_startsItsRulesAfresh() = runTest {
+        // What changed while the console was on another session is not news.
+        var board = WORKING
+        val posted = mutableListOf<Notice>()
+        val session = HerdSession(
+            hostName = "sg",
+            runner = { command ->
+                when {
+                    command == HerdrPrefix.readCommand || command == HerdrSessions.listCommand || command == HerdrMachines.listCommand -> CommandOutput("", "", 0)
+                    "pane read" in command -> CommandOutput("Run the tests?\n", "", 0)
+                    command == HerdrSessions.snapshotCommand("board") -> CommandOutput(snapshotJson(snapshot("w1:p1" to board)), "", 0)
+                    else -> CommandOutput(snapshotJson(snapshot("w1:p1" to WORKING)), "", 0)
+                }
+            },
+            sendKeys = {},
+            scope = backgroundScope,
+            io = coroutineContext[kotlinx.coroutines.CoroutineDispatcher]!!,
+            pollIntervalMs = 2_500,
+            clock = { testScheduler.currentTime },
+            onNotices = { posted += it },
+        )
+        session.attach("board")
+        session.start()
+        testScheduler.advanceTimeBy(1_000)
+        board = BLOCKED
+        testScheduler.advanceTimeBy(14_000)
+        assertEquals(listOf("NeedsYou"), posted.map { it::class.simpleName })
+
+        session.attach("ormus")
+        board = DONE
+        testScheduler.advanceTimeBy(10_000)
+        session.attach("board")
+        testScheduler.advanceTimeBy(10_000)
+        session.stop()
+
+        // No "Finished" for the work that ended while the console was on ormus.
+        assertEquals(listOf("NeedsYou"), posted.map { it::class.simpleName })
     }
 
     private fun snapshotJson(s: HerdrSessionSnapshot): String {

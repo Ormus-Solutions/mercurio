@@ -114,4 +114,11 @@ class HerdPushAlertTest {
         val nick = Host(id = 3, nickname = "sun.example.ts.net", hostname = "10.0.0.5")
         assertEquals(nick, HerdPushAlert.matchHost("sun.example.ts.net", listOf(plain, herdr, nick)))
     }
+
+    @Test
+    fun notice_saysWhenTheAgentBlocked() {
+        // The watcher's `ts` is the time of the change, in seconds; the notification shows it.
+        val notice = checkNotNull(parse(blocked)).notice() as Notice.NeedsYou
+        assertEquals(1791214536_000L, notice.since)
+    }
 }

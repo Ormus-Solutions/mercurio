@@ -19,6 +19,7 @@ package solutions.ormus.logos.herd
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.connectbot.service.FixPrompt
@@ -90,16 +92,19 @@ class HerdSession(
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
     private val commands: HerdrCommands = HerdrCommands(),
-    pollIntervalMs: Long = POLL_INTERVAL_MS,
+    private val pollIntervalMs: Long = POLL_INTERVAL_MS,
     /** The time for the attention rules (a fake clock in tests). */
-    clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long = System::currentTimeMillis,
     /** Whether this session's console is on screen now (the user is looking at its focused pane). */
     private val isOnScreen: () -> Boolean = { false },
     /** Notifications the attention rules want posted. */
     private val onNotices: (List<HerdAttention.Notice>) -> Unit = {},
     private val sendKey: (HerdrTermKey) -> Unit = {},
 ) {
-    private val attention = HerdAttention(clock)
+    // The notification rules keep per-pane memory, and pane ids repeat across sessions: one set per session.
+    private val attentions = HashMap<String, HerdAttention>()
+
+    private fun attentionFor(session: String): HerdAttention = synchronized(attentions) { attentions.getOrPut(session) { HerdAttention(clock) } }
 
     /** When each agent entered its state, from every snapshot this side reads (the Agents board). */
     val since = AgentSince(clock)
@@ -180,13 +185,9 @@ class HerdSession(
         onSnapshot = { snapshot ->
             since.observe(HerdrCommands.DEFAULT_SESSION, snapshot)
             _snapshot.value = snapshot
-            val notices = attention.onSnapshot(snapshot, isOnScreen())
+            // The console shows the attached session: the default's focused pane is looked at only while that is the default.
+            val notices = attentionFor(HerdrCommands.DEFAULT_SESSION).onSnapshot(snapshot, isOnScreen() && HerdrSessions.isDefault(_attached.value))
             if (notices.isNotEmpty()) onNotices(notices.map(::withPaneTail))
-            // Swipes act on the attached session: keep its focused ids as fresh as the default's.
-            val other = _attached.value
-            if (!HerdrSessions.isDefault(other)) {
-                stdoutOrNull(HerdrSessions.snapshotCommand(other))?.let(::parseHerdrSnapshot)?.let { keep(other, it) }
-            }
         },
     )
 
@@ -194,15 +195,41 @@ class HerdSession(
     // answers. Runs on the poller's io thread; the text is never logged.
     private fun withPaneTail(notice: HerdAttention.Notice): HerdAttention.Notice {
         if (notice !is HerdAttention.Notice.NeedsYou) return notice
-        val read = stdoutOrNull(Herd.readCommand(notice.agent.paneId, HerdApproval.READ_LINES))
+        val read = stdoutOrNull(AgentsBoard.readCommand(notice.session, notice.agent.paneId, HerdApproval.READ_LINES))
         return notice.copy(paneTail = read?.let { HerdApproval.tail(it) })
     }
 
+    // The attached session's own poll, beside the monitor's poll of the default: its agents get the same
+    // notices, and its focused ids stay as fresh as the default's for the swipes. On its own rhythm, so a
+    // host whose default session is down still tells of the session the console shows.
+    private var attachedPoll: Job? = null
+
+    private fun watchAttached() {
+        attachedPoll?.cancel()
+        val session = _attached.value
+        if (HerdrSessions.isDefault(session)) return
+        attachedPoll = scope.launch(io) {
+            while (isActive) {
+                stdoutOrNull(HerdrSessions.snapshotCommand(session))?.let(::parseHerdrSnapshot)?.let { snapshot ->
+                    keep(session, snapshot)
+                    val notices = attentionFor(session).onSnapshot(snapshot, isOnScreen()).map { it.inSession(session) }
+                    if (notices.isNotEmpty()) onNotices(notices.map(::withPaneTail))
+                }
+                delay(pollIntervalMs)
+            }
+        }
+    }
+
+    /** Whether Herdr answered on this host: a snapshot of the default session, or of one the console attached. */
+    val herdrAnswered: Boolean
+        get() = _snapshot.value != null || _others.value.isNotEmpty()
+
     /** Start polling (again); a restart forgets the old state so it is not read as a transition. */
     fun start() {
-        attention.reset()
+        synchronized(attentions) { attentions.values.forEach { it.reset() } }
         monitor.stop()
         monitor.start()
+        watchAttached()
         scope.launch {
             readKeys()
             refreshSessions()
@@ -212,6 +239,7 @@ class HerdSession(
 
     fun stop() {
         monitor.stop()
+        attachedPoll?.cancel()
     }
 
     /** Fetch [session]'s snapshot now, outside the poll rhythm (after an action, or on opening a screen). */
@@ -290,10 +318,16 @@ class HerdSession(
         _chosen.value = session
     }
 
-    /** The terminal attached [session]: swipes and the panel act on it from now on. */
+    /**
+     * The terminal attached [session]: swipes and the panel act on it from now on, and its agents get
+     * notices. A session attached again starts its rules afresh: what changed while the console was
+     * elsewhere is not news.
+     */
     fun attach(session: String) {
+        if (session != _attached.value) attentionFor(session).reset()
         _attached.value = session
         _chosen.value = session
+        if (attachedPoll != null || monitor.isRunning()) watchAttached()
     }
 
     private fun keep(session: String, snapshot: HerdrSessionSnapshot) {
@@ -431,8 +465,7 @@ class HerdSession(
         HerdApproval.guard(snapshot, paneId, seq)?.let { return@withContext it }
         val error = HerdrApi.parseCommandError(run(HerdApproval.sendKeysCommand(paneId, keys, session)))
         if (error != null) return@withContext HerdAnswerOutcome.Failed(oneLine(error.message.ifBlank { error.code }))
-        // The attention rules watch the default session only.
-        if (HerdrSessions.isDefault(session)) attention.answered(paneId)
+        attentionFor(session).answered(paneId)
         HerdAnswerOutcome.Sent
     }
 

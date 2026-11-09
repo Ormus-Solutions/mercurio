@@ -112,7 +112,7 @@ class ConnectionNotifierHerdTest {
         val work = posted.single { it.extras.getCharSequence("android.text").toString().startsWith("ops") }
         assertEquals("work", shadowOf(work.contentIntent).savedIntent.getStringExtra(MainActivity.EXTRA_HERD_SESSION))
         assertEquals("work", shadowOf(work.actions[0].actionIntent).savedIntent.getStringExtra(ConnectionNotifier.EXTRA_HERD_SESSION))
-        assertTrue(notifier.isHerdNoticeShowing(service, host.id, Notice.NeedsYou(agent, null, null, session = "work")))
+        assertTrue(notifier.isHerdNoticeShowing(service, host, Notice.NeedsYou(agent, null, null, session = "work")))
 
         // Answering the work session's pane clears its notice only.
         notifier.showHerdAnswer(service, host, "work", "w1:p1", "claude", HerdAnswerOutcome.Sent)
@@ -172,5 +172,56 @@ class ConnectionNotifierHerdTest {
         assertEquals("pane w1:p1 not found", failed.extras.getCharSequence("android.text").toString())
         assertFalse(failed.actions?.isNotEmpty() == true)
         assertEquals("w1:p1", shadowOf(failed.contentIntent).savedIntent.getStringExtra(MainActivity.EXTRA_HERD_PANE))
+    }
+
+    @Test
+    fun needsYou_inAnotherSession_namesItInTheTitle_andShowsWhenTheBlockBegan() {
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = 1_700_000_000_000, session = "board"))
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("claude needs you on Sun · board", posted.extras.getCharSequence("android.title").toString())
+        assertEquals("~Demo / 1 · Docs site build", posted.extras.getCharSequence("android.text").toString())
+        assertEquals(1_700_000_000_000, posted.`when`)
+        assertTrue(posted.extras.getBoolean("android.showWhen"))
+    }
+
+    @Test
+    fun hostRowsOfOneMachine_shareOneNotification() {
+        val copy = host.copy(id = 8, nickname = "Sun (copy)")
+        val notifier = ConnectionNotifier()
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1"))
+        notifier.showHerdNotification(service, copy, Notice.NeedsYou(agent, "~Demo", "1"))
+
+        assertEquals(1, shadowOf(manager).allNotifications.size)
+        assertTrue(notifier.isHerdNoticeShowing(service, copy, Notice.NeedsYou(agent, null, null)))
+    }
+
+    @Test
+    fun finished_inAnotherSession_namesItInTheTitle() {
+        ConnectionNotifier().showHerdNotification(service, host, Notice.Finished(agent.copy(agentStatus = HerdrAgentStatus.DONE), "~Demo", "1", session = "board"))
+        assertEquals("claude finished on Sun · board", shadowOf(manager).allNotifications.single().extras.getCharSequence("android.title").toString())
+    }
+
+    @Test
+    fun needsYou_timeIsNeverAheadOfThePhone() {
+        // A push carries the host's clock; a host ahead of the phone must not put the notice in the future.
+        val before = System.currentTimeMillis()
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = before + 3_600_000))
+        val posted = shadowOf(manager).allNotifications.single()
+        assertTrue(posted.`when` >= before && posted.`when` <= System.currentTimeMillis())
+    }
+
+    @Test
+    fun aNoticeFromTheBuildBefore_keyedOnTheHostRow_isReplaced() {
+        val notifier = ConnectionNotifier()
+        val old = androidx.core.app.NotificationCompat.Builder(service, "logos_agent_channel").setContentTitle("old").build()
+        manager.notify(notifier.legacyTag(host, "default", agent.paneId), ConnectionNotifier.HERD_NEEDS_YOU_NOTIFICATION, old)
+        manager.notify(notifier.legacyTag(host, "board", agent.paneId), ConnectionNotifier.HERD_FINISHED_NOTIFICATION, old)
+        assertEquals(2, shadowOf(manager).allNotifications.size)
+
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1"))
+        notifier.showHerdNotification(service, host, Notice.Finished(agent, "~Demo", "1", session = "board"))
+        val titles = shadowOf(manager).allNotifications.map { it.extras.getCharSequence("android.title").toString() }.sorted()
+        assertEquals(listOf("claude finished on Sun · board", "claude needs you on Sun"), titles)
     }
 }

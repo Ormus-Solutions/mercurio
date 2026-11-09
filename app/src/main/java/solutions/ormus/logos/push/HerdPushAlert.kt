@@ -65,7 +65,7 @@ data class HerdPushAlert(
         )
         val herdrSession = session ?: HerdrCommands.DEFAULT_SESSION
         return when (state) {
-            HerdrAgentStatus.BLOCKED -> HerdAttention.Notice.NeedsYou(agent, workspace?.ifBlank { null }, tab?.ifBlank { null }, session = herdrSession)
+            HerdrAgentStatus.BLOCKED -> HerdAttention.Notice.NeedsYou(agent, workspace?.ifBlank { null }, tab?.ifBlank { null }, since = ts.takeIf { it > 0 }?.times(1000), session = herdrSession)
             HerdrAgentStatus.DONE -> HerdAttention.Notice.Finished(agent, workspace?.ifBlank { null }, tab?.ifBlank { null }, session = herdrSession)
             else -> null
         }

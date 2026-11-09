@@ -17,8 +17,6 @@
 
 package solutions.ormus.logos.herd
 
-import org.connectbot.data.entity.Host
-
 /**
  * Decides which Herdr state changes deserve a phone notification, so a Herdr
  * session notifies from what Herdr knows instead of the bell and idle guesses:
@@ -47,12 +45,16 @@ class HerdAttention(
         val tabLabel: String?
         val session: String
 
-        /** [paneTail]: the last lines of the blocked pane, what Approve would answer. */
+        /**
+         * [paneTail]: the last lines of the blocked pane, what Approve would answer. [since]: when the
+         * block began, on the attention clock (epoch milliseconds in the app), the notification's time.
+         */
         data class NeedsYou(
             override val agent: HerdrAgentInfo,
             override val workspaceLabel: String?,
             override val tabLabel: String?,
             val paneTail: String? = null,
+            val since: Long? = null,
             override val session: String = HerdrCommands.DEFAULT_SESSION,
         ) : Notice
 
@@ -118,7 +120,7 @@ class HerdAttention(
                         val previous = lastNeedsYou[pane]
                         if (previous == null || now - previous >= repeatWindowMs) {
                             lastNeedsYou[pane] = now
-                            if (!watching) notices += Notice.NeedsYou(agent, snapshot.workspaceLabel(agent.workspaceId), snapshot.tabLabel(agent.tabId))
+                            if (!watching) notices += Notice.NeedsYou(agent, snapshot.workspaceLabel(agent.workspaceId), snapshot.tabLabel(agent.tabId), since = since)
                         }
                     }
                 }
@@ -143,11 +145,12 @@ class HerdAttention(
 
     companion object {
         /**
-         * Whether the bell and idle guesses may notify for [host] when the user is
-         * [away] from it: never for a Herdr session, which notifies from Herdr's
-         * own status instead; a host without Herdr keeps today's behaviour.
+         * Whether the bell and idle guesses may notify when the user is [away] from the
+         * session: never once Herdr answered on the host ([runsHerdr], whatever the post-login
+         * command says), which notifies from Herdr's own status instead; a host without Herdr
+         * keeps today's behaviour.
          */
-        fun bellMayNotify(host: Host, away: Boolean): Boolean = away && !Herd.runsHerdr(host)
+        fun bellMayNotify(runsHerdr: Boolean, away: Boolean): Boolean = away && !runsHerdr
 
         /** How long an agent must stay blocked before it is worth a notification. */
         const val HOLD_MS = 5_000L
@@ -155,4 +158,10 @@ class HerdAttention(
         /** A pane that blocks again this soon after its last "Needs you" stays quiet. */
         const val REPEAT_WINDOW_MS = 60_000L
     }
+}
+
+/** The same notice, said to be about [session] (the attached session's snapshot, read beside the default's). */
+fun HerdAttention.Notice.inSession(session: String): HerdAttention.Notice = when (this) {
+    is HerdAttention.Notice.NeedsYou -> copy(session = session)
+    is HerdAttention.Notice.Finished -> copy(session = session)
 }
