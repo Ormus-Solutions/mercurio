@@ -18,7 +18,6 @@
 package org.connectbot.service
 
 import org.connectbot.data.entity.Host
-import org.connectbot.data.entity.KeyStorageType
 import org.connectbot.data.entity.Pubkey
 import org.connectbot.util.HostConstants
 import java.security.KeyPair
@@ -46,9 +45,15 @@ object HerdOfflineAnswer {
     /** [keys] are only read when there is no live session. */
     suspend fun plan(liveSession: Boolean, host: Host, keys: suspend () -> List<KeyPair>): Plan {
         if (liveSession) return Plan.UseSession
-        if (host.protocol != "ssh" || (host.jumpHostId ?: 0L) > 0L || host.pubkeyId == HostConstants.PUBKEYID_NEVER) return Plan.NeedsApp
+        if (!logsInAlone(host)) return Plan.NeedsApp
         return keys().takeIf { it.isNotEmpty() }?.let { Plan.Connect(it) } ?: Plan.NeedsApp
     }
+
+    /**
+     * Whether [host] can be logged into with nobody asked, keys aside: SSH, no jump host (it
+     * can prompt), and a key allowed. Shared with the read after a push (`HerdPushTail`).
+     */
+    fun logsInAlone(host: Host): Boolean = host.protocol == "ssh" && (host.jumpHostId ?: 0L) <= 0L && host.pubkeyId != HostConstants.PUBKEYID_NEVER
 
     /**
      * The keys [host] would log in with without a prompt. [loaded] are the keys unlocked in
@@ -62,7 +67,7 @@ object HerdOfflineAnswer {
         val key = stored ?: return emptyList()
         if (key.confirmation) return emptyList()
         loaded[key.nickname]?.takeIf { !it.isBiometricKey }?.pair?.let { return listOf(it) }
-        if (key.encrypted || key.storageType == KeyStorageType.ANDROID_KEYSTORE) return emptyList()
+        if (key.encrypted || key.isBiometric) return emptyList()
         return listOfNotNull(runCatching { decode(key) }.getOrNull())
     }
 }

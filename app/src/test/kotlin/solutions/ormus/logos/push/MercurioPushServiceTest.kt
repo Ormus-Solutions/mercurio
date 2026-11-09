@@ -17,19 +17,27 @@
 
 package solutions.ormus.logos.push
 
+import android.os.PowerManager
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.delay
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.mock
 import org.robolectric.Robolectric
+import org.robolectric.shadows.ShadowPowerManager
+import org.robolectric.shadows.ShadowSystemClock
 import org.unifiedpush.android.connector.data.PushMessage
+import java.time.Duration
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -44,7 +52,7 @@ class MercurioPushServiceTest {
         val controller = Robolectric.buildService(MercurioPushService::class.java).create()
         val service = controller.get()
         service.notices = mock {
-            onBlocking { post(any(), any()) } doSuspendableAnswer {
+            onBlocking { post(any(), any(), any(), any()) } doSuspendableAnswer {
                 delay(200)
                 posted = true
                 true
@@ -55,5 +63,48 @@ class MercurioPushServiceTest {
         controller.destroy()
 
         assertTrue("the notice was cut off when the service was destroyed", posted)
+    }
+
+    @Test
+    fun `the read's budget starts when the push arrives, not when post runs`() {
+        val controller = Robolectric.buildService(MercurioPushService::class.java).create()
+        val service = controller.get()
+        val pushedAt = SystemClock.elapsedRealtime()
+        var arrived = -1L
+        service.usageTracker = mock {
+            on { log(any<String>()) } doAnswer { ShadowSystemClock.advanceBy(Duration.ofMillis(700)) }
+        }
+        service.notices = mock {
+            onBlocking { post(any(), any(), any(), any()) } doSuspendableAnswer {
+                arrived = it.getArgument(2)
+                true
+            }
+        }
+
+        service.onMessage(PushMessage("{}".toByteArray(), false), "default")
+
+        assertEquals(pushedAt, arrived)
+    }
+
+    @Test
+    fun `a wake lock is held from the push's arrival and handed to post`() {
+        val controller = Robolectric.buildService(MercurioPushService::class.java).create()
+        val service = controller.get()
+        var heldAtArrival = false
+        var handed: PowerManager.WakeLock? = null
+        service.usageTracker = mock {
+            on { log(any<String>()) } doAnswer { heldAtArrival = ShadowPowerManager.getLatestWakeLock()?.isHeld == true }
+        }
+        service.notices = mock {
+            onBlocking { post(any(), any(), any(), any()) } doSuspendableAnswer {
+                handed = it.getArgument(3)
+                true
+            }
+        }
+
+        service.onMessage(PushMessage("{}".toByteArray(), false), "default")
+
+        assertTrue("no wake lock before the first step of the push", heldAtArrival)
+        assertSame(ShadowPowerManager.getLatestWakeLock(), handed)
     }
 }

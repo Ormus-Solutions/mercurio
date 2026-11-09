@@ -252,4 +252,6 @@ push:unregistered
 push:host-synced
 push:received
 push:ignored
+push:tail-read
+push:tail-missed
 auth:password-saved

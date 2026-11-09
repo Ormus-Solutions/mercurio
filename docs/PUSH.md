@@ -14,6 +14,29 @@ mercurio-push-watch  --POST JSON-->  /up<topic>  --held connection-->  ntfy app 
 The message carries ids and labels only. It never carries pane text, prompts or secrets; Mercurio
 reads the pane over SSH after it wakes.
 
+For a blocked pane the phone posts the "Needs you" at once, then reads the pane's last lines
+over a short login with no terminal (`herdr pane read`) and puts them in the same notice, with
+no second sound. It logs in only when nobody has to be asked: a key marked "load at startup"
+(or the host's own key) with no passphrase, no confirmation and not in the Android keystore,
+and a host key already saved for that host; a new or changed host key is refused and nothing
+is saved. The read has 4 s, because the push service is unbound about 5 s after a push; past
+that the result is dropped, the connection is closed and the notice keeps what the push carried
+(a host that accepts the connection and never answers is given up on at the deadline too). The
+usage log records `push:tail-read` or `push:tail-missed`, never the text; a host that cannot be
+logged into without asking (no such key, a jump host, no saved host key) records neither. A push
+that arrives with its 4 s already spent reads nothing and records `push:tail-missed`. A wake lock
+is held from the push's arrival until the read ends (at most 5 s).
+
+A push for the block a "Needs you" already shows changes nothing and reads nothing: the live
+monitor posts that block too, often with its question. The push is the same block when its `ts`
+is no more than 2 s after the time on the showing notice (`ts` is in whole seconds and the
+host's clock may run a little ahead); a later `ts`, or none, is a new block.
+
+A pane that blocks again while its "Needs you" still shows gets the same notice back, quietly:
+the earlier prompt's text goes at once, then the new prompt is read. A read still running for the
+earlier block, or one that ends after the monitor posted a newer block, puts nothing in. Approve
+and Deny carry no prompt check, so the notice never shows one prompt while the pane asks another.
+
 ## Message
 
 One JSON object per push, schema `v: 1`:

@@ -146,8 +146,13 @@ class ConnectionNotifier @Inject constructor() {
      * A "Needs you" shows the end of the pane when expanded, and, for agent kinds
      * where it was proven ([HerdApproval]), Approve (Enter) and Deny (Esc). Both
      * ask for the unlock first: they type into a session on the host.
+     *
+     * [quiet]: an update of the notice already showing, with no second sound or buzz.
+     *
+     * Returns the time set on the notice. Read the time here, not from [herdNoticeShownAt] straight after:
+     * a device adds a posted notice to its shown list on its own thread, a little later.
      */
-    fun showHerdNotification(context: Context, host: Host, notice: HerdAttention.Notice) {
+    fun showHerdNotification(context: Context, host: Host, notice: HerdAttention.Notice, quiet: Boolean = false): Long {
         val agent = notice.agent
         val tag = herdTag(host, notice.session, agent.paneId)
         val needsYou = notice is HerdAttention.Notice.NeedsYou
@@ -176,10 +181,16 @@ class ConnectionNotifier @Inject constructor() {
             // The default, kept on purpose: a lock screen that hides sensitive content hides the pane too.
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setAutoCancel(true)
+            // An update of a notice already showing (the pane's end read after a push) makes no second sound.
+            .setOnlyAlertOnce(quiet)
 
         // The time shown is when the agent blocked, so the shade says how long it has waited; never ahead of
-        // the phone's clock (a push carries the host's).
-        (notice as? HerdAttention.Notice.NeedsYou)?.since?.let { builder.setWhen(minOf(it, System.currentTimeMillis())).setShowWhen(true) }
+        // the phone's clock (a push carries the host's). With no block time it is now, as the builder sets it.
+        val now = System.currentTimeMillis()
+        val since = (notice as? HerdAttention.Notice.NeedsYou)?.since
+        val shownAt = since?.let { minOf(it, now) } ?: now
+        builder.setWhen(shownAt)
+        if (since != null) builder.setShowWhen(true)
 
         if (needsYou && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && HerdApproval.offersAnswers(agent)) {
             builder.addAction(answerAction(context, host, notice.session, agent, HerdAnswer.APPROVE, R.string.notification_herd_approve))
@@ -196,6 +207,7 @@ class ConnectionNotifier @Inject constructor() {
             manager.cancel(it, HERD_FINISHED_NOTIFICATION)
         }
         manager.notify(tag, if (needsYou) HERD_NEEDS_YOU_NOTIFICATION else HERD_FINISHED_NOTIFICATION, builder.build())
+        return shownAt
     }
 
     /**
@@ -232,11 +244,14 @@ class ConnectionNotifier @Inject constructor() {
         manager.notify(tag, HERD_NEEDS_YOU_NOTIFICATION, builder.build())
     }
 
-    /** Whether [notice]'s kind of notification is already showing for its pane on [host]'s machine. */
-    fun isHerdNoticeShowing(context: Context, host: Host, notice: HerdAttention.Notice): Boolean {
+    /**
+     * The time on [notice]'s kind of notification showing for its pane on [host]'s machine (for a
+     * "Needs you", when its block began); null when none shows.
+     */
+    fun herdNoticeShownAt(context: Context, host: Host, notice: HerdAttention.Notice): Long? {
         val tag = herdTag(host, notice.session, notice.agent.paneId)
         val id = if (notice is HerdAttention.Notice.NeedsYou) HERD_NEEDS_YOU_NOTIFICATION else HERD_FINISHED_NOTIFICATION
-        return getNotificationManager(context).activeNotifications.any { it.tag == tag && it.id == id }
+        return getNotificationManager(context).activeNotifications.firstOrNull { it.tag == tag && it.id == id }?.notification?.`when`
     }
 
     // Keyed to the machine (account, host, port), not the host row, so copies of one machine share one notice;

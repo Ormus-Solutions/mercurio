@@ -17,6 +17,7 @@
 
 package solutions.ormus.logos.push
 
+import android.os.SystemClock
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.runBlocking
 import org.connectbot.usage.UsageActions
@@ -53,10 +54,15 @@ class MercurioPushService : PushService() {
     }
 
     override fun onMessage(message: PushMessage, instance: String) {
+        val arrived = SystemClock.elapsedRealtime()
+        // First: the CPU may sleep between the connector's receiver and this call.
+        val lock = HerdPushNotices.holdForRead(this)
         usageTracker.log(UsageActions.PUSH_RECEIVED)
-        // The connector calls this off the main thread and unbinds (destroying the service)
-        // as soon as it returns, so the notice is posted before returning, not launched.
-        runBlocking { notices.post(this@MercurioPushService, message.content) }
+        // A push that finds the service unbound (most: the connector unbinds five seconds after
+        // each bind) comes here on the MAIN thread; one that finds it bound, on the connector's
+        // executor. The service may end soon after this returns, so the notice is posted
+        // before returning; the pane read it starts is not waited for (HerdPushNotices).
+        runBlocking { notices.post(this@MercurioPushService, message.content, arrived, lock) }
     }
 
     override fun onRegistrationFailed(reason: FailedReason, instance: String) {

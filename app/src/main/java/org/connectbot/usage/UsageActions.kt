@@ -406,6 +406,11 @@ object UsageActions {
     const val PUSH_RECEIVED = "push:received"
     const val PUSH_IGNORED = "push:ignored"
 
+    // After a pushed "Needs you" was posted, the phone read the blocked pane's end over a short
+    // login (read) or could not, without asking anyone or in time (missed). Never the text.
+    const val PUSH_TAIL_READ = "push:tail-read"
+    const val PUSH_TAIL_MISSED = "push:tail-missed"
+
     // Login: a password typed at the connect prompt was stored after the server accepted
     // it ("Remember password" ticked). Recorded by the SSH transport; never the password.
     const val AUTH_PASSWORD_SAVED = "auth:password-saved"
@@ -466,6 +471,7 @@ object UsageActions {
         SWIPE_FLICK_PREV_WORKSPACE_SWITCHER, SWIPE_FLICK_NEXT_WORKSPACE_SWITCHER,
         TERMINAL_MOUSE_CLICK, HERDR_DRAG_SCROLL, GESTURE_DRAG_ARROW,
         PUSH_REGISTERED, PUSH_FAILED, PUSH_UNREGISTERED, PUSH_HOST_SYNCED, PUSH_RECEIVED, PUSH_IGNORED,
+        PUSH_TAIL_READ, PUSH_TAIL_MISSED,
         AUTH_PASSWORD_SAVED,
     )
 

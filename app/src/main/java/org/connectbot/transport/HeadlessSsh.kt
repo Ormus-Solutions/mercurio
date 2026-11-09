@@ -30,7 +30,12 @@ import java.security.KeyPair
  * over exec channels. Nothing is asked either: the host key must pass [verifier]
  * without a prompt (a new or changed key is refused), and only the given keys are tried.
  */
-class HeadlessSsh(private val host: Host, private val verifier: ExtendedServerHostKeyVerifier) : AutoCloseable {
+class HeadlessSsh(
+    private val host: Host,
+    private val verifier: ExtendedServerHostKeyVerifier,
+    private val connectTimeoutMs: Int = CONNECT_TIMEOUT_MS,
+    private val kexTimeoutMs: Int = KEX_TIMEOUT_MS,
+) : HeadlessSession {
     /** How the login went. */
     sealed interface Login {
         data object Ok : Login
@@ -47,8 +52,12 @@ class HeadlessSsh(private val host: Host, private val verifier: ExtendedServerHo
 
     private val connection = Connection(host.hostname, host.port)
 
-    /** Connect and log in with the first of [keys] the server takes. Blocking. */
-    fun login(keys: List<KeyPair>): Login {
+    /**
+     * Connect and log in with the first of [keys] the server takes. Blocking. The TCP connect
+     * has [connectTimeoutMs] and the key exchange [kexTimeoutMs] from the start of the connect;
+     * the authentication itself has no timeout of its own.
+     */
+    override fun login(keys: List<KeyPair>): Login {
         var hostKeyRefused = false
         val checked = object : ExtendedServerHostKeyVerifier() {
             override fun verifyServerHostKey(hostname: String, port: Int, algorithm: String, key: ByteArray): Boolean = verifier.verifyServerHostKey(hostname, port, algorithm, key).also { hostKeyRefused = !it }
@@ -60,7 +69,7 @@ class HeadlessSsh(private val host: Host, private val verifier: ExtendedServerHo
             override fun addServerHostKey(hostname: String, port: Int, algorithm: String, key: ByteArray) = verifier.addServerHostKey(hostname, port, algorithm, key)
         }
         return try {
-            connection.connect(checked, CONNECT_TIMEOUT_MS, KEX_TIMEOUT_MS, SSH.parseIpVersion(host.ipVersion, host.hostname))
+            connection.connect(checked, connectTimeoutMs, kexTimeoutMs, SSH.parseIpVersion(host.ipVersion, host.hostname))
             val user = host.username.trim()
             if (keys.any { connection.authenticateWithPublicKey(user, it) }) Login.Ok else Login.KeysRefused
         } catch (e: IOException) {
@@ -72,7 +81,7 @@ class HeadlessSsh(private val host: Host, private val verifier: ExtendedServerHo
     private val hostShell = HostShell()
 
     /** Run [command] over its own exec channel; see [SSH.execDetailed]. Blocking. */
-    fun exec(command: String): CommandOutput = hostShell.run(command) { SSH.execDetailed(connection, it) }
+    override fun exec(command: String): CommandOutput = hostShell.run(command) { SSH.execDetailed(connection, it) }
 
     override fun close() {
         connection.close()
@@ -83,7 +92,19 @@ class HeadlessSsh(private val host: Host, private val verifier: ExtendedServerHo
         .lastOrNull() ?: e.javaClass.simpleName
 
     companion object {
-        private const val CONNECT_TIMEOUT_MS = 10_000
-        private const val KEX_TIMEOUT_MS = 15_000
+        const val CONNECT_TIMEOUT_MS = 10_000
+        const val KEX_TIMEOUT_MS = 15_000
     }
+}
+
+/** What a login with no terminal offers: log in, run commands, log out ([HeadlessSsh]). */
+interface HeadlessSession : AutoCloseable {
+    /** Log in with the first of [keys] the server takes. Blocking. */
+    fun login(keys: List<KeyPair>): HeadlessSsh.Login
+
+    /** Run [command] over its own exec channel. Blocking. */
+    fun exec(command: String): CommandOutput
+
+    /** Log out; safe to call more than once. trilead waits for a connect or login in progress to end first. */
+    override fun close()
 }

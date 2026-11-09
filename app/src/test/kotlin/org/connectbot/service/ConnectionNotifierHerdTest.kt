@@ -112,7 +112,7 @@ class ConnectionNotifierHerdTest {
         val work = posted.single { it.extras.getCharSequence("android.text").toString().startsWith("ops") }
         assertEquals("work", shadowOf(work.contentIntent).savedIntent.getStringExtra(MainActivity.EXTRA_HERD_SESSION))
         assertEquals("work", shadowOf(work.actions[0].actionIntent).savedIntent.getStringExtra(ConnectionNotifier.EXTRA_HERD_SESSION))
-        assertTrue(notifier.isHerdNoticeShowing(service, host, Notice.NeedsYou(agent, null, null, session = "work")))
+        assertTrue(notifier.herdNoticeShownAt(service, host, Notice.NeedsYou(agent, null, null, session = "work")) != null)
 
         // Answering the work session's pane clears its notice only.
         notifier.showHerdAnswer(service, host, "work", "w1:p1", "claude", HerdAnswerOutcome.Sent)
@@ -193,7 +193,7 @@ class ConnectionNotifierHerdTest {
         notifier.showHerdNotification(service, copy, Notice.NeedsYou(agent, "~Demo", "1"))
 
         assertEquals(1, shadowOf(manager).allNotifications.size)
-        assertTrue(notifier.isHerdNoticeShowing(service, copy, Notice.NeedsYou(agent, null, null)))
+        assertTrue(notifier.herdNoticeShownAt(service, copy, Notice.NeedsYou(agent, null, null)) != null)
     }
 
     @Test
@@ -223,5 +223,47 @@ class ConnectionNotifierHerdTest {
         notifier.showHerdNotification(service, host, Notice.Finished(agent, "~Demo", "1", session = "board"))
         val titles = shadowOf(manager).allNotifications.map { it.extras.getCharSequence("android.title").toString() }.sorted()
         assertEquals(listOf("claude finished on Sun · board", "claude needs you on Sun"), titles)
+    }
+
+    @Test
+    fun herdNoticeShownAt_isTheShowingNoticesTime_ofItsKindOnly_andNullWhenNoneShows() {
+        val notifier = ConnectionNotifier()
+        val needsYou = Notice.NeedsYou(agent, "~Demo", "1", since = 1_500L)
+        assertEquals(null, notifier.herdNoticeShownAt(service, host, needsYou))
+
+        notifier.showHerdNotification(service, host, needsYou)
+
+        assertEquals(1_500L, notifier.herdNoticeShownAt(service, host, Notice.NeedsYou(agent, null, null)))
+        assertEquals(null, notifier.herdNoticeShownAt(service, host, Notice.Finished(agent, null, null)))
+        assertEquals(null, notifier.herdNoticeShownAt(service, host, Notice.NeedsYou(agent, null, null, session = "work")))
+        manager.cancelAll()
+        assertEquals(null, notifier.herdNoticeShownAt(service, host, needsYou))
+    }
+
+    @Test
+    fun showHerdNotification_returnsTheTimeOnTheNotice_onEveryPath() {
+        // A push keeps the returned time to know its own notice later: it must be the posted `when` exactly.
+        val notifier = ConnectionNotifier()
+        fun postedWhen() = shadowOf(manager).allNotifications.single().`when`
+        val now = System.currentTimeMillis()
+
+        val noBlockTime = notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1"))
+        assertEquals(postedWhen(), noBlockTime)
+
+        val past = notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = 1_500L))
+        assertEquals(1_500L, past)
+        assertEquals(postedWhen(), past)
+
+        val future = notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = now + 3_600_000))
+        assertEquals(postedWhen(), future)
+        assertTrue(future <= System.currentTimeMillis())
+
+        val quietRepost = notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = 2_500L, paneTail = "Allow?"), quiet = true)
+        assertEquals(2_500L, quietRepost)
+        assertEquals(postedWhen(), quietRepost)
+
+        manager.cancelAll()
+        val finished = notifier.showHerdNotification(service, host, Notice.Finished(agent.copy(agentStatus = HerdrAgentStatus.DONE), "~Demo", "1"))
+        assertEquals(postedWhen(), finished)
     }
 }
