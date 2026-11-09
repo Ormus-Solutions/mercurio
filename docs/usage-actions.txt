@@ -84,6 +84,7 @@ machines:api-secret
 workspaces:open
 home:feed-set
 workboards:open
+workboards:save-host
 console:back
 console:text-input
 console:paste

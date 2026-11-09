@@ -113,10 +113,8 @@ object HerdrOpen {
         val account = user?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val name = hostname?.trim()?.removeSurrounding("[", "]")?.removeSuffix(".")?.takeIf { it.isNotEmpty() } ?: return null
         val wanted = nickname?.trim()?.takeIf { it.isNotEmpty() } ?: if (ADDRESS.matches(name)) name else name.substringBefore('.')
-        val taken = hosts.map { it.nickname.trim() }.toSet()
-        val free = generateSequence(1) { it + 1 }.map { if (it == 1) wanted else "$wanted $it" }.first { it !in taken }
         return Host(
-            nickname = free,
+            nickname = freeNickname(hosts, wanted),
             protocol = "ssh",
             username = account,
             hostname = name,
@@ -124,6 +122,12 @@ object HerdrOpen {
             postLogin = PLAIN_LAUNCH,
             lastConnect = now,
         )
+    }
+
+    /** [wanted], else `wanted 2`, `wanted 3`, ... : the first not among the [hosts]' nicknames (a nickname is unique). */
+    fun freeNickname(hosts: List<Host>, wanted: String): String {
+        val taken = hosts.map { it.nickname.trim() }.toSet()
+        return generateSequence(1) { it + 1 }.map { if (it == 1) wanted else "$wanted $it" }.first { it !in taken }
     }
 
     /** The post-login of a host saved by a tap: Herdr, its default session, so a console for any session opens beside. */

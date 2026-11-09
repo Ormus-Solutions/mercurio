@@ -153,6 +153,9 @@ object UsageActions {
     // A workspace key of a workboard on the home: open that session on its machine, landed on the workspace.
     const val WORKBOARDS_OPEN = "workboards:open"
 
+    // The Save key of a workboard on the home: a host that attaches its session on its machine was saved.
+    const val WORKBOARDS_SAVE_HOST = "workboards:save-host"
+
     // Console top bar, overflow menu and the disconnected overlay.
     const val CONSOLE_BACK = "console:back"
     const val CONSOLE_TEXT_INPUT = "console:text-input"
@@ -422,7 +425,7 @@ object UsageActions {
         DRAWER_OPEN_WORKSPACE, HERDR_CONSOLE_OPEN,
         TITLE_PULL_DRAWER, TITLE_PULL_DISCONNECT,
         MACHINES_CONNECT, MACHINES_REFRESH, MACHINES_FIX_PROMPT, MACHINES_API_SECRET,
-        WORKSPACES_OPEN, HOME_FEED_SET, WORKBOARDS_OPEN,
+        WORKSPACES_OPEN, HOME_FEED_SET, WORKBOARDS_OPEN, WORKBOARDS_SAVE_HOST,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,
         MENU_RECONNECT, MENU_DISCONNECT, MENU_URL_SCAN, MENU_RESIZE, MENU_PORT_FORWARDS,
         MENU_FULLSCREEN, MENU_TITLE_BAR, MENU_WISH, MENU_COPY_DETAILS, MENU_SEND_ERROR,

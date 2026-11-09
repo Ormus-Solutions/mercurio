@@ -64,12 +64,13 @@ class WorkboardsSectionTest {
 
     private val logged = mutableListOf<String>()
     private val opened = mutableListOf<Pair<Host, HerdrConsole>>()
+    private val saved = mutableListOf<Host>()
 
     private fun show(blocks: List<WorkboardBlock>, fetchedAt: Long = System.currentTimeMillis(), error: String? = null) {
         composeTestRule.setContent {
             ConnectBotTheme {
                 CompositionLocalProvider(LocalUsageLog provides UsageLog { logged += it }) {
-                    WorkboardsSection(blocks = blocks, fetchedAt = fetchedAt, error = error, onOpen = { host, console -> opened += host to console })
+                    WorkboardsSection(blocks = blocks, fetchedAt = fetchedAt, error = error, onOpen = { host, console -> opened += host to console }, onSave = { saved += it })
                 }
             }
         }
@@ -127,5 +128,31 @@ class WorkboardsSectionTest {
 
         composeTestRule.onNodeWithText("as of ", substring = true).assertDoesNotExist()
         composeTestRule.onNodeWithText("Not read: The feed answered HTTP 503").assertIsDisplayed()
+    }
+
+    @Test
+    fun aBoardWithNoSavedCopy_hasASaveKey_thatHandsTheHostToSave_andLogsIt() {
+        show(blocks)
+
+        // Only work: far has no host and no link on its machine, lab no place, odd no session name.
+        composeTestRule.onAllNodesWithTag(WORKBOARD_SAVE_TAG).assertCountEquals(1)
+        composeTestRule.onNodeWithContentDescription("Save work on box as a host").assertIsDisplayed().performClick()
+
+        val host = saved.single()
+        assertEquals("work", host.nickname)
+        assertEquals(box.hostname, host.hostname)
+        assertEquals("herdr session attach 'work'\n", host.postLogin)
+        assertEquals(listOf(UsageActions.WORKBOARDS_SAVE_HOST), logged)
+        assertEquals(emptyList<Pair<Host, HerdrConsole>>(), opened)
+    }
+
+    @Test
+    fun aBoardWithASavedCopy_hasNoSaveKey() {
+        val copy = Host(id = 2L, nickname = "work", protocol = "ssh", username = "me", hostname = "box.example", postLogin = "herdr session attach work\n")
+
+        show(HomeWorkboards.blocks(feed, listOf(box, copy)))
+
+        composeTestRule.onAllNodesWithTag(WORKBOARD_SAVE_TAG).assertCountEquals(0)
+        composeTestRule.onNodeWithText("Save").assertDoesNotExist()
     }
 }

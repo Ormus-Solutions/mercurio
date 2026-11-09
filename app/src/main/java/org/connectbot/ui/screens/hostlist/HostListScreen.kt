@@ -339,9 +339,22 @@ fun HostListScreen(
         shouldShowNotificationWarning = shouldShowNotificationWarning,
         onNotificationSnackbarFinish = onNotificationSnackbarFinish,
         modifier = modifier,
-        // The feed's workboards first; no item at all while the feed has none.
+        // The feed's workboards first; no item at all while the feed has none. A board's Save key
+        // saves the row the board lacks; the row then shows under Hosts and the key goes.
         workboards = if (!makingShortcut && blocks.isNotEmpty()) {
-            { WorkboardsSection(blocks = blocks, fetchedAt = home.fetchedAt, error = home.error, onOpen = onOpenWorkspace) }
+            {
+                WorkboardsSection(
+                    blocks = blocks,
+                    fetchedAt = home.fetchedAt,
+                    error = home.error,
+                    onOpen = onOpenWorkspace,
+                    onSave = { host ->
+                        viewModel.addHost(host) { saved ->
+                            Toast.makeText(context, context.getString(R.string.workboards_saved, saved.nickname), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                )
+            }
         } else {
             null
         },

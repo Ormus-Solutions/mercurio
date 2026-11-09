@@ -79,7 +79,12 @@ management come from ConnectBot. Mercurio is maintained by
   one key per workspace. A tap opens that Herdr session on the saved host the
   machine's names pick, landed on the workspace; a key with no saved host on
   its machine is off and says so. The kept Workspaces keys for workspaces the
-  feed already opens step aside; the rest stay beside the blocks.
+  feed already opens step aside; the rest stay beside the blocks. A workboard
+  no saved host attaches ends its line with Save: one tap saves a host named
+  after the board whose post-login attaches its session, with the account and
+  key of the saved host on its machine (else the feed's SSH link for it), so
+  the row, the board's keys, the launcher's taps and the Needs you notices all
+  meet on it.
 - **Hosts by place.** A saved host reads, under its nickname, the machine the
   feed or the tailnet names and the Herdr session its post-login attaches
   (`lab · work`, with the port when it is not 22), instead of its address; a

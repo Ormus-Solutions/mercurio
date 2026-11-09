@@ -45,12 +45,16 @@ import org.connectbot.ui.theme.Ormus
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.home.HomeShortcuts
 import solutions.ormus.logos.home.WorkboardBlock
 import solutions.ormus.logos.home.WorkboardKey
 import solutions.ormus.logos.home.WorkboardOff
 
 /** Tag of every workspace key, for tests. */
 internal const val WORKBOARD_KEY_TAG = "workboard-key"
+
+/** Tag of a board's Save key, for tests. */
+internal const val WORKBOARD_SAVE_TAG = "workboard-save"
 
 /** Before a workspace's name when its agents wait on the user. */
 internal const val NEEDS_YOU_MARK = "• "
@@ -64,12 +68,15 @@ private const val AGE_TICK_MS = 30_000L
  * workspace, marked when its own agents wait. A tap opens that Herdr session on the saved host
  * the machine's names pick ([solutions.ormus.logos.home.HomeWorkboards]), landed on the
  * workspace. A key with no saved host on its machine, or no session known, is there and off:
- * its spoken name says what it lacks. The host list leaves the section out while the feed has
- * no boards. No gold here: the screen's one gold action stays its own.
+ * its spoken name says what it lacks. A board no saved host attaches ends its line with a Save
+ * key: a tap hands the host to save ([WorkboardBlock.shortcut]), so the board gets a row of its
+ * own. The host list leaves the section out while the feed has no boards. No gold here: the
+ * screen's one gold action stays its own.
  *
  * @param fetchedAt epoch millis of the read that gave the boards; 0 shows no time
  * @param error why the feed's last read failed, shown under the heading; null when it worked
  * @param onOpen receives the host and the console to open; callers pass it to the console route
+ * @param onSave receives the host a board's Save key makes; callers save it
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -79,6 +86,7 @@ fun WorkboardsSection(
     error: String?,
     onOpen: (Host, HerdrConsole) -> Unit,
     modifier: Modifier = Modifier,
+    onSave: (Host) -> Unit = {},
 ) {
     val usage = LocalUsageLog.current
     // The time reads right while the home stays: a failed read leaves the boards as they were.
@@ -126,12 +134,26 @@ fun WorkboardsSection(
                     text = board.machine?.let { stringResource(R.string.workboards_board, board.name, it) } ?: board.name,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
+                    // A long name yields before the count and the Save key do.
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 if (board.agents.blocked > 0) {
                     Text(
                         text = stringResource(R.string.workboards_needs_you, board.agents.blocked),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                block.shortcut?.let { host ->
+                    OrmusKey(
+                        label = stringResource(R.string.workboards_save),
+                        onClick = {
+                            usage.log(UsageActions.WORKBOARDS_SAVE_HOST)
+                            onSave(host)
+                        },
+                        contentPadding = WORD_KEY_PADDING,
+                        description = stringResource(R.string.workboards_save_host, board.name, HomeShortcuts.place(board)?.machine.orEmpty()),
+                        modifier = Modifier.testTag(WORKBOARD_SAVE_TAG),
                     )
                 }
             }

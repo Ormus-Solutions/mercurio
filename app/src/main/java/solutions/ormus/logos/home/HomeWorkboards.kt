@@ -68,8 +68,12 @@ data class WorkboardKey(
         get() = target != null
 }
 
-/** One block of the home: a workboard and its keys, in the feed's order. */
-data class WorkboardBlock(val board: HomeBoard, val keys: List<WorkboardKey>)
+/**
+ * One block of the home: a workboard and its keys, in the feed's order. [shortcut] is the host a
+ * Save on the board makes ([HomeShortcuts.newHost]) while no saved host attaches the board's
+ * session on its machine; null once one does, or when none can be made.
+ */
+data class WorkboardBlock(val board: HomeBoard, val keys: List<WorkboardKey>, val shortcut: Host? = null)
 
 /** The workboards the home draws from the feed, joined with the saved hosts. Pure. */
 object HomeWorkboards {
@@ -79,12 +83,16 @@ object HomeWorkboards {
      * workspace's session and the feed's names of its machine ([HomeBoards.hosts]): the copy
      * whose post-login attaches the session, else a plain `herdr` host, a [connected] one
      * first. Nothing opens for a board with no machine or session, or one whose machine the
-     * feed does not name.
+     * feed does not name. A board no saved host attaches carries the host its Save key makes.
      */
     fun blocks(boards: HomeBoards?, hosts: List<Host>, connected: Set<Long> = emptySet()): List<WorkboardBlock> {
         val feed = boards ?: return emptyList()
         return feed.boards.map { board ->
-            WorkboardBlock(board, board.workspaces.filter { it.name.isNotBlank() }.map { key(board, it, feed.hosts, hosts, connected) })
+            WorkboardBlock(
+                board,
+                board.workspaces.filter { it.name.isNotBlank() }.map { key(board, it, feed.hosts, hosts, connected) },
+                shortcut = if (HomeShortcuts.saved(board, feed, hosts) == null) HomeShortcuts.newHost(board, feed, hosts) else null,
+            )
         }
     }
 

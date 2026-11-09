@@ -141,4 +141,19 @@ class HomeWorkboardsTest {
         assertEquals(emptyList<WorkboardBlock>(), HomeWorkboards.blocks(null, listOf(plain)))
         assertEquals(emptyList<WorkboardBlock>(), HomeWorkboards.blocks(HomeBoards(), listOf(plain)))
     }
+
+    @Test
+    fun aBlock_carriesTheHostASaveWouldMake_untilOneAttachesTheSession() {
+        val block = HomeWorkboards.blocks(feed(board("work", workspaces = arrayOf("review"))), listOf(plain)).single()
+
+        // The plain host on Box lends its account; the session is the board's.
+        assertEquals("work", block.shortcut?.nickname)
+        assertEquals(plain.hostname, block.shortcut?.hostname)
+        assertEquals("herdr session attach 'work'\n", block.shortcut?.postLogin)
+        // A copy that attaches the session is the shortcut already: nothing to make.
+        assertNull(HomeWorkboards.blocks(feed(board("work", workspaces = arrayOf("review"))), listOf(plain, copy)).single().shortcut)
+        // A board the feed places nowhere, or one with no host and no link on its machine, has none.
+        assertNull(HomeWorkboards.blocks(feed(board("lab", machine = null, session = null, "bench")), listOf(plain)).single().shortcut)
+        assertNull(HomeWorkboards.blocks(feed(board("edge", machine = "far", workspaces = arrayOf("x"))), listOf(plain)).single().shortcut)
+    }
 }

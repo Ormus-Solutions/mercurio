@@ -19,6 +19,7 @@ package org.connectbot.ui.screens.hostlist
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,13 +37,18 @@ import org.connectbot.service.ServiceError
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import solutions.ormus.logos.herd.HerdrConsoleCache
@@ -231,5 +237,60 @@ class HostListViewModelTest {
         val inOrder = inOrder(terminalManager, repository)
         inOrder.verify(terminalManager).disconnectHost(host.id)
         inOrder.verify(repository).deleteHost(host)
+    }
+
+    @Test
+    fun addHost_savesTheRowOnce_whenTwoTapsAreInFlightTogether_andTellsOnceItSaved() = runTest {
+        val viewModel = createViewModel()
+        val host = Host(nickname = "work", username = "me", hostname = "box.example", postLogin = "herdr session attach 'work'\n")
+        val saved = mutableListOf<Host>()
+        // The first tap's read of the rows hangs until both taps are in; the second tap then reads the first's row.
+        val gate = CompletableDeferred<Unit>()
+        var reads = 0
+        whenever(repository.getHosts()).doSuspendableAnswer {
+            if (reads++ == 0) {
+                gate.await()
+                emptyList()
+            } else {
+                listOf(host.copy(id = 5L))
+            }
+        }
+        whenever(repository.saveHost(any())).thenAnswer { (it.arguments[0] as Host).copy(id = 5L) }
+
+        viewModel.addHost(host) { saved += it }
+        viewModel.addHost(host) { saved += it }
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        verify(repository, times(1)).saveHost(host)
+        assertEquals(listOf(host.copy(id = 5L)), saved)
+        assertNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun addHost_savesNothing_whenARowOfThatPlaceAndSessionExists_whateverItsName() = runTest {
+        val viewModel = createViewModel()
+        val host = Host(nickname = "work", username = "me", hostname = "box.example", postLogin = "herdr session attach 'work'\n")
+        whenever(repository.getHosts()).thenReturn(listOf(host.copy(id = 5L, nickname = "Box work", postLogin = "herdr session attach work\n")))
+        var told = 0
+
+        viewModel.addHost(host) { told++ }
+        advanceUntilIdle()
+
+        verify(repository, never()).saveHost(any())
+        assertEquals(0, told)
+    }
+
+    @Test
+    fun addHost_takesAFreeNickname_whenAnotherRowTookItSinceTheKeyWasDrawn() = runTest {
+        val viewModel = createViewModel()
+        val host = Host(nickname = "work", username = "me", hostname = "box.example", postLogin = "herdr session attach 'work'\n")
+        whenever(repository.getHosts()).thenReturn(listOf(Host(id = 8L, nickname = "work", hostname = "elsewhere.example")))
+        whenever(repository.saveHost(any())).thenAnswer { (it.arguments[0] as Host).copy(id = 9L) }
+
+        viewModel.addHost(host)
+        advanceUntilIdle()
+
+        verify(repository).saveHost(host.copy(nickname = "work 2"))
     }
 }

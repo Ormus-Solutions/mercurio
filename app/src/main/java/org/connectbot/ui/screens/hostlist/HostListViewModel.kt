@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.connectbot.R
 import org.connectbot.data.HostRepository
@@ -43,6 +45,7 @@ import org.connectbot.service.ServiceError
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.HerdrConsoleCache
+import solutions.ormus.logos.herd.HerdrOpen
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -270,6 +273,33 @@ class HostListViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Save [host] as a new row: a workboard's Save key on the home. One save at a time, against
+     * the rows as they are now: a second tap finds the first's row (the same account, machine,
+     * port and attached session) and saves nothing; a nickname another row took since the key
+     * was drawn gives way to a free one. [onSaved] runs with the saved row, and only then.
+     */
+    fun addHost(host: Host, onSaved: (Host) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val saved = addHostLock.withLock {
+                    val rows = repository.getHosts()
+                    val session = HerdrOpen.attached(host.postLogin)
+                    if (rows.any { it.protocol == host.protocol && it.username == host.username && it.hostname == host.hostname && it.port == host.port && HerdrOpen.attached(it.postLogin) == session }) return@launch
+                    repository.saveHost(host.copy(id = 0L, nickname = HerdrOpen.freeNickname(rows, host.nickname)))
+                }
+                onSaved(saved)
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(error = e.message ?: "Failed to save host")
+                }
+            }
+        }
+    }
+
+    // One Save at a time (addHost): two quick taps on a board must make one row, not two.
+    private val addHostLock = Mutex()
 
     fun forgetHostKeys(host: Host) {
         viewModelScope.launch {
