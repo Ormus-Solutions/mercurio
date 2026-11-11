@@ -115,6 +115,12 @@ object PreferenceConstants {
     const val INBOX_DEFAULT: Boolean = true
     const val HERDR_CORE_DEFAULT: Boolean = true
 
+    /** The panes he jumped to last, newest first, one key per line (text, at most eight); the Jump sheet's Recent group. */
+    const val HERDR_JUMP_RECENT: String = "herdrJumpRecent"
+
     /** A host answered `herdr-core --version` on an earlier visit (boolean, absent until one did): the next launch opens the Inbox first. */
     const val HERDR_CORE_SEEN: String = "herdrCoreSeen"
+
+    /** The version token a host last answered to `herdr-core --version` (string, absent until one did); the feedback text names it. */
+    const val HERDR_CORE_VERSION: String = "herdrCoreVersion"
 }

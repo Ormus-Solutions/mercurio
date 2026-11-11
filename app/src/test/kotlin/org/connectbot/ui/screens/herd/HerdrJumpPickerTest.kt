@@ -36,7 +36,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import solutions.ormus.logos.herd.HerdrJump
-import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.JumpSheet
 import solutions.ormus.logos.herd.parseHerdrSnapshot
 
 /** Jump to: the rows in urgency order, the search, and a tap. */
@@ -47,13 +47,13 @@ class HerdrJumpPickerTest {
 
     private fun fixture(name: String) = checkNotNull(parseHerdrSnapshot(checkNotNull(javaClass.getResourceAsStream("/herdr/$name")).readBytes().decodeToString()))
 
-    private val targets = HerdrJump.targets(mapOf("default" to fixture("snapshot-sun-mixed.json"), "work" to fixture("snapshot-picker-test.json")))
-    private val picked = mutableListOf<JumpTarget>()
+    private val items = JumpSheet.items(HerdrJump.targets(mapOf("default" to fixture("snapshot-sun-mixed.json"), "work" to fixture("snapshot-picker-test.json"))), "box", emptyList())
+    private val picked = mutableListOf<JumpSheet.Item>()
 
     private fun rows() = composeTestRule.onAllNodes(hasClickAction() and hasAnyAncestor(hasTestTag(HERDR_JUMP_LIST_TAG)))
 
-    private fun show() {
-        composeTestRule.setContent { HerdrJumpContent(targets, onPick = { picked += it }) }
+    private fun show(recent: List<String> = emptyList()) {
+        composeTestRule.setContent { HerdrJumpContent(items, recent, onPick = { picked += it }) }
         composeTestRule.waitForIdle()
     }
 
@@ -65,7 +65,7 @@ class HerdrJumpPickerTest {
         // Tab 3 of ~Demo has a blocked grok: first row.
         rows()[0].assertIsDisplayed()
         composeTestRule.onAllNodesWithText("GROK · NEEDS YOU").assertCountEquals(2)
-        composeTestRule.onAllNodesWithText("~Demo · default").fetchSemanticsNodes().let { assert(it.isNotEmpty()) }
+        composeTestRule.onAllNodesWithText("~Demo").fetchSemanticsNodes().let { assert(it.isNotEmpty()) }
     }
 
     @Test
@@ -75,11 +75,12 @@ class HerdrJumpPickerTest {
         composeTestRule.onNodeWithTag(HERDR_JUMP_SEARCH_TAG).performTextInput("gamma")
         composeTestRule.waitForIdle()
         rows().assertCountEquals(1)
-        composeTestRule.onNodeWithText("gamma · work").assertIsDisplayed()
+        composeTestRule.onNodeWithText("GAMMATAB · box").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Matches").assertIsDisplayed()
         rows()[0].performClick()
 
-        assertEquals(listOf("work" to "w3:t1"), picked.map { it.session to it.tabId })
-        assertEquals(listOf("w3:p1"), picked.map { it.paneId })
+        assertEquals(listOf("work" to "w3:t1"), picked.map { it.target!!.session to it.target!!.tabId })
+        assertEquals(listOf("w3:p1"), picked.map { it.target!!.paneId })
     }
 
     @Test
@@ -101,5 +102,13 @@ class HerdrJumpPickerTest {
         composeTestRule.waitForIdle()
         rows().assertCountEquals(0)
         composeTestRule.onNodeWithText("No pane matches").assertIsDisplayed()
+    }
+
+    @Test
+    fun emptySearch_showsRecentThenAll() {
+        show(recent = listOf(items.last().key))
+
+        composeTestRule.onNodeWithText("Recent").assertIsDisplayed()
+        composeTestRule.onNodeWithText("All").assertIsDisplayed()
     }
 }

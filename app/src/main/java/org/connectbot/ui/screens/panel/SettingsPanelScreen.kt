@@ -17,6 +17,8 @@
 
 package org.connectbot.ui.screens.panel
 
+import android.content.Intent
+import android.content.SharedPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,6 +49,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,8 +65,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
+import org.connectbot.BuildConfig
 import org.connectbot.R
+import org.connectbot.ui.common.getLocalizedFontDisplayName
 import org.connectbot.ui.components.KeyBarSettingsSection
 import org.connectbot.ui.components.KeyBarStore
 import org.connectbot.ui.components.OrmusGroup
@@ -93,6 +100,13 @@ fun SettingsPanelScreen(
     var inbox by remember { mutableStateOf(HomeStart.inboxOn(prefs)) }
     var core by remember { mutableStateOf(HomeStart.coreOn(prefs)) }
     val planet = rememberPlanet()
+    var keyBarKeys by remember { mutableStateOf(keyBarCount(prefs)) }
+    DisposableEffect(prefs) {
+        // The key bar section in this panel saves to the same prefs; the value follows it.
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> keyBarKeys = keyBarCount(prefs) }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     SettingsPanelContent(
         planet = planet,
@@ -116,6 +130,15 @@ fun SettingsPanelScreen(
             core = on
             prefs.edit { putBoolean(PreferenceConstants.HERDR_CORE, on) }
         },
+        fontName = getLocalizedFontDisplayName(prefs.getString(PreferenceConstants.FONT_FAMILY, null)),
+        keyBarKeys = keyBarKeys,
+        onSendFeedback = {
+            val body = FeedbackText.body(BuildConfig.VERSION_NAME, prefs.getString(PreferenceConstants.HERDR_CORE_VERSION, null))
+            val mail = Intent(Intent.ACTION_SENDTO, "mailto:".toUri())
+                .putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.settings_panel_feedback_subject))
+                .putExtra(Intent.EXTRA_TEXT, body)
+            context.startActivity(Intent.createChooser(mail, context.getString(R.string.settings_panel_feedback_chooser)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        },
         onNavigateBack = onNavigateBack,
         onAllSettings = {
             usage.log(UsageActions.PANEL_ALL_SETTINGS)
@@ -125,6 +148,9 @@ fun SettingsPanelScreen(
         modifier = modifier,
     )
 }
+
+/** The keys on his bar, or null while the custom bar is off. */
+private fun keyBarCount(prefs: SharedPreferences): Int? = KeyBarStore(prefs).let { if (it.enabled) it.layout.pages.sumOf { page -> page.size } else null }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,6 +163,9 @@ fun SettingsPanelContent(
     onAllSettings: () -> Unit,
     modifier: Modifier = Modifier,
     keyBar: @Composable () -> Unit = {},
+    fontName: String = "",
+    keyBarKeys: Int? = null,
+    onSendFeedback: () -> Unit = {},
     inbox: Boolean = false,
     onInboxChange: ((Boolean) -> Unit)? = null,
     core: Boolean = false,
@@ -164,8 +193,10 @@ fun SettingsPanelContent(
             verticalArrangement = Arrangement.spacedBy(Ormus.spacing.lg),
         ) {
             // Muted section labels: the picked planet and the switch carry the accent.
-            OrmusGroup(label = stringResource(R.string.settings_panel_theme), modifier = Modifier.testTag(THEME_GROUP_TAG)) {
+            OrmusGroup(label = stringResource(R.string.settings_panel_look), modifier = Modifier.testTag(LOOK_GROUP_TAG)) {
+                row { ValueRow(R.string.settings_panel_theme, stringResource(planet.label), valueTag = THEME_VALUE_TAG) }
                 row { PlanetPicker(picked = planet, onPick = onPlanetChange, modifier = Modifier.padding(Ormus.spacing.md)) }
+                row { ValueRow(R.string.settings_panel_font, fontName, FONT_ROW_TAG, FONT_VALUE_TAG, onClick = onAllSettings) }
             }
             OrmusGroup(label = stringResource(R.string.settings_panel_compose_bar), modifier = Modifier.testTag(COMPOSE_GROUP_TAG)) {
                 row {
@@ -183,6 +214,13 @@ fun SettingsPanelContent(
                         modifier = Modifier
                             .testTag(ENTER_NEW_LINE_TAG)
                             .toggleable(value = enterNewLine, role = Role.Switch, onValueChange = onEnterNewLineChange),
+                    )
+                }
+                row {
+                    ValueRow(
+                        R.string.settings_panel_key_bar,
+                        keyBarKeys?.let { stringResource(R.string.settings_panel_key_bar_count, it) } ?: stringResource(R.string.settings_panel_key_bar_off),
+                        valueTag = KEY_BAR_VALUE_TAG,
                     )
                 }
                 row { keyBar() }
@@ -205,9 +243,34 @@ fun SettingsPanelContent(
                             .clickable(onClick = onAllSettings),
                     )
                 }
+                row { ValueRow(R.string.settings_panel_feedback, "", FEEDBACK_ROW_TAG, onClick = onSendFeedback) }
             }
         }
     }
+}
+
+/** One row of a card: the name at the left, the current [value] at the right and, when the row opens something, a chevron. */
+@Composable
+private fun ValueRow(title: Int, value: String, rowTag: String? = null, valueTag: String? = null, onClick: (() -> Unit)? = null) {
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(stringResource(title)) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (value.isNotEmpty()) {
+                    Text(
+                        value,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = if (valueTag != null) Modifier.testTag(valueTag) else Modifier,
+                    )
+                }
+                if (onClick != null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            }
+        },
+        modifier = Modifier
+            .then(if (rowTag != null) Modifier.testTag(rowTag) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    )
 }
 
 @Composable
@@ -266,6 +329,11 @@ internal const val CORE_SWITCH_TAG = "panel_core_switch"
 internal const val INBOX_GROUP_TAG = "panel_inbox_group"
 internal const val ALL_SETTINGS_TAG = "panel_all_settings"
 
-internal const val THEME_GROUP_TAG = "panel_theme_group"
+internal const val LOOK_GROUP_TAG = "panel_look_group"
+internal const val THEME_VALUE_TAG = "panel_theme_value"
+internal const val FONT_ROW_TAG = "panel_font_row"
+internal const val FONT_VALUE_TAG = "panel_font_value"
+internal const val KEY_BAR_VALUE_TAG = "panel_key_bar_value"
+internal const val FEEDBACK_ROW_TAG = "panel_feedback_row"
 internal const val COMPOSE_GROUP_TAG = "panel_compose_group"
 internal const val MORE_GROUP_TAG = "panel_more_group"

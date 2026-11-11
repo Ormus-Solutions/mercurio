@@ -25,9 +25,11 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -47,6 +49,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 
 /** The settings panel behind the console's gear: the planet picker, the Enter switch and the way on to all settings. */
 @RunWith(AndroidJUnit4::class)
@@ -117,7 +120,7 @@ class SettingsPanelScreenTest {
         setPanel()
         Planet.entries.forEach { composeTestRule.onNodeWithTag(planetTag(it)).assertExists() }
         listOf("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn").forEach {
-            composeTestRule.onNodeWithText(it).assertExists()
+            assertTrue(it, composeTestRule.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty())
         }
     }
 
@@ -136,8 +139,8 @@ class SettingsPanelScreenTest {
     fun eachKindOfSetting_isInItsOwnLabeledGroup() {
         setPanel()
 
-        listOf("Theme", "Compose bar", "More").forEach { composeTestRule.onNodeWithText(it).assertExists() }
-        Planet.entries.forEach { inGroup(planetTag(it), THEME_GROUP_TAG) }
+        listOf("Look", "Compose bar", "More").forEach { composeTestRule.onNodeWithText(it).assertExists() }
+        Planet.entries.forEach { inGroup(planetTag(it), LOOK_GROUP_TAG) }
         inGroup(ENTER_NEW_LINE_TAG, COMPOSE_GROUP_TAG)
         inGroup(ALL_SETTINGS_TAG, MORE_GROUP_TAG)
     }
@@ -169,5 +172,69 @@ class SettingsPanelScreenTest {
         setPanel()
         composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOff()
         composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOff()
+    }
+
+    @Test
+    fun eachSettingRow_showsItsCurrentValueOnTheRight() {
+        prefs.edit().putString(PreferenceConstants.PLANET, "saturn").commit()
+        setPanel()
+
+        composeTestRule.onNodeWithTag(THEME_VALUE_TAG, useUnmergedTree = true).assertTextContains("Saturn")
+        composeTestRule.onNodeWithTag(FONT_ROW_TAG, useUnmergedTree = true).assertExists()
+        composeTestRule.onNodeWithTag(FONT_VALUE_TAG, useUnmergedTree = true).assertTextContains("Default (Monospace)")
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("Off")
+    }
+
+    @Test
+    fun theKeyBarValue_countsTheKeysOfTheCustomBar() {
+        prefs.edit().putBoolean(PreferenceConstants.KEY_BAR_CUSTOM, true).commit()
+        setPanel()
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("18 keys")
+    }
+
+    @Test
+    fun theFontRow_opensAllSettings() {
+        var opened = false
+        setPanel(onAllSettings = { opened = true })
+        composeTestRule.onNodeWithTag(FONT_ROW_TAG).performClick()
+        assertTrue(opened)
+    }
+
+    @Test
+    fun sendFeedback_opensAMailIntent_withVersionsOnly() {
+        prefs.edit().putString(PreferenceConstants.HERDR_CORE_VERSION, "0.1.20").commit()
+        setPanel()
+
+        composeTestRule.onNodeWithTag(FEEDBACK_ROW_TAG).performClick()
+
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val chooser = shadowOf(app).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_CHOOSER, chooser.action)
+        val intent = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        assertEquals(android.content.Intent.ACTION_SENDTO, intent.action)
+        assertEquals("mailto", intent.data?.scheme)
+        val text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT).orEmpty()
+        assertTrue(text.contains("herdr-core 0.1.20"))
+        assertTrue(text.contains(org.connectbot.BuildConfig.VERSION_NAME))
+    }
+
+    @Test
+    fun feedbackAndValueRows_areInLabeledGroups() {
+        setPanel()
+        listOf("Look", "Compose bar", "More").forEach { composeTestRule.onNodeWithText(it).assertExists() }
+        inGroup(FONT_ROW_TAG, LOOK_GROUP_TAG)
+        inGroup(KEY_BAR_VALUE_TAG, COMPOSE_GROUP_TAG)
+        inGroup(FEEDBACK_ROW_TAG, MORE_GROUP_TAG)
+    }
+
+    @Test
+    fun theKeyBarValue_followsTheSwitchInThePanel() {
+        setPanel()
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("Off")
+
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.KEY_BAR_SWITCH_TAG).performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("18 keys")
     }
 }

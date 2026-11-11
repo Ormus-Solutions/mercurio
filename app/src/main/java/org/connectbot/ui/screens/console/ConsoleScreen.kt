@@ -202,6 +202,7 @@ import org.connectbot.util.rememberTerminalTypefaceResultFromStoredValue
 import solutions.ormus.logos.commands.PaletteScreen
 import solutions.ormus.logos.commands.SlashCommand
 import solutions.ormus.logos.herd.AgentsBoard
+import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdResult
 import solutions.ormus.logos.herd.HerdView
@@ -1247,6 +1248,10 @@ fun ConsoleScreen(
                                             { onNavigateToRoute(NavDestinations.INBOX) }
                                         } else {
                                             null
+                                        },
+                                        // A core terminal picked on the Jump sheet opens as the Inbox opens it.
+                                        onJumpCore = { row ->
+                                            onNavigateToRoute(NavDestinations.console(row.hostId, row.console, CoreWatch.target(row.agent)))
                                         },
                                         boardOpen = boardBridge != null,
                                         // Herdr key once the session's Herdr side is up.

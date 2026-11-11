@@ -17,18 +17,21 @@
 
 package org.connectbot.ui.screens.herd
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,65 +46,103 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.connectbot.R
 import org.connectbot.ui.components.DotStyle
-import org.connectbot.ui.components.KEY_HEIGHT
-import org.connectbot.ui.components.KEY_SHAPE
-import org.connectbot.ui.components.KeyTone
+import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.StatusChip
-import org.connectbot.ui.components.WORD_KEY_PADDING
-import org.connectbot.ui.components.keyBorder
-import org.connectbot.ui.components.keyColors
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusMono
+import solutions.ormus.logos.herd.AgentState
+import solutions.ormus.logos.herd.CoreSource
 import solutions.ormus.logos.herd.HerdSession
-import solutions.ormus.logos.herd.HerdrAgentStatus
 import solutions.ormus.logos.herd.HerdrCommands
 import solutions.ormus.logos.herd.HerdrJump
-import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.Inbox
+import solutions.ormus.logos.herd.InboxRow
+import solutions.ormus.logos.herd.JumpRecents
+import solutions.ormus.logos.herd.JumpSheet
+import java.util.concurrent.ConcurrentHashMap
 
 /** Test tag on the Jump to search field. */
 const val HERDR_JUMP_SEARCH_TAG = "herdr_jump_search"
 
+// One CoreSource per host for the life of the process: it remembers when each terminal entered
+// its state, so the sheet ranks core rows as the Inbox does, and skips the version probe after the first.
+private val coreSources = ConcurrentHashMap<Long, CoreSource>()
+
 /** Test tag on the Jump to list. */
 const val HERDR_JUMP_LIST_TAG = "herdr_jump_list"
 
-/** The tallest the list gets before it scrolls, so the terminal stays in view. */
-private val JUMP_LIST_MAX_HEIGHT = 300.dp
-
 /**
- * Jump to: every pane of every running Herdr session, the ones that need the user first,
- * with a search field on top that takes the keyboard as it opens, so the first thing typed
- * narrows the list. Opening it lists the sessions and fetches each one's snapshot again; a
- * tap hands the pane to [onPick].
+ * Jump to as a bottom sheet: a search field on top that takes the keyboard as it opens; empty,
+ * a Recent group (the panes he jumped to last) then all the rows; typed into, a Matches group.
+ * Opening it lists the sessions and fetches each one's snapshot again, and, when [core] is on,
+ * reads the host's herdr-core terminals once. A tap hands the row to [onPick] and keeps it in
+ * [recents].
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HerdrJumpPicker(session: HerdSession, onPick: (JumpTarget) -> Unit, modifier: Modifier = Modifier) {
+fun HerdrJumpPicker(
+    session: HerdSession,
+    host: String,
+    hostId: Long,
+    core: Boolean,
+    recents: JumpRecents,
+    onPick: (JumpSheet.Item) -> Unit,
+    onDismiss: () -> Unit,
+) {
     val sessions by session.sessions.collectAsState()
     val primary by session.snapshot.collectAsState()
     val others by session.others.collectAsState()
+    var coreRows by remember(session) { mutableStateOf<List<InboxRow>>(emptyList()) }
     LaunchedEffect(session) { session.refreshAll() }
+    LaunchedEffect(session, core) {
+        if (!core) return@LaunchedEffect
+        val read = withContext(Dispatchers.IO) { coreSources.getOrPut(hostId) { CoreSource() }.read(true, host, System.currentTimeMillis(), session::exec) }
+        coreRows = Inbox.fromCore(hostId, host, read).rows
+    }
     val snapshots = buildMap {
         primary?.let { put(HerdrCommands.DEFAULT_SESSION, it) }
         putAll(others.filterKeys { it in sessions })
     }
-    HerdrJumpContent(HerdrJump.targets(snapshots), onPick, modifier)
+    val items = remember(snapshots, host, coreRows) { JumpSheet.items(HerdrJump.targets(snapshots), host, coreRows) }
+    // Read once as the sheet opens: the order he left it in does not shift under his thumb.
+    val recent = remember { recents.load() }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = OrmusCornerShape,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        HerdrJumpContent(
+            items = items,
+            recent = recent,
+            onPick = { item ->
+                recents.record(item.key)
+                onPick(item)
+            },
+        )
+    }
 }
 
 @Composable
-fun HerdrJumpContent(targets: List<JumpTarget>, onPick: (JumpTarget) -> Unit, modifier: Modifier = Modifier) {
+fun HerdrJumpContent(items: List<JumpSheet.Item>, recent: List<String>, onPick: (JumpSheet.Item) -> Unit, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
-    val shown = remember(targets, query) { HerdrJump.filter(targets, query) }
+    val sections = remember(items, recent, query) { JumpSheet.sections(items, recent, query) }
     val searchFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { searchFocus.requestFocus() }
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .imePadding()
+            .padding(horizontal = Ormus.spacing.lg, vertical = Ormus.spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Ormus.spacing.md),
     ) {
         OutlinedTextField(
             value = query,
@@ -115,74 +156,75 @@ fun HerdrJumpContent(targets: List<JumpTarget>, onPick: (JumpTarget) -> Unit, mo
                 .focusRequester(searchFocus)
                 .testTag(HERDR_JUMP_SEARCH_TAG),
         )
-        if (shown.isEmpty()) {
+        if (sections.isEmpty()) {
             Text(stringResource(R.string.herdr_jump_none), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        LazyColumn(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = JUMP_LIST_MAX_HEIGHT)
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
                 .testTag(HERDR_JUMP_LIST_TAG),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(Ormus.spacing.lg),
         ) {
-            items(shown, key = { "${it.session}/${it.tabId}/${it.paneId}" }) { target -> JumpRow(target) { onPick(target) } }
+            sections.forEach { section ->
+                val label = when (section.group) {
+                    JumpSheet.Group.RECENT -> R.string.herdr_jump_recent
+                    JumpSheet.Group.ALL -> R.string.herdr_jump_all
+                    JumpSheet.Group.MATCHES -> R.string.herdr_jump_matches
+                }
+                OrmusGroup(label = stringResource(label)) {
+                    section.items.forEach { item -> row(item.key) { JumpRow(item) { onPick(item) } } }
+                }
+            }
         }
     }
 }
 
-/** One pane: its tab's name, its title when the name lacks it, then its workspace and session, and its agent's kind and state on the right. */
+/** One pane: its space, then `tab · host`, then its title when the tab's name lacks it; its agent's kind and state on the right. */
 @Composable
-private fun JumpRow(target: JumpTarget, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
+private fun JumpRow(item: JumpSheet.Item, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.md),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = KEY_HEIGHT),
-        shape = KEY_SHAPE,
-        colors = keyColors(KeyTone.PLAIN),
-        border = keyBorder(KeyTone.PLAIN),
-        contentPadding = WORD_KEY_PADDING,
+            .clickable(onClick = onClick)
+            .padding(horizontal = Ormus.spacing.lg, vertical = Ormus.spacing.md),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.space, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                item.second,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            item.third?.let { title ->
                 Text(
-                    target.tabLabel.ifBlank { target.tabNumber.toString() },
-                    fontFamily = OrmusMono,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                target.titleLine?.let { title ->
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = OrmusMono,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Text(
-                    stringResource(R.string.herdr_jump_place, target.workspaceLabel.ifBlank { target.workspaceNumber.toString() }, target.session),
+                    title,
                     style = MaterialTheme.typography.labelSmall,
+                    fontFamily = OrmusMono,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            AgentChip(target.agent, target.state)
         }
+        AgentChip(item.agent.kind, item.agent.state)
     }
 }
 
-/** The tab's agent and its state as the Herd's chip; nothing for a tab without either. */
+/** The agent and its state as the Herd's chip; nothing for a pane without either. */
 @Composable
-private fun AgentChip(agent: String?, state: HerdrAgentStatus) {
+private fun AgentChip(agent: String?, state: AgentState) {
     val status = Ormus.extras.status
     val (word, color, style) = when (state) {
-        HerdrAgentStatus.BLOCKED -> Triple(stringResource(R.string.herd_status_blocked), status.blocked, DotStyle.FILLED)
-        HerdrAgentStatus.WORKING -> Triple(stringResource(R.string.herd_status_working), status.working, DotStyle.RING)
-        HerdrAgentStatus.DONE -> Triple(stringResource(R.string.herd_status_done), status.done, DotStyle.FILLED)
-        HerdrAgentStatus.IDLE -> Triple(stringResource(R.string.herd_status_idle), status.idle, DotStyle.HOLLOW)
-        HerdrAgentStatus.UNKNOWN -> if (agent == null) return else Triple(null, status.idle, DotStyle.HOLLOW)
+        is AgentState.NeedsYou -> Triple(stringResource(R.string.herd_status_blocked), status.blocked, DotStyle.FILLED)
+        AgentState.Working -> Triple(stringResource(R.string.herd_status_working), status.working, DotStyle.RING)
+        AgentState.Done -> Triple(stringResource(R.string.herd_status_done), status.done, DotStyle.FILLED)
+        AgentState.Idle -> Triple(stringResource(R.string.herd_status_idle), status.idle, DotStyle.HOLLOW)
+        AgentState.Unknown -> if (agent == null) return else Triple(null, status.idle, DotStyle.HOLLOW)
     }
     StatusChip(listOfNotNull(agent, word).joinToString(" · "), color, style = style)
 }

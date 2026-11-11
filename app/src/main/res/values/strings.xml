@@ -1246,10 +1246,14 @@
 	<string name="herdr_jump_open">Jump to…</string>
 	<!-- Herdr Jump to: placeholder of the search field above the list of panes -->
 	<string name="herdr_jump_search">Search panes: title, agent, folder, tab, workspace</string>
+	<!-- Herdr Jump to sheet: group label over the panes he jumped to last -->
+	<string name="herdr_jump_recent">Recent</string>
+	<!-- Herdr Jump to sheet: group label over the other panes, with an empty search -->
+	<string name="herdr_jump_all">All</string>
+	<!-- Herdr Jump to sheet: group label over the panes the search found -->
+	<string name="herdr_jump_matches">Matches</string>
 	<!-- Herdr Jump to: shown when no pane matches the search -->
 	<string name="herdr_jump_none">No pane matches</string>
-	<!-- Herdr Jump to: where a tab lives under its name; %1$s is the workspace, %2$s the Herdr session -->
-	<string name="herdr_jump_place">%1$s · %2$s</string>
 	<!-- Herdr Jump to: the tab was focused in another Herdr session, but the terminal cannot switch to it because the post-login command runs exec herdr; %1$s is the session -->
 	<string name="herdr_jump_exec">Focused in %1$s. The terminal stays here: its post-login runs exec herdr, so detaching would end the session.</string>
 	<!-- Herdr Jump to: the tab was focused in another Herdr session, but the host binds Herdr's detach to no key Mercurio can send; %1$s is the session -->
@@ -2119,6 +2123,14 @@
 	<string name="settings_panel_enter_new_line">Enter starts a new line</string>
 	<string name="settings_panel_enter_new_line_on">Enter adds a line. The ⏎ key on the bar sends.</string>
 	<string name="settings_panel_enter_new_line_off">Enter sends, like the ⏎ key on the bar.</string>
+	<string name="settings_panel_look">Look</string>
+	<string name="settings_panel_font">Font</string>
+	<string name="settings_panel_key_bar">Key bar</string>
+	<string name="settings_panel_key_bar_off">Off</string>
+	<string name="settings_panel_key_bar_count">%1$d keys</string>
+	<string name="settings_panel_feedback">Send feedback</string>
+	<string name="settings_panel_feedback_subject">Mercurio feedback</string>
+	<string name="settings_panel_feedback_chooser">Send feedback with</string>
 	<string name="settings_panel_more">More</string>
 	<string name="settings_panel_all_settings">All settings</string>
 	<string name="settings_panel_all_settings_summary">Terminal, keyboard, fonts and connections</string>

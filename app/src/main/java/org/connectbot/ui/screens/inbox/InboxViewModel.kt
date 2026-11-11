@@ -18,6 +18,7 @@
 package org.connectbot.ui.screens.inbox
 
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +32,7 @@ import kotlinx.coroutines.withContext
 import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalManager
 import org.connectbot.ui.screens.herd.boardSnapshots
+import org.connectbot.ui.screens.panel.FeedbackText
 import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.AgentsBoard
@@ -116,6 +118,9 @@ class InboxViewModel @Inject constructor(
                         val read = withContext(dispatchers.io) { source.read(true, host.nickname, System.currentTimeMillis(), herd::exec) }
                         probes[host.id] = read
                         HomeStart.noteProbes(prefs, probes.values)
+                        FeedbackText.coreVersionOf(source.version.orEmpty())?.let { v ->
+                            if (prefs.getString(PreferenceConstants.HERDR_CORE_VERSION, null) != v) prefs.edit { putString(PreferenceConstants.HERDR_CORE_VERSION, v) }
+                        }
                         Inbox.fromCore(host.id, host.nickname, read)
                     } catch (e: CancellationException) {
                         throw e

@@ -58,6 +58,10 @@ class CoreSource {
     // The --version probe answered once; it is not asked again until a read fails, so a poll is one command.
     private var installed = false
 
+    /** What the last `--version` answer said, first line, or null before one did. */
+    var version: String? = null
+        private set
+
     /**
      * Read the host's terminals.
      *
@@ -75,11 +79,12 @@ class CoreSource {
         if (!enabled) return Result.Off
 
         if (!installed) {
-            val version = run(HerdrApi.loginShell(VERSION_CMD))
+            val answer = run(HerdrApi.loginShell(VERSION_CMD))
                 ?: return Result.Unavailable("could not reach the host")
-            if (version.exitCode != 0 || version.stdout.isBlank()) {
+            if (answer.exitCode != 0 || answer.stdout.isBlank()) {
                 return Result.Unavailable(NOT_INSTALLED)
             }
+            version = answer.stdout.lineSequence().firstOrNull()?.trim()
             installed = true
         }
 

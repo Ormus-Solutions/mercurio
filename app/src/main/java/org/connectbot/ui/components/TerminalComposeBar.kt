@@ -101,6 +101,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -133,7 +134,10 @@ import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdrKey
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSessionSnapshot
+import solutions.ormus.logos.herd.InboxRow
+import solutions.ormus.logos.herd.JumpRecents
 import solutions.ormus.logos.herd.SendResult
+import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.terminal.BracketedPaste
 
 // Control bytes built from code points so no raw control chars live in the source.
@@ -634,6 +638,8 @@ fun TerminalComposeBar(
     readRecentOutput: suspend () -> String = { withContext(Dispatchers.IO) { RecentOutput.read(bridge).text } },
     /** The agent's last reply, for the copy key; null when there is none. */
     readLastReply: suspend () -> String? = { withContext(Dispatchers.IO) { LastReply.read(bridge) } },
+    /** Opens a herdr-core terminal picked on the Jump sheet (a console that watches it); null leaves such rows out of the sheet's pick. */
+    onJumpCore: ((InboxRow) -> Unit)? = null,
     /** His own paged keys, shown above the default rows; null (the setting is off) leaves the bar as it was. */
     keyBar: KeyBarLayout? = null,
 ) {
@@ -1116,30 +1122,28 @@ fun TerminalComposeBar(
                 }
             }
         }
-        AnimatedVisibility(
-            visible = herdrJump && herd != null,
-            enter = fadeIn(tween(Ormus.motion.FAST_MS)),
-            exit = fadeOut(tween(Ormus.motion.FAST_MS)),
-        ) {
-            if (herd != null) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .ormusPanelTop()
-                        .testTag(HERDR_JUMP_TEST_TAG),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                ) {
-                    HerdrJumpPicker(
-                        session = herd,
-                        onPick = { target ->
-                            usage.log(UsageActions.HERDR_JUMP_PICK)
-                            herdrJumpOpen = false
-                            // The row's pane too, when an agent runs in it (Herdr focuses agents by pane id).
-                            bridge.jumpToHerdrTab(target, target.paneId?.takeIf { target.agent != null })?.let { why -> Toast.makeText(context, why, Toast.LENGTH_LONG).show() }
-                        },
-                    )
-                }
-            }
+        if (herdrJump && herd != null) {
+            val jumpPrefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
+            HerdrJumpPicker(
+                session = herd,
+                host = bridge.host.nickname,
+                hostId = bridge.host.id,
+                core = HomeStart.coreOn(jumpPrefs),
+                recents = remember(jumpPrefs) { JumpRecents(jumpPrefs) },
+                onDismiss = { herdrJumpOpen = false },
+                onPick = { item ->
+                    usage.log(UsageActions.HERDR_JUMP_PICK)
+                    herdrJumpOpen = false
+                    val target = item.target
+                    val core = item.core
+                    when {
+                        // The row's pane too, when an agent runs in it (Herdr focuses agents by pane id).
+                        target != null -> bridge.jumpToHerdrTab(target, target.paneId?.takeIf { target.agent != null })?.let { why -> Toast.makeText(context, why, Toast.LENGTH_LONG).show() }
+
+                        core != null -> onJumpCore?.invoke(core)
+                    }
+                },
+            )
         }
         Surface(
             modifier = Modifier
@@ -1335,9 +1339,6 @@ internal fun NeedsYouKey(waiting: Int, onClick: () -> Unit, onLongClick: () -> U
 
 /** Stands in for a missing Herdr side's keys: Herdr's defaults. */
 private val DEFAULT_HERDR_KEYS: StateFlow<HerdrKeys> = MutableStateFlow(HerdrKeys.DEFAULT)
-
-/** Test tag on the open Jump to list. */
-internal const val HERDR_JUMP_TEST_TAG = "composeBarHerdrJump"
 
 /** Test tag on the open Herdr panel. */
 internal const val HERDR_PANEL_TEST_TAG = "composeBarHerdrPanel"

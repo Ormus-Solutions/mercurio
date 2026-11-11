@@ -574,6 +574,14 @@
   <string name="settings_panel_enter_new_line">Enter baja de línea</string>
   <string name="settings_panel_enter_new_line_on">Enter agrega una línea. La tecla ⏎ de la barra envía.</string>
   <string name="settings_panel_enter_new_line_off">Enter envía, igual que la tecla ⏎ de la barra.</string>
+  <string name="settings_panel_look">Aspecto</string>
+  <string name="settings_panel_font">Fuente</string>
+  <string name="settings_panel_key_bar">Barra de teclas</string>
+  <string name="settings_panel_key_bar_off">Desactivada</string>
+  <string name="settings_panel_key_bar_count">%1$d teclas</string>
+  <string name="settings_panel_feedback">Enviar comentarios</string>
+  <string name="settings_panel_feedback_subject">Comentarios sobre Mercurio</string>
+  <string name="settings_panel_feedback_chooser">Enviar comentarios con</string>
   <string name="settings_panel_all_settings">Todos los ajustes</string>
   <string name="settings_panel_all_settings_summary">Terminal, teclado, fuentes y conexiones</string>
   <!-- The settings panel's theme: one per classical planet. -->
