@@ -1,6 +1,6 @@
 {
   "$comment": "Ormus fusion tokens for places CSS variables cannot reach: canvas, WebGL, Python, slide tools. Values match tokens.css; test/tokens.test.mjs enforces it.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "color": {
     "midnight": "#14213d",
     "deep": "#0e1830",
@@ -103,5 +103,16 @@
       1
     ]
   },
-  "radius": "3px"
+  "radius": "8px",
+  "radiusContainer": "14px",
+  "radiusPill": "999px",
+  "accents": {
+    "$comment": "Identity accents beside gold: they mark what a thing is (a space tile, an author), never state alone. A deep letter reads on each at 6.6:1 or more; each reads on midnight at 6:1 or more. They stand for no planet.",
+    "rose": "#e0849a",
+    "teal": "#4fbcae",
+    "leaf": "#86c272",
+    "ember": "#e8955f",
+    "sky": "#78a6ee",
+    "iris": "#ad92e6"
+  }
 }

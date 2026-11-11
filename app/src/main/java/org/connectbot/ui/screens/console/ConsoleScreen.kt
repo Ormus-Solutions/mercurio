@@ -169,6 +169,7 @@ import org.connectbot.ui.components.DictationDraft
 import org.connectbot.ui.components.DraftDialog
 import org.connectbot.ui.components.HerdrOpenWorkspaceSheet
 import org.connectbot.ui.components.InlinePrompt
+import org.connectbot.ui.components.KeyBarStore
 import org.connectbot.ui.components.ResizeDialog
 import org.connectbot.ui.components.SessionDrawer
 import org.connectbot.ui.components.TerminalComposeBar
@@ -339,6 +340,7 @@ fun ConsoleScreen(
     var titleBarHide by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false)) }
     // Read again each time the console comes back from the settings panel.
     val enterNewLine = remember { prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false) }
+    val keyBar = remember { KeyBarStore(prefs).takeIf { it.enabled }?.layout }
     val volumeKeysChangeFontSize = remember { prefs.getBoolean(PreferenceConstants.VOLUME_FONT, true) }
     val keepScreenAwake = remember { prefs.getBoolean(PreferenceConstants.KEEP_ALIVE, true) }
 
@@ -1252,6 +1254,7 @@ fun ConsoleScreen(
                                         },
                                         draft = dictationDraft,
                                         enterNewLine = enterNewLine,
+                                        keyBar = keyBar,
                                         modifier = barModifier,
                                     )
                                 },

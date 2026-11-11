@@ -62,6 +62,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import org.connectbot.R
+import org.connectbot.ui.components.KeyBarSettingsSection
+import org.connectbot.ui.components.KeyBarStore
 import org.connectbot.ui.components.MonoLabel
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.Planet
@@ -104,6 +106,7 @@ fun SettingsPanelScreen(
             usage.log(UsageActions.PANEL_ALL_SETTINGS)
             onNavigateToAllSettings()
         },
+        keyBar = { KeyBarSettingsSection(remember(prefs) { KeyBarStore(prefs) }) },
         modifier = modifier,
     )
 }
@@ -118,6 +121,7 @@ fun SettingsPanelContent(
     onNavigateBack: () -> Unit,
     onAllSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    keyBar: @Composable () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -167,6 +171,8 @@ fun SettingsPanelContent(
                     .testTag(ENTER_NEW_LINE_TAG)
                     .toggleable(value = enterNewLine, role = Role.Switch, onValueChange = onEnterNewLineChange),
             )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            keyBar()
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_panel_all_settings)) },

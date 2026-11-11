@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Key bar: his own paged keys above the compose bar, edited in the settings panel. -->
+<resources>
+	<!-- Settings panel: the switch for the custom key bar -->
+	<string name="key_bar_custom">Custom key bar</string>
+	<string name="key_bar_custom_on">Your keys show above the compose bar</string>
+	<string name="key_bar_custom_off">Off: the compose bar stays as it is</string>
+	<!-- Settings panel: opens the editor; %1$d is the number of keys, %2$d the number of pages -->
+	<string name="key_bar_edit">Edit key bar</string>
+	<string name="key_bar_edit_summary">%1$d keys in %2$d pages</string>
+	<!-- Editor: page chip; %1$d is the page number -->
+	<string name="key_bar_page">Page %1$d</string>
+	<string name="key_bar_add_page">Add page</string>
+	<!-- Editor: removes the page picked; %1$d is its number -->
+	<string name="key_bar_remove_page">Remove page %1$d</string>
+	<string name="key_bar_reset">Reset</string>
+	<string name="key_bar_empty_page">No keys on this page. Add some below.</string>
+	<string name="key_bar_add_key">Add a key</string>
+	<!-- Editor: screen reader names for the row buttons; %1$s is the key -->
+	<string name="key_bar_move_up">Move %1$s up</string>
+	<string name="key_bar_move_down">Move %1$s down</string>
+	<string name="key_bar_remove">Remove %1$s</string>
+	<!-- Key bar: the key that turns to the next page -->
+	<!-- %1$d is the page shown, %2$d the number of pages -->
+	<string name="key_bar_next_page">Next page of keys, page %1$d of %2$d</string>
+	<string name="key_bar_page_full">This page is full</string>
+	<string name="key_bar_reset_confirm">Reset the key bar to the default keys?</string>
+</resources>

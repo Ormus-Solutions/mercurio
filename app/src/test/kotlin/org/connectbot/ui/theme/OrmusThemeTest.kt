@@ -78,6 +78,36 @@ class OrmusThemeTest {
             "onGold" to OrmusTokens.Print.OnGold,
         ).forEach { (key, value) -> assertEquals("print.$key", token("print", key).toArgb(), value.toArgb()) }
         assertEquals(tokens.getString("radius").removeSuffix("px").toFloat(), OrmusTokens.RADIUS_DP)
+        assertEquals(tokens.getString("radiusContainer").removeSuffix("px").toFloat(), OrmusTokens.RADIUS_CONTAINER_DP)
+        assertEquals(tokens.getString("radiusPill").removeSuffix("px").toFloat(), OrmusTokens.RADIUS_PILL_DP)
+    }
+
+    @Test
+    fun generatedAccents_matchVendoredJson() {
+        val json = tokens.getJSONObject("accents")
+        val generated = mapOf(
+            "rose" to OrmusTokens.Accents.Rose,
+            "teal" to OrmusTokens.Accents.Teal,
+            "leaf" to OrmusTokens.Accents.Leaf,
+            "ember" to OrmusTokens.Accents.Ember,
+            "sky" to OrmusTokens.Accents.Sky,
+            "iris" to OrmusTokens.Accents.Iris,
+        )
+        assertEquals(json.keys().asSequence().filterNot { it.startsWith("$") }.toSet(), generated.keys)
+        generated.forEach { (key, value) -> assertEquals("accents.$key", parseCss(json.getString(key)).toArgb(), value.toArgb()) }
+    }
+
+    @Test
+    fun shapes_followTheRadiusScale() {
+        val density = androidx.compose.ui.unit.Density(1f)
+        val box = androidx.compose.ui.geometry.Size(400f, 400f)
+        fun px(shape: androidx.compose.foundation.shape.CornerBasedShape) = shape.topStart.toPx(box, density)
+        assertEquals(OrmusTokens.RADIUS_DP, px(OrmusCornerShape))
+        assertEquals(OrmusTokens.RADIUS_CONTAINER_DP, px(OrmusContainerShape))
+        assertEquals(OrmusTokens.RADIUS_PILL_DP, px(OrmusPillShape))
+        assertEquals(OrmusTokens.RADIUS_DP, px(OrmusShapes.small))
+        assertEquals(OrmusTokens.RADIUS_CONTAINER_DP, px(OrmusShapes.medium))
+        assertEquals(OrmusTokens.RADIUS_CONTAINER_DP, px(OrmusShapes.extraLarge))
     }
 
     @Test

@@ -29,13 +29,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,11 +58,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
+import org.connectbot.ui.theme.OrmusContainerShape
 import org.connectbot.ui.theme.OrmusCornerShape
+import org.connectbot.ui.theme.OrmusTokens
 
 /** How a [StatusDot] is drawn: the shape is the second signal beside color. */
 enum class DotStyle {
@@ -135,8 +145,8 @@ fun StatusChip(
 }
 
 /**
- * The brand card: surface container, hairline border, a gold top hairline, the one
- * 3dp radius, and a 2dp lift while pressed on the reveal curve.
+ * The brand card: surface container, hairline border, a gold top hairline, the
+ * container radius, and a 2dp lift while pressed on the reveal curve.
  *
  * @param accent top hairline color; pass the status color to make a card speak
  * (for example gold at full strength for a blocked agent)
@@ -173,14 +183,14 @@ fun OrmusCard(
         Surface(
             onClick = onClick,
             modifier = lifted,
-            shape = OrmusCornerShape,
+            shape = OrmusContainerShape,
             color = container,
             border = border,
             interactionSource = interaction,
             content = body,
         )
     } else {
-        Surface(modifier = lifted, shape = OrmusCornerShape, color = container, border = border, content = body)
+        Surface(modifier = lifted, shape = OrmusContainerShape, color = container, border = border, content = body)
     }
 }
 
@@ -190,5 +200,165 @@ fun Modifier.ormusPanelTop(): Modifier {
     val accent = Ormus.extras.cardAccent
     return drawBehind {
         drawLine(accent, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
+    }
+}
+
+/** Builder for the rows of an [OrmusGroup]. */
+class OrmusGroupScope internal constructor() {
+    internal val rows = mutableListOf<@Composable () -> Unit>()
+
+    /** One row; the group draws an inset hairline between rows. */
+    fun row(content: @Composable () -> Unit) {
+        rows += content
+    }
+}
+
+/**
+ * A grouped section: a mono `/ SECTION` label over one container at the container
+ * radius, with the rows split by inset hairlines. Use one group per kind of thing;
+ * the rows keep their own click handling and padding.
+ */
+@Composable
+fun OrmusGroup(
+    label: String,
+    modifier: Modifier = Modifier,
+    rows: OrmusGroupScope.() -> Unit,
+) {
+    val scope = OrmusGroupScope().apply(rows)
+    Column(modifier = modifier.fillMaxWidth()) {
+        MonoLabel(text = label, modifier = Modifier.padding(start = Ormus.spacing.xs, bottom = Ormus.spacing.sm))
+        if (scope.rows.isNotEmpty()) {
+            Surface(
+                shape = OrmusContainerShape,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                border = BorderStroke(1.dp, Ormus.extras.hairline),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    scope.rows.forEachIndexed { index, row ->
+                        if (index > 0) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = Ormus.spacing.lg),
+                                thickness = 1.dp,
+                                color = Ormus.extras.hairline,
+                            )
+                        }
+                        row()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Who wrote a message. Each author has its own container tone, shape and side. */
+enum class BubbleAuthor {
+    /** The person using the app: right side, the highest surface tone. */
+    YOU,
+
+    /** The agent's reply: left side, the card tone. */
+    AGENT,
+
+    /** A tool step: a quiet mono line, the lowest tone. */
+    TOOL,
+
+    /** The pinned ask that waits for an answer: the one gold container. */
+    ASK,
+}
+
+/** Container, text, label and border colors for one author on a scheme. */
+internal data class BubbleTone(
+    val container: Color,
+    val content: Color,
+    val label: Color,
+    val border: Color,
+)
+
+internal fun bubbleTone(author: BubbleAuthor, scheme: ColorScheme): BubbleTone = when (author) {
+    BubbleAuthor.YOU -> BubbleTone(scheme.surfaceContainerHighest, scheme.onSurface, scheme.onSurfaceVariant, Color.Transparent)
+    BubbleAuthor.AGENT -> BubbleTone(scheme.surfaceContainer, scheme.onSurface, scheme.onSurfaceVariant, scheme.outlineVariant)
+    BubbleAuthor.TOOL -> BubbleTone(scheme.surfaceContainerLowest, scheme.onSurfaceVariant, scheme.onSurfaceVariant, scheme.outlineVariant)
+    BubbleAuthor.ASK -> BubbleTone(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.onPrimaryContainer, scheme.primary.copy(alpha = 0.7f))
+}
+
+/** The tail corner of YOU and AGENT bubbles, half the key radius. */
+private val BubbleTail = (OrmusTokens.RADIUS_DP / 2f).dp
+
+private fun bubbleShape(author: BubbleAuthor): RoundedCornerShape {
+    val big = OrmusTokens.RADIUS_CONTAINER_DP.dp
+    return when (author) {
+        BubbleAuthor.YOU -> RoundedCornerShape(big, big, BubbleTail, big)
+        BubbleAuthor.AGENT -> RoundedCornerShape(big, big, big, BubbleTail)
+        BubbleAuthor.TOOL -> OrmusCornerShape
+        BubbleAuthor.ASK -> OrmusContainerShape
+    }
+}
+
+/**
+ * A message container by author. YOU sits on the right, the others on the left; a
+ * bubble takes at most 88 percent of the row and shrinks to its content.
+ *
+ * @param label optional mono author line above the content
+ * @param accent an identity accent that colors the label (what the author is, never state);
+ * ignored for [BubbleAuthor.ASK], the gold container, where accents miss 4.5:1 on some planets
+ */
+@Composable
+fun OrmusBubble(
+    author: BubbleAuthor,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    accent: Color? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val tone = bubbleTone(author, MaterialTheme.colorScheme)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = if (author == BubbleAuthor.YOU) Arrangement.End else Arrangement.Start,
+    ) {
+        if (author == BubbleAuthor.YOU) Spacer(Modifier.weight(0.12f))
+        Surface(
+            shape = bubbleShape(author),
+            color = tone.container,
+            contentColor = tone.content,
+            border = if (tone.border == Color.Transparent) null else BorderStroke(1.dp, tone.border),
+            modifier = if (author == BubbleAuthor.TOOL) Modifier.fillMaxWidth() else Modifier.weight(0.88f, fill = false),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = Ormus.spacing.md, vertical = Ormus.spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Ormus.spacing.xs),
+            ) {
+                if (label != null) MonoLabel(text = label, color = accent.takeIf { author != BubbleAuthor.ASK } ?: tone.label)
+                val style = if (author == BubbleAuthor.TOOL) MaterialTheme.typography.labelMedium else LocalTextStyle.current
+                ProvideTextStyle(style) { content() }
+            }
+        }
+        if (author != BubbleAuthor.YOU && author != BubbleAuthor.TOOL) Spacer(Modifier.weight(0.12f))
+    }
+}
+
+@Preview(name = "OrmusGroup", showBackground = true, backgroundColor = 0xFF0E1830)
+@Composable
+private fun OrmusGroupPreview() {
+    ConnectBotTheme {
+        OrmusGroup(label = "Machines", modifier = Modifier.padding(16.dp)) {
+            row { Text("alpha", modifier = Modifier.padding(16.dp)) }
+            row { Text("beta", modifier = Modifier.padding(16.dp)) }
+            row { Text("gamma", modifier = Modifier.padding(16.dp)) }
+        }
+    }
+}
+
+@Preview(name = "OrmusBubble by author", showBackground = true, backgroundColor = 0xFF0E1830)
+@Composable
+private fun OrmusBubblePreview() {
+    ConnectBotTheme {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrmusBubble(BubbleAuthor.YOU) { Text("Run the tests and tell me what fails.") }
+            OrmusBubble(BubbleAuthor.AGENT, label = "agent", accent = OrmusTokens.Accents.Teal) {
+                Text("Two tests fail, both in the parser. I am looking at the first one.")
+            }
+            OrmusBubble(BubbleAuthor.TOOL) { Text("Bash  ./gradlew test", style = MaterialTheme.typography.labelMedium) }
+            OrmusBubble(BubbleAuthor.ASK, label = "asks you") { Text("Allow the agent to edit parser.kt?") }
+        }
     }
 }

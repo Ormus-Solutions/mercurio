@@ -30,16 +30,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** The brand's one corner radius. No pills: buttons, keys, cards and sheets all use it. */
+/** Keys, buttons and fields. */
 val OrmusCornerShape = RoundedCornerShape(OrmusTokens.RADIUS_DP.dp)
 
-/** Every Material size maps to the brand radius. Status dots and switch thumbs stay round. */
+/** Cards, groups, sheets and message bubbles. */
+val OrmusContainerShape = RoundedCornerShape(OrmusTokens.RADIUS_CONTAINER_DP.dp)
+
+/** Pills are allowed (chips, tags); the radius is larger than any height, so the ends are half circles. */
+val OrmusPillShape = RoundedCornerShape(OrmusTokens.RADIUS_PILL_DP.dp)
+
+/** Small Material sizes take the key radius; medium and up (cards, sheets, dialogs) take the container radius. */
 val OrmusShapes = Shapes(
     extraSmall = OrmusCornerShape,
     small = OrmusCornerShape,
-    medium = OrmusCornerShape,
-    large = OrmusCornerShape,
-    extraLarge = OrmusCornerShape,
+    medium = OrmusContainerShape,
+    large = OrmusContainerShape,
+    extraLarge = OrmusContainerShape,
 )
 
 /**

@@ -92,6 +92,10 @@ object PreferenceConstants {
     /* Compose bar: the keyboard's Enter starts a new line, and only the bar's ⏎ key sends. */
     const val ENTER_NEW_LINE: String = "enterNewLine"
 
+    /* Key bar: off keeps the default bar; on shows his paged keys (KeyBarLayout.encode) above it. */
+    const val KEY_BAR_CUSTOM: String = "keyBarCustom"
+    const val KEY_BAR_LAYOUT: String = "keyBarLayout"
+
     /* Theme: the planet picked in the settings panel (Planet.key); none means Sun. */
     const val PLANET: String = "planet"
 

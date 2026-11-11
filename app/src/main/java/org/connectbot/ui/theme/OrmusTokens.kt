@@ -20,9 +20,9 @@ package org.connectbot.ui.theme
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.graphics.Color
 
-/** Ormus brand tokens (ormus-brand tokens.json version 0.3.0). */
+/** Ormus brand tokens (ormus-brand tokens.json version 0.4.0). */
 object OrmusTokens {
-    const val VERSION = "0.3.0"
+    const val VERSION = "0.4.0"
 
     val Midnight = Color(0xFF14213D)
     val Deep = Color(0xFF0E1830)
@@ -72,8 +72,20 @@ object OrmusTokens {
         val Saturn = OrmusPalette(midnight = Color(0xFF1A1C24), deep = Color(0xFF0D0E12), gold = Color(0xFF8A97EE), goldBright = Color(0xFFB3BCF6), ink = Color(0xFFECECEE), inkMuted = Color(0xFFA9ABB3), dim = Color(0xFF757884), hairline = Color(0x1FECECEE), onGold = Color(0xFF0E1028), codeBg = Color(0xFF090A0D), danger = Color(0xFFD44F4F))
     }
 
-    /** The brand's single corner radius, in dp (CSS px). */
-    const val RADIUS_DP = 3f
+    /** The brand's radius scale in dp (CSS px): keys, buttons and fields; cards, groups and sheets; pills. */
+    const val RADIUS_DP = 8f
+    const val RADIUS_CONTAINER_DP = 14f
+    const val RADIUS_PILL_DP = 999f
+
+    /** Identity accents beside gold: what a thing is, never state alone. */
+    object Accents {
+        val Rose = Color(0xFFE0849A)
+        val Teal = Color(0xFF4FBCAE)
+        val Leaf = Color(0xFF86C272)
+        val Ember = Color(0xFFE8955F)
+        val Sky = Color(0xFF78A6EE)
+        val Iris = Color(0xFFAD92E6)
+    }
 
     /** cubic-bezier reveal curve used for every transition. */
     val EaseReveal = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)

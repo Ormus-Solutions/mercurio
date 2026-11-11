@@ -21,6 +21,8 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
+import org.connectbot.ui.components.BubbleAuthor
+import org.connectbot.ui.components.bubbleTone
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,6 +80,59 @@ class OrmusContrastTest {
             // The exception, pinned so it cannot slip further: danger on the planet's ground.
             assertContrast("${planet.key} error role on surface", planet.colorScheme.error, planet.colorScheme.surface, 4.2)
         }
+    }
+
+    @Test
+    fun accents_readAsTextOnEverySurface_onEveryPlanet() {
+        val accents = mapOf(
+            "rose" to OrmusTokens.Accents.Rose,
+            "teal" to OrmusTokens.Accents.Teal,
+            "leaf" to OrmusTokens.Accents.Leaf,
+            "ember" to OrmusTokens.Accents.Ember,
+            "sky" to OrmusTokens.Accents.Sky,
+            "iris" to OrmusTokens.Accents.Iris,
+        )
+        Planet.entries.forEach { planet ->
+            planet.colorScheme.surfaces().forEach { (s, bg) ->
+                accents.forEach { (name, color) -> assertContrast("${planet.key} accent $name on $s", color, bg, 4.5) }
+            }
+        }
+    }
+
+    @Test
+    fun bubbleTones_textReadsOnEveryAuthor_onEveryPlanet() {
+        Planet.entries.forEach { planet ->
+            BubbleAuthor.entries.forEach { author ->
+                val tone = bubbleTone(author, planet.colorScheme)
+                assertContrast("${planet.key} $author text", tone.content, tone.container, 4.5)
+                assertContrast("${planet.key} $author label", tone.label, tone.container, 4.5)
+            }
+        }
+    }
+
+    @Test
+    fun accents_readAsBubbleLabels_onEveryAuthor_onEveryPlanet() {
+        val accents = listOf(
+            OrmusTokens.Accents.Rose,
+            OrmusTokens.Accents.Teal,
+            OrmusTokens.Accents.Leaf,
+            OrmusTokens.Accents.Ember,
+            OrmusTokens.Accents.Sky,
+            OrmusTokens.Accents.Iris,
+        )
+        Planet.entries.forEach { planet ->
+            // ASK is the gold container and never takes an accent (the Moon tint reads 4.41:1 with the lowest one).
+            BubbleAuthor.entries.filter { it != BubbleAuthor.ASK }.forEach { author ->
+                val container = bubbleTone(author, planet.colorScheme).container
+                accents.forEachIndexed { i, color -> assertContrast("${planet.key} $author accent #$i", color, container, 4.5) }
+            }
+        }
+    }
+
+    @Test
+    fun bubbleTones_differByAuthor() {
+        val tones = BubbleAuthor.entries.map { bubbleTone(it, Planet.SUN.colorScheme).container }
+        assertTrue("each author needs its own container tone", tones.toSet().size == tones.size)
     }
 
     @Test

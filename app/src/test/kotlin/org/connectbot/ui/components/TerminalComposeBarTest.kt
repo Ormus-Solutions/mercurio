@@ -202,6 +202,7 @@ class TerminalComposeBarTest {
         lastReply: String? = null,
         onBoard: (() -> Unit)? = null,
         enterNewLine: Boolean = false,
+        keyBar: KeyBarLayout? = null,
     ) {
         composeTestRule.setContent {
             ConnectBotTheme {
@@ -224,6 +225,7 @@ class TerminalComposeBarTest {
                             onBoard = onBoard,
                             draft = draft,
                             enterNewLine = enterNewLine,
+                            keyBar = keyBar,
                             readRecentOutput = { recentOutput },
                             readLastReply = { lastReply },
                         )
@@ -677,6 +679,29 @@ class TerminalComposeBarTest {
 
         assertEquals(listOf(ESC + "[200~fix the header\nthen run the tests" + ESC + "[201~", CR), sentBytes(bridge))
         assertEquals(listOf(UsageActions.SEND), logged)
+    }
+
+    @Test
+    fun keyBar_offLeavesTheDefaultBarAlone() {
+        setBar(bridgeWithPostLogin(null))
+
+        composeTestRule.onAllNodesWithTag(KEY_BAR_TEST_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun keyBar_showsHisKeysInOrderAndTheNextPageKeyTurnsThePage() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c", "up"), listOf("ctrl-z"))))
+
+        composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).assertIsDisplayed()
+        key("Ctrl+C").performClick()
+        verify(bridge).injectString("\u0003")
+        composeTestRule.onAllNodesWithText("Ctrl+Z").assertCountEquals(0)
+
+        key("1/2").performClick()
+        key("Ctrl+Z").performClick()
+        verify(bridge).injectString("\u001a")
+        composeTestRule.onAllNodesWithText("Ctrl+C").assertCountEquals(0)
     }
 
     @Test

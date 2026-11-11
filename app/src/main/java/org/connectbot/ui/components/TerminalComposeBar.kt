@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -297,6 +299,40 @@ private fun EnterKey(
     ) { KeyLabel("⏎", 24.sp) }
 }
 
+internal const val KEY_BAR_TEST_TAG = "key_bar"
+
+/**
+ * His key bar: the keys of one page in his order, then a key that shows which page it is
+ * (1/4) and turns to the next. The row keeps its height on an empty page.
+ */
+@Composable
+private fun PagedKeyRow(layout: KeyBarLayout, onSend: (String) -> Unit, modifier: Modifier = Modifier) {
+    var page by rememberSaveable { mutableIntStateOf(0) }
+    val current = page.coerceIn(0, layout.pages.lastIndex)
+    Row(
+        modifier = modifier.fillMaxWidth().heightIn(min = KEY_HEIGHT).testTag(KEY_BAR_TEST_TAG),
+        horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+    ) {
+        layout.pages[current].mapNotNull { KeyBarCatalog.byId(it) }.forEach { key ->
+            if (key.repeats) {
+                RepeatingControlKey(key.label, key.sequence, onSend, Modifier.weight(1f), description = key.label)
+            } else {
+                ControlKey(key.label, key.sequence, onSend, Modifier.weight(1f), description = key.label)
+            }
+        }
+        if (layout.pages.size > 1) {
+            ControlKey(
+                "${current + 1}/${layout.pages.size}",
+                "",
+                { page = (current + 1) % layout.pages.size },
+                Modifier.weight(1f),
+                emphasized = true,
+                description = stringResource(R.string.key_bar_next_page, current + 1, layout.pages.size),
+            )
+        }
+    }
+}
+
 /** The ⋯ key that opens and closes the tray. Gold-tinted while the tray is open. */
 @Composable
 private fun MoreKey(
@@ -474,6 +510,8 @@ fun TerminalComposeBar(
     readRecentOutput: suspend () -> String = { withContext(Dispatchers.IO) { RecentOutput.read(bridge).text } },
     /** The agent's last reply, for the copy key; null when there is none. */
     readLastReply: suspend () -> String? = { withContext(Dispatchers.IO) { LastReply.read(bridge) } },
+    /** His own paged keys, shown above the default rows; null (the setting is off) leaves the bar as it was. */
+    keyBar: KeyBarLayout? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -929,6 +967,8 @@ fun TerminalComposeBar(
                     .padding(horizontal = Ormus.spacing.sm, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                if (keyBar != null) PagedKeyRow(keyBar, sendKey)
+
                 // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you above ⏎.
                 Row(
                     modifier = Modifier.fillMaxWidth(),

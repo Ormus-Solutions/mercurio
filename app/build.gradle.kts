@@ -516,9 +516,15 @@ abstract class GenerateOrmusTokens : DefaultTask() {
             kt.append("        val ${pascal(name)} = OrmusPalette($args)\n")
         }
         kt.append("    }\n")
-        val radius = json["radius"].toString().removeSuffix("px")
-        kt.append("\n    /** The brand's single corner radius, in dp (CSS px). */\n")
-        kt.append("    const val RADIUS_DP = ${radius}f\n")
+        fun dp(key: String) = json[key].toString().removeSuffix("px")
+        kt.append("\n    /** The brand's radius scale in dp (CSS px): keys, buttons and fields; cards, groups and sheets; pills. */\n")
+        kt.append("    const val RADIUS_DP = ${dp("radius")}f\n")
+        kt.append("    const val RADIUS_CONTAINER_DP = ${dp("radiusContainer")}f\n")
+        kt.append("    const val RADIUS_PILL_DP = ${dp("radiusPill")}f\n")
+        kt.append("\n    /** Identity accents beside gold: what a thing is, never state alone. */\n")
+        kt.append("    object Accents {\n")
+        group("accents").forEach { (k, v) -> kt.append("        val ${pascal(k)} = Color(0x${argb(v.toString())})\n") }
+        kt.append("    }\n")
 
         @Suppress("UNCHECKED_CAST")
         val ease = ((json["motion"] as Map<String, Any>)["easeRevealPoints"] as List<Number>).joinToString { "${it.toFloat()}f" }
