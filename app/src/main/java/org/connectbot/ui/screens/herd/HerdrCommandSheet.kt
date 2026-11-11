@@ -20,6 +20,7 @@ package org.connectbot.ui.screens.herd
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -69,6 +70,8 @@ import org.connectbot.BuildConfig
 import org.connectbot.R
 import org.connectbot.service.FixPrompt
 import org.connectbot.ui.components.KeyTone
+import org.connectbot.ui.components.OrmusGroup
+import org.connectbot.ui.components.OrmusGroupScope
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.WORD_KEY_PADDING
 import org.connectbot.ui.components.copyFixPrompt
@@ -110,6 +113,9 @@ const val HERDR_SESSION_ROW_TAG = "herdr_session_row"
 
 /** Test tag on the row of numbered tab keys at the top of the panel. */
 const val HERDR_TAB_ROW_TAG = "herdr_tab_row"
+
+/** Test tag on the open group's container: its label and every key of the group. */
+const val HERDR_GROUP_TAG = "herdr_group"
 
 /** The tab row numbers the first nine tabs, as Herdr's own tab keys do; the rest are under Tabs. */
 private const val TAB_ROW_MAX = 9
@@ -526,122 +532,155 @@ fun HerdrCommandContent(
             return@Column
         }
         Column(modifier = body, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (section) {
-                HerdrSection.AGENTS -> Actions {
-                    onBoard?.let { BoardKey(needsYou, it) }
-                    ActionButton(HerdrAction.FocusNextBlocked, keys, primary = true)
-                    if (onChat != null) {
-                        OrmusKey(
-                            label = stringResource(R.string.chat_open),
-                            onClick = onChat,
-                            enabled = AgentChat.target(snapshot) != null,
-                            contentPadding = WORD_KEY_PADDING,
-                        )
+            // The open group is one labeled container; its keys sit in rows split by hairlines.
+            OrmusGroup(label = stringResource(section.label), modifier = Modifier.testTag(HERDR_GROUP_TAG)) {
+                when (section) {
+                    HerdrSection.AGENTS -> {
+                        panelRow {
+                            Actions {
+                                onBoard?.let { BoardKey(needsYou, it) }
+                                ActionButton(HerdrAction.FocusNextBlocked, keys, primary = true)
+                                if (onChat != null) {
+                                    OrmusKey(
+                                        label = stringResource(R.string.chat_open),
+                                        onClick = onChat,
+                                        enabled = AgentChat.target(snapshot) != null,
+                                        contentPadding = WORD_KEY_PADDING,
+                                    )
+                                }
+                                onDiff?.let { OrmusKey(label = stringResource(R.string.diff_title), onClick = it, contentPadding = WORD_KEY_PADDING) }
+                            }
+                        }
+                        panelRow {
+                            Actions {
+                                HerdrAction.START_KINDS.forEach { ActionButton(HerdrAction.StartAgent(it), keys) }
+                                ActionButton(HerdrAction.ExplainDetection, keys)
+                            }
+                        }
                     }
-                    HerdrAction.START_KINDS.forEach { ActionButton(HerdrAction.StartAgent(it), keys) }
-                    ActionButton(HerdrAction.ExplainDetection, keys)
-                    onDiff?.let { OrmusKey(label = stringResource(R.string.diff_title), onClick = it, contentPadding = WORD_KEY_PADDING) }
-                }
 
-                HerdrSection.PANES -> {
-                    Actions {
-                        ActionButton(HerdrAction.SplitRight, keys)
-                        ActionButton(HerdrAction.SplitDown, keys)
-                        ActionButton(HerdrAction.ZoomPane, keys)
-                        ActionButton(HerdrAction.RenamePane, keys)
-                        ActionButton(HerdrAction.ClosePane, keys)
+                    HerdrSection.PANES -> {
+                        panelRow {
+                            Actions {
+                                ActionButton(HerdrAction.SplitRight, keys)
+                                ActionButton(HerdrAction.SplitDown, keys)
+                                ActionButton(HerdrAction.ZoomPane, keys)
+                                ActionButton(HerdrAction.RenamePane, keys)
+                                ActionButton(HerdrAction.ClosePane, keys)
+                            }
+                        }
+                        panelRow { ArrowRow(R.string.herdr_action_focus) { tap(HerdrAction.FocusPane(it)) } }
+                        panelRow { ArrowRow(R.string.herdr_action_swap) { tap(HerdrAction.SwapPane(it)) } }
                     }
-                    ArrowRow(R.string.herdr_action_focus) { tap(HerdrAction.FocusPane(it)) }
-                    ArrowRow(R.string.herdr_action_swap) { tap(HerdrAction.SwapPane(it)) }
-                }
 
-                HerdrSection.TABS -> {
-                    // Every tab of every session, the ones that need you first: the group's main key.
-                    onJumpTo?.let { open ->
-                        OrmusKey(
-                            label = stringResource(R.string.herdr_jump_open),
-                            onClick = open,
-                            tone = KeyTone.ON,
-                            contentPadding = WORD_KEY_PADDING,
-                        )
-                    }
-                    val tabs = workspaceTabs(snapshot)
-                    if (tabs.isNotEmpty()) {
-                        JumpLabel(R.string.herdr_jump_tabs)
-                        Actions {
-                            tabs.forEach { tab ->
+                    HerdrSection.TABS -> {
+                        // Every tab of every session, the ones that need you first: the group's main key.
+                        onJumpTo?.let { open ->
+                            panelRow {
                                 OrmusKey(
-                                    label = tab.label.ifBlank { tab.number.toString() },
-                                    onClick = { tap(HerdrAction.FocusTab(tab.tabId)) },
-                                    tone = if (tab.tabId == snapshot?.focusedTabId) KeyTone.ACCENT else KeyTone.PLAIN,
+                                    label = stringResource(R.string.herdr_jump_open),
+                                    onClick = open,
+                                    tone = KeyTone.ON,
                                     contentPadding = WORD_KEY_PADDING,
                                 )
                             }
                         }
-                    }
-                    Actions {
-                        ActionButton(HerdrAction.NewTab, keys)
-                        ActionButton(HerdrAction.RenameTab, keys)
-                        ActionButton(HerdrAction.CloseTab, keys)
-                    }
-                }
-
-                HerdrSection.WORKSPACES -> {
-                    val workspaces = snapshot?.workspaces.orEmpty().sortedBy { it.number }
-                    if (workspaces.isNotEmpty()) {
-                        JumpLabel(R.string.herdr_jump_workspaces)
-                        Actions {
-                            workspaces.forEach { workspace ->
-                                OrmusKey(
-                                    label = stringResource(R.string.herdr_workspace_entry, workspace.number, workspace.label),
-                                    onClick = { tap(HerdrAction.FocusWorkspace(workspace.workspaceId)) },
-                                    tone = if (workspace.workspaceId == snapshot?.focusedWorkspaceId) KeyTone.ACCENT else KeyTone.PLAIN,
-                                    contentPadding = WORD_KEY_PADDING,
-                                )
+                        val tabs = workspaceTabs(snapshot)
+                        if (tabs.isNotEmpty()) {
+                            panelRow {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    JumpLabel(R.string.herdr_jump_tabs)
+                                    Actions {
+                                        tabs.forEach { tab ->
+                                            OrmusKey(
+                                                label = tab.label.ifBlank { tab.number.toString() },
+                                                onClick = { tap(HerdrAction.FocusTab(tab.tabId)) },
+                                                tone = if (tab.tabId == snapshot?.focusedTabId) KeyTone.ACCENT else KeyTone.PLAIN,
+                                                contentPadding = WORD_KEY_PADDING,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        panelRow {
+                            Actions {
+                                ActionButton(HerdrAction.NewTab, keys)
+                                ActionButton(HerdrAction.RenameTab, keys)
+                                ActionButton(HerdrAction.CloseTab, keys)
                             }
                         }
                     }
-                    Actions {
-                        ActionButton(HerdrAction.NAVIGATE_WORKSPACES, keys)
-                        ActionButton(HerdrAction.NewWorkspace, keys)
-                        ActionButton(HerdrAction.RenameWorkspace, keys)
-                        ActionButton(HerdrAction.CloseWorkspace, keys)
-                    }
-                }
 
-                HerdrSection.SESSION -> {
-                    PrefixLine(hostKeys, layout, onCopyFix = onCopyPrefixFix)
-                    Actions {
-                        ActionButton(HerdrAction.TOGGLE_SIDEBAR, keys)
-                        ActionButton(HerdrAction.COPY_MODE, keys)
-                        ActionButton(HerdrAction.GOTO, keys)
-                        ActionButton(HerdrAction.OPEN_NOTIFICATION, keys)
-                        ActionButton(HerdrAction.DETACH, keys)
-                        ActionButton(HerdrAction.RELOAD_CONFIG, keys)
-                        ActionButton(HerdrAction.HELP, keys)
-                        ActionButton(HerdrAction.StopSession, keys)
+                    HerdrSection.WORKSPACES -> {
+                        val workspaces = snapshot?.workspaces.orEmpty().sortedBy { it.number }
+                        if (workspaces.isNotEmpty()) {
+                            panelRow {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    JumpLabel(R.string.herdr_jump_workspaces)
+                                    Actions {
+                                        workspaces.forEach { workspace ->
+                                            OrmusKey(
+                                                label = stringResource(R.string.herdr_workspace_entry, workspace.number, workspace.label),
+                                                onClick = { tap(HerdrAction.FocusWorkspace(workspace.workspaceId)) },
+                                                tone = if (workspace.workspaceId == snapshot?.focusedWorkspaceId) KeyTone.ACCENT else KeyTone.PLAIN,
+                                                contentPadding = WORD_KEY_PADDING,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        panelRow {
+                            Actions {
+                                ActionButton(HerdrAction.NAVIGATE_WORKSPACES, keys)
+                                ActionButton(HerdrAction.NewWorkspace, keys)
+                                ActionButton(HerdrAction.RenameWorkspace, keys)
+                                ActionButton(HerdrAction.CloseWorkspace, keys)
+                            }
+                        }
+                    }
+
+                    HerdrSection.SESSION -> {
+                        panelRow { PrefixLine(hostKeys, layout, onCopyFix = onCopyPrefixFix) }
+                        panelRow {
+                            Actions {
+                                ActionButton(HerdrAction.TOGGLE_SIDEBAR, keys)
+                                ActionButton(HerdrAction.COPY_MODE, keys)
+                                ActionButton(HerdrAction.GOTO, keys)
+                                ActionButton(HerdrAction.OPEN_NOTIFICATION, keys)
+                                ActionButton(HerdrAction.DETACH, keys)
+                                ActionButton(HerdrAction.RELOAD_CONFIG, keys)
+                                ActionButton(HerdrAction.HELP, keys)
+                                ActionButton(HerdrAction.StopSession, keys)
+                            }
+                        }
                         // The user's own keys, then the keys that change the panel.
-                        layout.custom.forEachIndexed { index, key ->
-                            key.action()?.let { action ->
+                        panelRow {
+                            Actions {
+                                layout.custom.forEachIndexed { index, key ->
+                                    key.action()?.let { action ->
+                                        OrmusKey(
+                                            label = key.label,
+                                            onClick = { tap(action) },
+                                            onLongClick = { keys.longPress(KeyTarget.Custom(index, key)) },
+                                            contentPadding = WORD_KEY_PADDING,
+                                        )
+                                    }
+                                }
                                 OrmusKey(
-                                    label = key.label,
-                                    onClick = { tap(action) },
-                                    onLongClick = { keys.longPress(KeyTarget.Custom(index, key)) },
+                                    label = stringResource(R.string.herdr_key_add),
+                                    onClick = { prompt = PanelPrompt.Form(null) },
                                     contentPadding = WORD_KEY_PADDING,
                                 )
+                                if (!layout.isDefault) {
+                                    OrmusKey(
+                                        label = stringResource(R.string.herdr_key_restore),
+                                        onClick = { prompt = PanelPrompt.Restore },
+                                        contentPadding = WORD_KEY_PADDING,
+                                    )
+                                }
                             }
-                        }
-                        OrmusKey(
-                            label = stringResource(R.string.herdr_key_add),
-                            onClick = { prompt = PanelPrompt.Form(null) },
-                            contentPadding = WORD_KEY_PADDING,
-                        )
-                        if (!layout.isDefault) {
-                            OrmusKey(
-                                label = stringResource(R.string.herdr_key_restore),
-                                onClick = { prompt = PanelPrompt.Restore },
-                                contentPadding = WORD_KEY_PADDING,
-                            )
                         }
                     }
                 }
@@ -741,6 +780,11 @@ private fun SessionRow(sessions: List<String>, chosen: String, onChoose: (String
             )
         }
     }
+}
+
+/** A row of a group with the panel's padding; the group draws the hairline between rows. */
+private fun OrmusGroupScope.panelRow(content: @Composable () -> Unit) = row {
+    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) { content() }
 }
 
 /** One group's buttons, wrapped onto as many lines as they need. */

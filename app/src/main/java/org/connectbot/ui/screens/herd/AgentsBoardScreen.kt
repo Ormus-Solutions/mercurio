@@ -17,8 +17,6 @@
 
 package org.connectbot.ui.screens.herd
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -80,6 +78,7 @@ import org.connectbot.R
 import org.connectbot.ui.components.DotStyle
 import org.connectbot.ui.components.KeyTone
 import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.StatusDot
 import org.connectbot.ui.components.WORD_KEY_PADDING
@@ -107,8 +106,8 @@ import solutions.ormus.logos.herd.HerdrSessions
 /** Test tag on every agent card, in the order shown. */
 const val BOARD_CARD_TAG = "board_card"
 
-/** Test tag on every section header. */
-const val BOARD_HEADER_TAG = "board_header"
+/** Test tag on every section's group container: its label and its cards. */
+const val BOARD_GROUP_TAG = "board_group"
 
 /** Test tag on a waiting agent's reply box. */
 const val BOARD_REPLY_TAG = "board_reply"
@@ -193,7 +192,6 @@ fun AgentsBoardDialog(
 
 private fun canChat(snapshot: HerdrSessionSnapshot?, card: BoardCard): Boolean = AgentChat.target(snapshot, pane = card.paneId, herdrSession = card.session) != null
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AgentsBoardContent(
     cards: List<BoardCard>,
@@ -288,20 +286,18 @@ fun AgentsBoardContent(
 
                 else -> BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (maxWidth >= BOARD_COLUMNS_MIN_WIDTH) {
-                        // Wide: a kanban, one scrolling column per section.
+                        // Wide: a kanban, one scrolling column per section, each section one group.
                         Row(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             sections.forEach { (column, inColumn) ->
-                                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    item { SectionHeader(column, inColumn.size) }
+                                LazyColumn(modifier = Modifier.weight(1f)) {
                                     section(column, inColumn, actions)
                                 }
                             }
                         }
                     } else {
-                        // A phone: the sections stacked, each header staying on top while its cards scroll.
-                        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // A phone: the sections stacked, each one group with its cards.
+                        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             sections.forEach { (column, inColumn) ->
-                                stickyHeader(key = column.name) { SectionHeader(column, inColumn.size) }
                                 section(column, inColumn, actions)
                             }
                         }
@@ -326,12 +322,23 @@ private class CardActions(
     val outcome: (BoardCard) -> HerdAnswerOutcome?,
 )
 
+/** One section as one group: its name and count over a container holding its cards, or the empty line. */
 private fun LazyListScope.section(column: BoardColumn, cards: List<BoardCard>, actions: CardActions) {
-    if (cards.isEmpty()) {
-        item(key = "${column.name}/empty") { EmptyLine(column) }
-        return
+    item(key = column.name) {
+        // Needs you speaks in gold while anyone waits.
+        val gold = column == BoardColumn.NEEDS_YOU && cards.isNotEmpty()
+        OrmusGroup(
+            label = stringResource(R.string.board_section, stringResource(sectionName(column)), cards.size),
+            labelColor = if (gold) Ormus.extras.status.blocked else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp).testTag(BOARD_GROUP_TAG),
+        ) {
+            if (cards.isEmpty()) {
+                row { EmptyLine(column) }
+            } else {
+                cards.forEach { card -> row(key = "${card.session}/${card.paneId}") { AgentCard(card, actions) } }
+            }
+        }
     }
-    items(cards, key = { "${it.session}/${it.paneId}" }) { card -> AgentCard(card, actions) }
 }
 
 @Composable
@@ -351,19 +358,6 @@ private fun sectionName(column: BoardColumn): Int = when (column) {
     BoardColumn.IDLE -> R.string.board_idle
 }
 
-/** A section's name and count; Needs you speaks in gold while anyone waits. */
-@Composable
-private fun SectionHeader(column: BoardColumn, count: Int) {
-    val gold = column == BoardColumn.NEEDS_YOU && count > 0
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth().testTag(BOARD_HEADER_TAG)) {
-        MonoLabel(
-            stringResource(R.string.board_section, stringResource(sectionName(column)), count),
-            color = if (gold) Ormus.extras.status.blocked else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(vertical = 8.dp),
-        )
-    }
-}
-
 @Composable
 private fun EmptyLine(column: BoardColumn) {
     Text(
@@ -377,7 +371,7 @@ private fun EmptyLine(column: BoardColumn) {
         ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
     )
 }
 
@@ -403,10 +397,8 @@ private fun AgentCard(card: BoardCard, actions: CardActions) {
             .fillMaxWidth()
             .testTag(BOARD_CARD_TAG)
             .combinedClickable(role = Role.Button, onClick = { actions.tap(card) }, onLongClick = { actions.longPress(card) }),
-        shape = OrmusCornerShape,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        // A waiting agent's card carries the gold hairline; the rest the plain one.
-        border = BorderStroke(1.dp, if (card.state == HerdrAgentStatus.BLOCKED) Ormus.extras.cardAccent else Ormus.extras.hairline),
+        // The section's group is the container: a card is a row of it, split by its hairlines.
+        color = Color.Transparent,
     ) {
         Column(modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

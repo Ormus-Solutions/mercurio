@@ -46,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -206,11 +207,15 @@ fun Modifier.ormusPanelTop(): Modifier {
 
 /** Builder for the rows of an [OrmusGroup]. */
 class OrmusGroupScope internal constructor() {
-    internal val rows = mutableListOf<@Composable () -> Unit>()
+    internal val rows = mutableListOf<Pair<Any?, @Composable () -> Unit>>()
 
-    /** One row; the group draws an inset hairline between rows. */
-    fun row(content: @Composable () -> Unit) {
-        rows += content
+    /**
+     * One row; the group draws an inset hairline between rows. Give rows that carry their
+     * own state (a typed draft) a [key] that names what they show, so the state follows
+     * the thing when rows move; without one a row is known by its position.
+     */
+    fun row(key: Any? = null, content: @Composable () -> Unit) {
+        rows += key to content
     }
 }
 
@@ -223,11 +228,13 @@ class OrmusGroupScope internal constructor() {
 fun OrmusGroup(
     label: String,
     modifier: Modifier = Modifier,
+    /** The label's color; gold says something in the group waits for the user. */
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     rows: OrmusGroupScope.() -> Unit,
 ) {
     val scope = OrmusGroupScope().apply(rows)
     Column(modifier = modifier.fillMaxWidth()) {
-        MonoLabel(text = label, modifier = Modifier.padding(start = Ormus.spacing.xs, bottom = Ormus.spacing.sm))
+        MonoLabel(text = label, color = labelColor, modifier = Modifier.padding(start = Ormus.spacing.xs, bottom = Ormus.spacing.sm))
         if (scope.rows.isNotEmpty()) {
             Surface(
                 shape = OrmusContainerShape,
@@ -236,15 +243,17 @@ fun OrmusGroup(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column {
-                    scope.rows.forEachIndexed { index, row ->
-                        if (index > 0) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = Ormus.spacing.lg),
-                                thickness = 1.dp,
-                                color = Ormus.extras.hairline,
-                            )
+                    scope.rows.forEachIndexed { index, (rowKey, row) ->
+                        key(rowKey ?: index) {
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = Ormus.spacing.lg),
+                                    thickness = 1.dp,
+                                    color = Ormus.extras.hairline,
+                                )
+                            }
+                            row()
                         }
-                        row()
                     }
                 }
             }

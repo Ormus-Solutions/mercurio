@@ -20,6 +20,9 @@ package org.connectbot.ui.screens.herd
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -145,20 +148,29 @@ class AgentsBoardScreenTest {
     }
 
     @Test
+    fun eachSection_isOneLabeledGroup_withItsCardsAndEmptyLineInside() {
+        show()
+
+        composeTestRule.onAllNodesWithTag(BOARD_GROUP_TAG).assertCountEquals(4)
+        composeTestRule.onAllNodes(hasTestTag(BOARD_CARD_TAG) and !hasAnyAncestor(hasTestTag(BOARD_GROUP_TAG))).assertCountEquals(0)
+        composeTestRule.onNode(hasText("Nothing finished unseen") and hasAnyAncestor(hasTestTag(BOARD_GROUP_TAG))).assertExists()
+    }
+
+    @Test
     @Config(qualifiers = "w1000dp-h1200dp")
     fun wide_showsTheSameSectionsSideBySide() {
         show()
 
         assertHeaders()
         // Side by side: every header on one line.
-        val tops = (0 until 4).map { composeTestRule.onAllNodesWithTag(BOARD_HEADER_TAG)[it].fetchSemanticsNode().boundsInRoot.top }
+        val tops = (0 until 4).map { composeTestRule.onAllNodesWithTag(BOARD_GROUP_TAG)[it].fetchSemanticsNode().boundsInRoot.top }
         assertEquals(1, tops.distinct().size)
     }
 
     private fun assertHeaders() {
-        val headers = composeTestRule.onAllNodesWithTag(BOARD_HEADER_TAG)
+        val headers = composeTestRule.onAllNodesWithTag(BOARD_GROUP_TAG)
         headers.assertCountEquals(4)
-        // In screen order (a sticky header is composed apart from the list, so not tree order).
+        // In screen order.
         val shown = (0 until 4).map { headers[it].onChildAt(0).fetchSemanticsNode() }
             .sortedWith(compareBy({ it.boundsInRoot.top }, { it.boundsInRoot.left }))
             .map { it.config[SemanticsProperties.Text].joinToString() }
@@ -175,7 +187,7 @@ class AgentsBoardScreenTest {
     fun noAgents_saysSo() {
         show(shown = emptyList())
         composeTestRule.onNodeWithText("No agents are running in any Herdr session.").assertIsDisplayed()
-        composeTestRule.onAllNodesWithTag(BOARD_HEADER_TAG).assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(BOARD_GROUP_TAG).assertCountEquals(0)
     }
 
     @Test
@@ -330,7 +342,7 @@ class AgentsBoardScreenTest {
         val bar = 100.dp
         show(windowInsets = WindowInsets(top = bar, bottom = bar))
 
-        val headers = composeTestRule.onAllNodesWithTag(BOARD_HEADER_TAG)
+        val headers = composeTestRule.onAllNodesWithTag(BOARD_GROUP_TAG)
         val firstHeader = (0 until 4).minOf { headers[it].getUnclippedBoundsInRoot().top }
         assertTrue("first header top $firstHeader is under the status bar", firstHeader >= bar)
         // The list's cards scroll inside it, so its end is where the last card can show.
@@ -375,6 +387,49 @@ class AgentsBoardScreenTest {
         assertEquals(listOf("work/w1:p1 use the second option"), replies)
         assertEquals(listOf(UsageActions.BOARD_REPLY), logged)
         assertEquals("a reply is not a tap on the card", emptyList<String>(), chats)
+    }
+
+    @Test
+    fun aReplyDraft_staysWithItsCard_whenAnotherCardJoinsTheSectionAbove() {
+        var shown by mutableStateOf(cards)
+        composeTestRule.setContent {
+            AgentsBoardContent(
+                cards = shown,
+                loading = false,
+                now = 0,
+                canChat = { true },
+                onChat = {},
+                onJump = {},
+                onAnswer = { _, _ -> },
+                onPick = { _, _ -> },
+                onReply = { _, _ -> },
+                readScreen = { "Do you want to proceed?\n> 1. Yes\n  2. No" },
+                onRefresh = {},
+                onClose = {},
+                windowInsets = WindowInsets(0),
+            )
+        }
+        composeTestRule.onNodeWithTag(BOARD_REPLY_TAG).performTextInput("draft for gamma")
+
+        // A new waiting agent that sorts above the first one.
+        shown = AgentsBoard.cards(
+            mapOf(
+                "aaa" to boardSnapshot(
+                    workspaces = listOf("w1" to "zeta"),
+                    tabs = listOf("w1:t1" to "ops"),
+                    agents = listOf(boardAgent("w1:p1", "w1:t1", "claude", HerdrAgentStatus.BLOCKED)),
+                ),
+                "work" to boardSnapshot(
+                    workspaces = listOf("w1" to "gamma"),
+                    tabs = listOf("w1:t1" to "review"),
+                    agents = listOf(boardAgent("w1:p1", "w1:t1", "claude", HerdrAgentStatus.BLOCKED)),
+                ),
+            ),
+        ) { _, _ -> null }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onAllNodesWithTag(BOARD_REPLY_TAG).assertCountEquals(2)
+        composeTestRule.onNode(hasTestTag(BOARD_REPLY_TAG) and hasText("draft for gamma") and hasAnyAncestor(hasTestTag(BOARD_CARD_TAG) and hasText("gamma · review · work"))).assertExists()
     }
 
     @Test

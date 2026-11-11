@@ -150,7 +150,8 @@ class HerdrCommandSheetTest {
     )
 
     private fun group(name: String) {
-        composeTestRule.onNodeWithText(name).performClick()
+        // The tab key, not the open group's label of the same name.
+        composeTestRule.onNode(hasText(name) and hasClickAction()).performClick()
         composeTestRule.waitForIdle()
     }
 
@@ -179,7 +180,7 @@ class HerdrCommandSheetTest {
         show()
 
         for (name in listOf("Agents", "Panes", "Tabs", "Spaces", "Session")) {
-            composeTestRule.onNodeWithText(name).assertIsDisplayed()
+            composeTestRule.onNode(hasText(name) and hasClickAction()).assertIsDisplayed()
         }
         // Agents first; the other groups' buttons wait for their tab.
         composeTestRule.onNodeWithText("Next waiting agent").assertIsDisplayed()
@@ -193,6 +194,21 @@ class HerdrCommandSheetTest {
         group("Spaces")
         composeTestRule.onNodeWithText("1 · ~Demo").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("4 · ~").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun eachGroup_isOneLabeledContainer_withItsKeysInside() {
+        show()
+
+        listOf("Agents" to "Next waiting agent", "Panes" to "Split right", "Tabs" to "New tab", "Spaces" to "New workspace", "Session" to "Detach").forEach { (name, key) ->
+            group(name)
+            composeTestRule.onAllNodesWithTag(HERDR_GROUP_TAG).assertCountEquals(1)
+            composeTestRule.onNodeWithTag(HERDR_GROUP_TAG).assertIsDisplayed()
+            composeTestRule.onNode(hasText(name) and !hasClickAction() and hasAnyAncestor(hasTestTag(HERDR_GROUP_TAG))).assertExists()
+            composeTestRule.onNode(hasText(key) and hasAnyAncestor(hasTestTag(HERDR_GROUP_TAG))).assertExists()
+        }
+        // The tab row is not part of a group.
+        composeTestRule.onAllNodes(hasTestTag(HERDR_TAB_ROW_TAG) and hasAnyAncestor(hasTestTag(HERDR_GROUP_TAG))).assertCountEquals(0)
     }
 
     @Test
