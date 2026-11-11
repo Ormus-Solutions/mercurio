@@ -33,11 +33,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import solutions.ormus.logos.herd.CoreFacts
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdAttention.Notice
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentStatus
+import solutions.ormus.logos.herd.NeedsYouKind
 
 /** The Herdr "Needs you" and "Finished" notifications and their channels. */
 @RunWith(AndroidJUnit4::class)
@@ -137,6 +140,39 @@ class ConnectionNotifierHerdTest {
         assertEquals("w1:p1", approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_PANE))
         assertEquals(HerdAnswer.APPROVE.name, approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_ANSWER))
         assertEquals(HerdAnswer.DENY.name, shadowOf(posted.actions[1].actionIntent).savedIntent.getStringExtra(ConnectionNotifier.EXTRA_HERD_ANSWER))
+    }
+
+    @Test
+    fun coreNeedsYou_permission_approveCarriesTheTurn_andTheTapOpensOnlyTheHost() {
+        val core = HerdrAgentInfo(
+            paneId = "t1",
+            agent = "claude-code",
+            agentStatus = HerdrAgentStatus.BLOCKED,
+            core = CoreFacts(NeedsYouKind.PERMISSION, turn = 4),
+        )
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(core, "alpha · ONE", "main", paneTail = "Run it?\n1. Yes\n2. No", session = CoreNotices.SESSION))
+
+        val posted = shadowOf(manager).allNotifications.single()
+        // The core session is no workboard name: the title never says "@core".
+        assertEquals("claude-code needs you on Sun", posted.extras.getCharSequence("android.title").toString())
+        assertEquals(listOf("Approve", "Deny"), posted.actions.map { it.title.toString() })
+        val approve = shadowOf(posted.actions[0].actionIntent).savedIntent
+        assertEquals(CoreNotices.SESSION, approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_SESSION))
+        assertEquals("t1", approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_PANE))
+        assertEquals(4, approve.getIntExtra(ConnectionNotifier.EXTRA_HERD_TURN, -1))
+        assertEquals(CoreNotices.fingerprint("Run it?\n1. Yes\n2. No"), approve.getIntExtra(ConnectionNotifier.EXTRA_HERD_PROMPT, 0))
+        val tap = shadowOf(posted.contentIntent).savedIntent
+        assertFalse(tap.hasExtra(MainActivity.EXTRA_HERD_PANE))
+        assertFalse(tap.hasExtra(MainActivity.EXTRA_HERD_SESSION))
+        assertEquals(host.getUri(), tap.data)
+    }
+
+    @Test
+    fun coreNeedsYou_question_hasNoActions() {
+        val core = HerdrAgentInfo(paneId = "t1", agent = "claude-code", agentStatus = HerdrAgentStatus.BLOCKED, core = CoreFacts(NeedsYouKind.QUESTION, turn = 4))
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(core, "alpha · ONE", "main", session = CoreNotices.SESSION))
+
+        assertTrue(shadowOf(manager).allNotifications.single().actions.isNullOrEmpty())
     }
 
     @Test

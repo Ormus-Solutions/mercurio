@@ -45,7 +45,7 @@ object HerdNoticeRoute {
         open: (T) -> Boolean,
         onScreen: (T) -> Boolean,
     ): T {
-        val there = consoles.filter { open(it) && sameMachine(host(it), host(from)) && (HerdrSessions.isDefault(session) || attached(it) == session) }
+        val there = consoles.filter { open(it) && sameMachine(host(it), host(from)) && (HerdrSessions.isDefault(session) || CoreNotices.isCore(session) || attached(it) == session) }
         return there.firstOrNull(onScreen) ?: there.firstOrNull() ?: from
     }
 }

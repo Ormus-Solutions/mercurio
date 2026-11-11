@@ -122,11 +122,24 @@ class CoreSource {
             machine = machine,
             space = space,
             tab = tab,
-            kind = record.str("agent"),
+            kind = record.str("agent") ?: (record["status"] as? JsonObject)?.str("app"),
             state = state,
             since = since,
             turn = (record["turn"] as? JsonPrimitive)?.intOrNull,
+            parent = record.str("parent"),
         )
+    }
+
+    /** The one terminal in an `hc get <t> --json` answer, or null when the text is not that. */
+    fun parseOne(text: String, machine: String?, now: Long): Agent? {
+        val start = text.indexOf('{')
+        if (start < 0) return null
+        val root = try {
+            Json.parseToJsonElement(text.substring(start))
+        } catch (_: SerializationException) {
+            return null
+        } as? JsonObject ?: return null
+        return toAgent(root, machine, now)
     }
 
     private fun stateOf(status: JsonElement?): AgentState {

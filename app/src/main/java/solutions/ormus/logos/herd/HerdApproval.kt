@@ -79,7 +79,11 @@ object HerdApproval {
     private val KEYS = Regex("[a-z0-9]+")
 
     /** Whether [agent] is blocked and of a kind whose prompt Enter and Esc answer. */
-    fun offersAnswers(agent: HerdrAgentInfo): Boolean = agent.agentStatus == HerdrAgentStatus.BLOCKED && agent.agent in PROVEN_KINDS
+    fun offersAnswers(agent: HerdrAgentInfo): Boolean = if (agent.core != null) {
+        CoreNotices.offersAnswers(agent)
+    } else {
+        agent.agentStatus == HerdrAgentStatus.BLOCKED && agent.agent in PROVEN_KINDS
+    }
 
     /** Whether [paneId] is still an answerable blocked agent in [snapshot]. */
     fun stillBlocked(snapshot: HerdrSessionSnapshot, paneId: String): Boolean = snapshot.agents.any { it.paneId == paneId && offersAnswers(it) }

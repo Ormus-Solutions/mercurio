@@ -1020,6 +1020,7 @@ class TerminalBridge {
         io = dispatchers.io,
         isOnScreen = { manager.isOnScreen(this) },
         onNotices = { manager.onHerdNotices(this, it) },
+        coreEnabled = { manager.prefs.getBoolean(PreferenceConstants.HERDR_CORE, false) },
         // Through the emulator: libvterm sends ESC O A rather than ESC [ A while the host has
         // DECCKM on. Its output is posted, so it lands after anything injected before it.
         sendKey = { terminalEmulator.dispatchKey(0, it.vtermKey) },

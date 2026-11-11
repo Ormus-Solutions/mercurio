@@ -100,6 +100,8 @@ class HerdSession(
     /** Notifications the attention rules want posted. */
     private val onNotices: (List<HerdAttention.Notice>) -> Unit = {},
     private val sendKey: (HerdrTermKey) -> Unit = {},
+    /** Whether the herdr-core setting is on (read when the session starts); off runs no `hc` command. */
+    private val coreEnabled: () -> Boolean = { false },
 ) {
     // The notification rules keep per-pane memory, and pane ids repeat across sessions: one set per session.
     private val attentions = HashMap<String, HerdAttention>()
@@ -220,6 +222,45 @@ class HerdSession(
         }
     }
 
+    // The herdr-core terminals of this host, beside the TUI's: the same attention rules on their own memory
+    // (terminal addresses are not pane ids), polled only while the setting is on. Failures stay out of
+    // [failure]: a host without herdr-core is no Herdr fault.
+    private val coreSource = CoreSource()
+    private val coreAttention = HerdAttention(clock)
+    private var corePoll: Job? = null
+
+    // The loop asks the setting each round, so switching it takes effect without a reconnect; off runs nothing.
+    private fun watchCore() {
+        corePoll?.cancel()
+        corePoll = scope.launch(io) {
+            while (isActive) {
+                if (coreEnabled()) pollCore()
+                delay(pollIntervalMs)
+            }
+        }
+    }
+
+    private fun pollCore() {
+        val result = coreSource.read(true, hostName, clock(), ::runQuiet) as? CoreSource.Result.Agents ?: return
+        // The console shows a TUI session: no core terminal is what he looks at yet.
+        val notices = coreAttention.onSnapshot(CoreNotices.snapshot(result.agents), sessionOnScreen = false)
+        if (notices.isNotEmpty()) onNotices(notices.map { withCoreScreen(it.inSession(CoreNotices.SESSION)) })
+    }
+
+    // A core "Needs you" carries the end of the terminal's screen, as a TUI one carries its pane.
+    private fun withCoreScreen(notice: HerdAttention.Notice): HerdAttention.Notice {
+        if (notice !is HerdAttention.Notice.NeedsYou) return notice
+        val screen = runQuiet(CoreNotices.getCommand(notice.agent.paneId))?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout?.let(CoreNotices::screenOf)
+        return notice.copy(paneTail = screen?.let { HerdApproval.tail(it) })
+    }
+
+    private fun runQuiet(command: String): CommandOutput? = try {
+        runner(command)
+    } catch (e: Exception) {
+        Timber.w(e, "herdr-core command failed on %s", hostName)
+        null
+    }
+
     /** Whether Herdr answered on this host: a snapshot of the default session, or of one the console attached. */
     val herdrAnswered: Boolean
         get() = _snapshot.value != null || _others.value.isNotEmpty()
@@ -227,9 +268,11 @@ class HerdSession(
     /** Start polling (again); a restart forgets the old state so it is not read as a transition. */
     fun start() {
         synchronized(attentions) { attentions.values.forEach { it.reset() } }
+        coreAttention.reset()
         monitor.stop()
         monitor.start()
         watchAttached()
+        watchCore()
         scope.launch {
             readKeys()
             refreshSessions()
@@ -240,6 +283,7 @@ class HerdSession(
     fun stop() {
         monitor.stop()
         attachedPoll?.cancel()
+        corePoll?.cancel()
     }
 
     /** Fetch [session]'s snapshot now, outside the poll rhythm (after an action, or on opening a screen). */
@@ -466,6 +510,23 @@ class HerdSession(
         val error = HerdrApi.parseCommandError(run(HerdApproval.sendKeysCommand(paneId, keys, session)))
         if (error != null) return@withContext HerdAnswerOutcome.Failed(oneLine(error.message.ifBlank { error.code }))
         attentionFor(session).answered(paneId)
+        HerdAnswerOutcome.Sent
+    }
+
+    /**
+     * Answer the core agent blocked in terminal [address] from its notification: re-read the terminal
+     * (`hc get`) and press [answer]'s key only while it still blocks on a permission prompt and its turn
+     * is still [turn], the one the notice was raised at, and its screen still the one [prompt] fingerprints.
+     */
+    suspend fun answerCore(address: String, answer: HerdAnswer, turn: Int?, prompt: Int?): HerdAnswerOutcome = withContext(io) {
+        if (!CoreNotices.isAddress(address)) return@withContext HerdAnswerOutcome.Failed("not a terminal address")
+        val got = runQuiet(CoreNotices.getCommand(address))
+        if (got == null || (got.exitCode != null && got.exitCode != 0)) return@withContext HerdAnswerOutcome.Failed("could not read the terminal")
+        val fresh = CoreSource().parseOne(got.stdout, hostName, clock())
+        CoreNotices.guard(fresh, turn, CoreNotices.screenOf(got.stdout), prompt)?.let { return@withContext it }
+        val sent = runQuiet(CoreNotices.keysCommand(address, answer))
+        if (sent == null || (sent.exitCode != null && sent.exitCode != 0)) return@withContext HerdAnswerOutcome.Failed(oneLine(sent?.stderr.orEmpty()).ifBlank { "the key did not reach the terminal" })
+        coreAttention.answered(address)
         HerdAnswerOutcome.Sent
     }
 

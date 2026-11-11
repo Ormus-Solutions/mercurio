@@ -73,6 +73,7 @@ import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.ProviderLoader
 import org.connectbot.util.ProviderLoaderListener
 import org.connectbot.util.PubkeyUtils
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdAttention
@@ -917,14 +918,16 @@ class TerminalManager :
         val session = intent.getStringExtra(ConnectionNotifier.EXTRA_HERD_SESSION) ?: HerdrCommands.DEFAULT_SESSION
         val agentKind = intent.getStringExtra(ConnectionNotifier.EXTRA_HERD_AGENT)
         val answer = HerdAnswer.entries.firstOrNull { it.name == intent.getStringExtra(ConnectionNotifier.EXTRA_HERD_ANSWER) } ?: return
+        val turn = if (intent.hasExtra(ConnectionNotifier.EXTRA_HERD_TURN)) intent.getIntExtra(ConnectionNotifier.EXTRA_HERD_TURN, 0) else null
+        val prompt = if (intent.hasExtra(ConnectionNotifier.EXTRA_HERD_PROMPT)) intent.getIntExtra(ConnectionNotifier.EXTRA_HERD_PROMPT, 0) else null
         usageTracker.log(if (answer == HerdAnswer.APPROVE) UsageActions.NOTIFY_APPROVE else UsageActions.NOTIFY_DENY)
         val bridge = synchronized(_bridges) { _bridges.firstOrNull { it.host.id == hostId && it.herd != null && !it.isDisconnected } }
         scope.launch {
             val host = bridge?.host ?: hostRepository.findHostById(hostId) ?: return@launch
             val live = bridge?.herd
             val outcome = when (val plan = HerdOfflineAnswer.plan(live != null, host) { offlineKeys(host) }) {
-                HerdOfflineAnswer.Plan.UseSession -> checkNotNull(live).answer(paneId, answer, session)
-                is HerdOfflineAnswer.Plan.Connect -> answerOffline(host, plan.keys, session, paneId, answer)
+                HerdOfflineAnswer.Plan.UseSession -> checkNotNull(live).let { if (CoreNotices.isCore(session)) it.answerCore(paneId, answer, turn, prompt) else it.answer(paneId, answer, session) }
+                is HerdOfflineAnswer.Plan.Connect -> answerOffline(host, plan.keys, session, paneId, answer, turn, prompt)
                 HerdOfflineAnswer.Plan.NeedsApp -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_needs_app, host.nickname))
             }
             connectionNotifier.showHerdAnswer(this@TerminalManager, host, session, paneId, agentKind, outcome)
@@ -944,13 +947,18 @@ class TerminalManager :
      * Log in to [host] with [keys] and no terminal, answer through a throwaway Herdr side
      * (which checks the pane is still blocked), and log out. Nothing goes to any PTY.
      */
-    private suspend fun answerOffline(host: Host, keys: List<KeyPair>, session: String, paneId: String, answer: HerdAnswer): HerdAnswerOutcome = withContext(dispatchers.io) {
+    private suspend fun answerOffline(host: Host, keys: List<KeyPair>, session: String, paneId: String, answer: HerdAnswer, turn: Int?, prompt: Int?): HerdAnswerOutcome = withContext(dispatchers.io) {
         usageTracker.log(UsageActions.NOTIFY_ANSWER_CONNECT)
         HeadlessSsh(host, SSH(host, null, this@TerminalManager).HostKeyVerifier(host)).use { ssh ->
             when (val login = ssh.login(keys)) {
-                HeadlessSsh.Login.Ok -> HerdSession(host.nickname, ssh::exec, sendKeys = {}, scope, dispatchers.io).answer(paneId, answer, session)
+                HeadlessSsh.Login.Ok -> HerdSession(host.nickname, ssh::exec, sendKeys = {}, scope, dispatchers.io).let {
+                    if (CoreNotices.isCore(session)) it.answerCore(paneId, answer, turn, prompt) else it.answer(paneId, answer, session)
+                }
+
                 HeadlessSsh.Login.HostKeyRefused -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_host_key, host.nickname))
+
                 HeadlessSsh.Login.KeysRefused -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_keys_refused, host.nickname))
+
                 is HeadlessSsh.Login.Failed -> HerdAnswerOutcome.Failed(getString(R.string.notification_herd_unreachable, host.nickname, login.message))
             }
         }

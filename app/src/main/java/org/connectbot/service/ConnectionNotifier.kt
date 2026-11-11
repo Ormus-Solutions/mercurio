@@ -34,6 +34,7 @@ import org.connectbot.data.entity.Host
 import org.connectbot.ui.MainActivity
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.HostConstants
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdApproval
@@ -160,7 +161,7 @@ class ConnectionNotifier @Inject constructor() {
         val name = agentName(context, agent.agent)
         val place = listOfNotNull(notice.workspaceLabel, notice.tabLabel).joinToString(" / ").ifEmpty { null }
         // A named Herdr session is one of his workboards: the title says which.
-        val named = !HerdrSessions.isDefault(notice.session)
+        val named = !HerdrSessions.isDefault(notice.session) && !CoreNotices.isCore(notice.session)
         val title = when {
             needsYou && named -> res.getString(R.string.notification_herd_needs_you_in, name, host.nickname, notice.session)
             needsYou -> res.getString(R.string.notification_herd_needs_you, name, host.nickname)
@@ -193,8 +194,8 @@ class ConnectionNotifier @Inject constructor() {
         if (since != null) builder.setShowWhen(true)
 
         if (needsYou && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && HerdApproval.offersAnswers(agent)) {
-            builder.addAction(answerAction(context, host, notice.session, agent, HerdAnswer.APPROVE, R.string.notification_herd_approve))
-            builder.addAction(answerAction(context, host, notice.session, agent, HerdAnswer.DENY, R.string.notification_herd_deny))
+            builder.addAction(answerAction(context, host, notice.session, agent, tail, HerdAnswer.APPROVE, R.string.notification_herd_approve))
+            builder.addAction(answerAction(context, host, notice.session, agent, tail, HerdAnswer.DENY, R.string.notification_herd_deny))
         }
 
         val manager = getNotificationManager(context)
@@ -270,15 +271,18 @@ class ConnectionNotifier @Inject constructor() {
         val intent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = host.getUri()
-            putExtra(MainActivity.EXTRA_HERD_PANE, paneId)
-            putExtra(MainActivity.EXTRA_HERD_SESSION, session)
+            // A core terminal is no pane of any Herdr session: the tap opens the host's console only.
+            if (!CoreNotices.isCore(session)) {
+                putExtra(MainActivity.EXTRA_HERD_PANE, paneId)
+                putExtra(MainActivity.EXTRA_HERD_SESSION, session)
+            }
             putExtra(MainActivity.EXTRA_HERD_NOTICE, usageId)
         }
         return PendingIntent.getActivity(context, key.hashCode(), intent, pendingIntentFlags)
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
-    private fun answerAction(context: Context, host: Host, session: String, agent: HerdrAgentInfo, answer: HerdAnswer, label: Int): NotificationCompat.Action {
+    private fun answerAction(context: Context, host: Host, session: String, agent: HerdrAgentInfo, tail: String?, answer: HerdAnswer, label: Int): NotificationCompat.Action {
         val intent = Intent(context, TerminalManager::class.java).apply {
             action = ACTION_HERD_ANSWER
             putExtra(EXTRA_HERD_HOST, host.id)
@@ -286,6 +290,11 @@ class ConnectionNotifier @Inject constructor() {
             putExtra(EXTRA_HERD_PANE, agent.paneId)
             putExtra(EXTRA_HERD_AGENT, agent.agent)
             putExtra(EXTRA_HERD_ANSWER, answer.name)
+            // A core notice answers only while the agent's turn is the one it was raised at.
+            if (agent.core != null) {
+                agent.core.turn?.let { putExtra(EXTRA_HERD_TURN, it) }
+                tail?.let(CoreNotices::fingerprint)?.let { putExtra(EXTRA_HERD_PROMPT, it) }
+            }
         }
         val code = "${herdTag(host, session, agent.paneId)}:${answer.name}".hashCode()
         val pending = PendingIntent.getService(context, code, intent, pendingIntentFlags)
@@ -374,6 +383,12 @@ class ConnectionNotifier @Inject constructor() {
 
         // Approve and Deny on a "Needs you", handled by TerminalManager.onStartCommand.
         const val ACTION_HERD_ANSWER = "solutions.ormus.logos.action.HERD_ANSWER"
+
+        /** Extra on an Approve or Deny of a core notice: the agent's turn when the notice was raised (an Int). */
+        const val EXTRA_HERD_TURN = "solutions.ormus.logos.extra.HERD_TURN"
+
+        /** Extra beside [EXTRA_HERD_TURN]: a hash of the prompt the notice showed (an Int); absent when it showed none. */
+        const val EXTRA_HERD_PROMPT = "solutions.ormus.logos.extra.HERD_PROMPT"
         const val EXTRA_HERD_HOST = "solutions.ormus.logos.extra.HERD_HOST"
         const val EXTRA_HERD_SESSION = "solutions.ormus.logos.extra.HERD_ANSWER_SESSION"
         const val EXTRA_HERD_PANE = "solutions.ormus.logos.extra.HERD_ANSWER_PANE"

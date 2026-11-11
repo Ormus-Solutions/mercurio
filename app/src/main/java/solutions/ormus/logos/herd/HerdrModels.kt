@@ -31,6 +31,7 @@ package solutions.ormus.logos.herd
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 
 /*
@@ -121,7 +122,12 @@ data class HerdrAgentInfo(
     val focused: Boolean = false,
     @SerialName("state_change_seq") val stateChangeSeq: Long = 0,
     val revision: Long = 0,
+    /** Set only for a herdr-core terminal seen as an agent here ([CoreNotices]); never in the TUI's JSON. */
+    @Transient val core: CoreFacts? = null,
 )
+
+/** What a herdr-core terminal says that the TUI's agent record has no field for: why it blocks, and its turn. */
+data class CoreFacts(val needs: NeedsYouKind?, val turn: Int?)
 
 /** The top-level session snapshot from `herdr api snapshot`. */
 @Serializable
