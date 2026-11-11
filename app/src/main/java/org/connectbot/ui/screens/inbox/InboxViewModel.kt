@@ -32,10 +32,12 @@ import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalManager
 import org.connectbot.ui.screens.herd.boardSnapshots
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.CoreSource
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
+import solutions.ormus.logos.herd.RowAction
 import javax.inject.Inject
 
 /**
@@ -73,6 +75,7 @@ class InboxViewModel @Inject constructor(
         // Rows kept from an earlier visit are old; they go before the first read of this one.
         _state.value = State()
         coreRows.clear()
+        failure = null
         while (true) {
             refresh()
             delay(PERIOD_MS)
@@ -120,8 +123,38 @@ class InboxViewModel @Inject constructor(
         }
     }
 
+    // The last write that failed, as a line for the user; the next write or visit clears it.
+    private var failure: String? = null
+
+    /**
+     * Write [action] on [row]'s terminal through its host's connection. A herdr-core row only: a TUI
+     * agent has no labels and no Esc to send here. On success the row is patched at once, and the
+     * next poll confirms it; on failure the row stays and a line says so.
+     */
+    fun act(row: InboxRow, action: RowAction) {
+        val agent = row.agent
+        if (agent.engine != AgentEngine.CORE) return
+        val herd = manager?.bridgesFlow?.value?.firstOrNull { it.host.id == row.hostId }?.herd ?: return
+        viewModelScope.launch {
+            val ok = try {
+                withContext(dispatchers.io) { CoreSource.write(action, Inbox.terminal(agent.address), agent.turn, herd::exec) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            failure = if (ok) null else "${row.host}: could not write to ${Inbox.terminal(agent.address)}"
+            if (ok) {
+                coreRows[row.hostId]?.let { held ->
+                    coreRows[row.hostId] = held.copy(rows = Inbox.patched(held.rows, agent, action))
+                }
+            }
+            publish()
+        }
+    }
+
     private fun publish() {
-        _state.value = State(herdrRows + coreRows.values.flatMap { it.rows }, coreRows.values.mapNotNull { it.note })
+        _state.value = State(herdrRows + coreRows.values.flatMap { it.rows }, coreRows.values.mapNotNull { it.note } + listOfNotNull(failure))
     }
 
     companion object {

@@ -20,6 +20,9 @@ package org.connectbot.ui.components
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import org.connectbot.util.PreferenceConstants
+import java.net.URLDecoder
+import java.net.URLEncoder
+import kotlin.math.abs
 
 // Control bytes built from code points so no raw control chars live in the source.
 private val ESC_SEQ: String = 27.toChar().toString()
@@ -27,13 +30,41 @@ private val ESC_SEQ: String = 27.toChar().toString()
 private fun ctrl(letter: Char): String = (letter.code and 0x1f).toChar().toString()
 
 /** One key the bar can hold: [id] is what is saved, [sequence] is what is written to the PTY. */
-data class KeyBarKey(val id: String, val label: String, val sequence: String, val repeats: Boolean = false)
+data class KeyBarKey(
+    val id: String,
+    val label: String,
+    val sequence: String,
+    val repeats: Boolean = false,
+    val kind: KeyKind = KeyKind.SEQUENCE,
+    /** A text key also presses Enter after its text. */
+    val enter: Boolean = false,
+    /** What a screen reader says: the label, or the whole text of a text key. */
+    val description: String = label,
+)
+
+/** What a tap on the key does: send [KeyBarKey.sequence], work the Ctrl or Alt state, or run an action. */
+enum class KeyKind { SEQUENCE, CTRL, ALT, ARROWS, PASTE, COMPOSE, TEXT }
+
+/** The arrows key: one key that is four, the tap position choosing the arrow. */
+object ArrowPad {
+    fun sequenceAt(x: Float, y: Float, width: Float, height: Float): String {
+        val dx = x - width / 2
+        val dy = y - height / 2
+        return when {
+            abs(dx) > abs(dy) -> if (dx < 0) ESC_SEQ + "[D" else ESC_SEQ + "[C"
+            else -> if (dy < 0) ESC_SEQ + "[A" else ESC_SEQ + "[B"
+        }
+    }
+}
 
 /**
  * Every key he can put on the bar. Ids are saved, so never rename one. No Ctrl+B: it is
  * Herdr's default prefix, and the bar's own prefix tracking must see that key.
  */
 object KeyBarCatalog {
+    // F1 to F4 are SS3 keys, F5 to F12 tilde keys with the gaps xterm keeps.
+    private val FUNCTION_TAILS = listOf("OP", "OQ", "OR", "OS", "[15~", "[17~", "[18~", "[19~", "[20~", "[21~", "[23~", "[24~")
+
     val all: List<KeyBarKey> = listOf(
         KeyBarKey("esc", "Esc", ESC_SEQ),
         KeyBarKey("tab", "Tab", "\t"),
@@ -62,11 +93,49 @@ object KeyBarCatalog {
         KeyBarKey("dash", "-", "-"),
         KeyBarKey("pipe", "|", "|"),
         KeyBarKey("tilde", "~", "~"),
-    )
+        KeyBarKey("ctrl", "Ctrl", "", kind = KeyKind.CTRL),
+        KeyBarKey("alt", "Alt", "", kind = KeyKind.ALT),
+        KeyBarKey("arrows", "Arrows", "", kind = KeyKind.ARROWS),
+        KeyBarKey("paste", "Paste", "", kind = KeyKind.PASTE),
+        KeyBarKey("compose", "Compose", "", kind = KeyKind.COMPOSE),
+    ) + FUNCTION_TAILS.mapIndexed { i, tail -> KeyBarKey("f${i + 1}", "F${i + 1}", ESC_SEQ + tail) }
 
     private val byId: Map<String, KeyBarKey> = all.associateBy { it.id }
 
-    fun byId(id: String): KeyBarKey? = byId[id]
+    /** A fixed key by its id, or a text key built from its id; null for anything else. */
+    fun byId(id: String): KeyBarKey? = byId[id] ?: textKey(id)
+
+    const val MAX_TEXT_KEY: Int = 64
+
+    private const val TEXT_PREFIX = "text:"
+    private const val TEXT_ENTER_PREFIX = "textcr:"
+
+    /**
+     * The id of a key that types [text] (then Enter when [enter]); null for a blank or too long
+     * text. The text is percent-encoded, so no "," or ";" of it breaks the saved layout.
+     */
+    fun textKeyId(text: String, enter: Boolean): String? {
+        if (!usable(text)) return null
+        return (if (enter) TEXT_ENTER_PREFIX else TEXT_PREFIX) + URLEncoder.encode(text, "UTF-8")
+    }
+
+    // No control characters: a stray byte 2 would be Herdr's prefix.
+    private fun usable(text: String) = text.isNotBlank() && text.length <= MAX_TEXT_KEY && text.none { it.isISOControl() }
+
+    private fun textKey(id: String): KeyBarKey? {
+        val enter = id.startsWith(TEXT_ENTER_PREFIX)
+        if (!enter && !id.startsWith(TEXT_PREFIX)) return null
+        val text = try {
+            URLDecoder.decode(id.substringAfter(':'), "UTF-8")
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        if (!usable(text)) return null
+        val label = (if (text.length > LABEL_CHARS) text.take(LABEL_CHARS - 1) + "\u2026" else text) + if (enter) "\u23CE" else ""
+        return KeyBarKey(id, label, text, kind = KeyKind.TEXT, enter = enter, description = text)
+    }
+
+    private const val LABEL_CHARS = 8
 }
 
 /**
@@ -113,17 +182,20 @@ data class KeyBarLayout(val pages: List<List<String>>) {
 
     companion object {
         const val MAX_PAGES: Int = 8
-        const val MAX_KEYS_PER_PAGE: Int = 6
+        const val MAX_KEYS_PER_PAGE: Int = 5
         private const val PAGE_SEP = ";"
         private const val KEY_SEP = ","
 
-        /** The bar he sees until he edits it: 18 keys in four pages. */
+        /** A saved page may hold more than the editor now lets him add (a six-key page from before). */
+        private const val MAX_KEYS_WHEN_READING = 8
+
+        /** The bar he sees until he edits it: the Herdr app's 18 keys in its order, five to a page. */
         val DEFAULT: KeyBarLayout = KeyBarLayout(
             listOf(
-                listOf("esc", "tab", "shift-tab", "ctrl-c", "ctrl-d"),
-                listOf("left", "up", "down", "right"),
-                listOf("pgup", "pgdn", "home", "end"),
-                listOf("ctrl-u", "ctrl-r", "ctrl-l", "ctrl-z", "slash"),
+                listOf("esc", "ctrl", "alt", "tab", "shift-tab"),
+                listOf("arrows", "ctrl-c", "ctrl-d", "ctrl-z", "ctrl-l"),
+                listOf("pipe", "tilde", "slash", "dash", "home"),
+                listOf("end", "pgup", "pgdn"),
             ),
         )
 
@@ -131,7 +203,7 @@ data class KeyBarLayout(val pages: List<List<String>>) {
         fun decode(text: String?): KeyBarLayout {
             if (text == null) return DEFAULT
             val pages = text.split(PAGE_SEP).map { page ->
-                page.split(KEY_SEP).filter { KeyBarCatalog.byId(it) != null }.take(MAX_KEYS_PER_PAGE)
+                page.split(KEY_SEP).filter { KeyBarCatalog.byId(it) != null }.take(MAX_KEYS_WHEN_READING)
             }
             return KeyBarLayout(pages.take(MAX_PAGES))
         }

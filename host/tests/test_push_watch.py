@@ -297,5 +297,476 @@ class NoHerdrTest(unittest.TestCase):
             self.assertEqual(pw.read_endpoints(path), ["http://a/upX"])
 
 
+# --- herdr-core -------------------------------------------------------------
+# Lines are what `hc events --json` prints (measured on an isolated core): first the
+# snapshot object, then one JSON-RPC notification per line.
+
+
+def term(address="t1", state=None, kind=None, turn=0, parent=None, labels=None, app="claude-code", msg="SECRET MSG"):
+    status = None if state is None else {"app": app, "state": state, "msg": msg}
+    if status and kind:
+        status["kind"] = kind
+    return {
+        "address": address,
+        "argv": ["SECRET-ARGV"],
+        "labels": {"where": "alpha · ONE / build", **(labels or {})},
+        "parent": parent,
+        "status": status,
+        "title": "SECRET TITLE",
+        "screen": "exact",
+        "turn": turn,
+        "state": "live",
+    }
+
+
+def snap(*terminals, seq=0):
+    return json.dumps({"channel": None, "seq": seq, "terminals": list(terminals)})
+
+
+def ev(seq, kind, address, data):
+    return json.dumps(
+        {"jsonrpc": "2.0", "method": "event", "params": {"seq": seq, "type": kind, "terminal": address, "data": data}}
+    )
+
+
+def status_ev(seq, address, state, kind=None, app="claude-code"):
+    status = {"app": app, "state": state, "msg": "SECRET MSG"}
+    if kind:
+        status["kind"] = kind
+    return ev(seq, "status", address, {"records": {}, "reported": True, "status": status})
+
+
+def turn_ev(seq, address, turn, state):
+    return ev(seq, "turn", address, {"turn": turn, "state": state})
+
+
+def missed(seq, *terminals):
+    return json.dumps({"jsonrpc": "2.0", "method": "missed", "params": {"seq": seq, "terminals": list(terminals)}})
+
+
+HEARTBEAT = json.dumps({"jsonrpc": "2.0", "method": "heartbeat", "params": {"seq": 1}})
+
+
+class Timers:
+    """A scheduler the test drives by hand: nothing fires until [advance]."""
+
+    def __init__(self):
+        self.now = 0.0
+        self.waiting = []
+
+    def schedule(self, delay, fn):
+        self.waiting.append((self.now + delay, fn))
+
+    def advance(self, seconds):
+        self.now += seconds
+        due = sorted((w for w in self.waiting if w[0] <= self.now), key=lambda w: w[0])
+        self.waiting = [w for w in self.waiting if w[0] > self.now]
+        for _, fn in due:
+            fn()
+
+
+class CoreWatchTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.endpoints = os.path.join(self.tmp.name, "push-endpoints")
+        Path(self.endpoints).write_text("https://push.example/upAbc\n")
+        self.posts = []
+        self.timers = Timers()
+        self.rounds = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def watcher(self, **kw):
+        def spawn():
+            if not self.rounds:
+                raise KeyboardInterrupt
+            return iter(self.rounds.pop(0))
+
+        return pw.CoreWatcher(
+            "box",
+            self.endpoints,
+            kw.pop("debounce", 20.0),
+            post=lambda url, body: self.posts.append(json.loads(body)) or 200,
+            clock=lambda: self.timers.now,
+            spawn=spawn,
+            schedule=self.timers.schedule,
+            sleep=lambda s: None,
+            **kw,
+        )
+
+    def feed(self, *lines, w=None):
+        w = w or self.watcher()
+        self.last = w
+        w.consume(iter(lines))
+        return w
+
+    # The rule, as the desktop app has it (herdr-app model.rs `alert`).
+    def test_alert_rule(self):
+        rule = pw.core_alert
+        self.assertEqual(rule("working", "blocked"), "blocked")
+        self.assertEqual(rule(None, "blocked"), "blocked")
+        self.assertEqual(rule("working", "error"), "blocked")
+        self.assertIsNone(rule("blocked", "blocked"))
+        self.assertIsNone(rule("blocked", "error"))
+        self.assertEqual(rule("working", "done"), "done")
+        self.assertEqual(rule("working", "idle"), "done")
+        self.assertEqual(rule("blocked", "idle"), "done")
+        self.assertIsNone(rule("done", "idle"))
+        self.assertIsNone(rule("idle", "done"))
+        self.assertIsNone(rule(None, "idle"))
+        self.assertIsNone(rule("working", None))
+        self.assertIsNone(rule("working", "working"))
+
+    def test_blocked_pushes_once_the_turn_is_known_and_carries_ids_only(self):
+        self.feed(snap(term(state="working")), status_ev(1, "t1", "blocked", kind="permission"))
+        self.assertEqual(self.posts, [])  # waits for the turn event, which comes after the status
+        self.feed(turn_ev(2, "t1", 1, "blocked"), w=self.last)
+        self.assertEqual(len(self.posts), 1)
+        body = self.posts[0]
+        self.assertEqual(
+            (body["v"], body["event"], body["state"], body["host"], body["session"], body["pane_id"]),
+            (1, "pane.agent_status_changed", "blocked", "box", "@core", "t1"),
+        )
+        self.assertEqual((body["agent"], body["kind"], body["turn"]), ("claude-code", "permission", 1))
+        self.assertEqual((body["workspace"], body["tab"]), ("alpha · ONE", "build"))
+        self.assertNotIn("SECRET", json.dumps(body))
+        self.assertEqual(
+            set(body),
+            {
+                "v",
+                "event",
+                "state",
+                "host",
+                "session",
+                "pane_id",
+                "agent",
+                "kind",
+                "turn",
+                "workspace",
+                "tab",
+                "workspace_id",
+                "tab_id",
+                "ts",
+            },
+        )
+
+    def test_blocked_without_a_turn_event_pushes_when_the_settle_time_runs_out(self):
+        w = self.watcher()
+        self.last = w
+        w.consume(iter([snap(term(state="working")), status_ev(1, "t1", "blocked", kind="question")]))
+        self.timers.advance(0.5)
+        self.assertEqual(self.posts, [])
+        self.timers.advance(1.0)
+        self.assertEqual([(p["state"], p["turn"]) for p in self.posts], [("blocked", 0)])
+
+    def test_a_block_already_there_at_start_is_silent(self):
+        self.feed(snap(term(state="blocked", kind="permission", turn=3)), HEARTBEAT, turn_ev(1, "t1", 3, "blocked"))
+        self.timers.advance(10)
+        self.assertEqual(self.posts, [])
+
+    def test_a_block_answered_before_the_push_goes_out_is_dropped(self):
+        w = self.watcher()
+        w.consume(iter([snap(term(state="working")), status_ev(1, "t1", "blocked"), status_ev(2, "t1", "working")]))
+        self.timers.advance(5)
+        self.assertEqual(self.posts, [])
+
+    def test_a_helper_never_pushes(self):
+        helper = term("t2", state="working", parent="t1")
+        self.feed(
+            snap(term("t1", state="idle"), helper),
+            status_ev(1, "t2", "blocked", kind="permission"),
+            turn_ev(2, "t2", 1, "blocked"),
+            status_ev(3, "t2", "working"),
+            status_ev(4, "t2", "done"),
+            turn_ev(5, "t2", 2, "done"),
+        )
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_a_helper_created_later_never_pushes(self):
+        self.feed(
+            snap(),
+            ev(1, "created", "t2", term("t2", parent="t1")),
+            status_ev(2, "t2", "blocked"),
+            turn_ev(3, "t2", 1, "blocked"),
+        )
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_done_nobody_looked_pushes_after_the_seen_grace(self):
+        self.feed(snap(term(state="working")), status_ev(1, "t1", "done"), turn_ev(2, "t1", 4, "done"))
+        self.timers.advance(1)
+        self.assertEqual(self.posts, [])  # the desktop app may still mark it seen
+        self.timers.advance(5)
+        self.assertEqual([(p["state"], p["turn"], p["kind"]) for p in self.posts], [("done", 4, None)])
+        self.assertNotIn("SECRET", json.dumps(self.posts[0]))
+
+    def test_done_that_was_seen_does_not_push(self):
+        self.feed(
+            snap(term(state="working", turn=3, labels={"herdr.seen": "3"})),
+            status_ev(1, "t1", "done"),
+            turn_ev(2, "t1", 4, "done"),
+            ev(3, "labels", "t1", {"labels": {"where": "alpha · ONE / build", "herdr.seen": "4"}}),
+        )
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_a_seen_mark_of_an_older_turn_does_not_hide_a_done(self):
+        self.feed(
+            snap(term(state="working", turn=3, labels={"herdr.seen": "3"})),
+            status_ev(1, "t1", "done"),
+            turn_ev(2, "t1", 4, "done"),
+        )
+        self.timers.advance(30)
+        self.assertEqual(len(self.posts), 1)
+
+    def test_done_then_working_again_before_the_grace_is_dropped(self):
+        self.feed(
+            snap(term(state="working")),
+            status_ev(1, "t1", "done"),
+            turn_ev(2, "t1", 1, "done"),
+            status_ev(3, "t1", "working"),
+        )
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_done_then_idle_is_one_push_at_most(self):
+        self.feed(
+            snap(term(state="working")),
+            status_ev(1, "t1", "done"),
+            turn_ev(2, "t1", 1, "done"),
+            status_ev(3, "t1", "idle"),
+        )
+        self.timers.advance(30)
+        self.assertEqual(len(self.posts), 1)
+
+    def test_error_counts_as_blocked(self):
+        self.feed(snap(term(state="working")), status_ev(1, "t1", "error"), turn_ev(2, "t1", 1, "error"))
+        self.assertEqual([p["state"] for p in self.posts], ["blocked"])
+
+    def test_a_terminal_that_never_reported_a_status_never_pushes(self):
+        self.feed(snap(term(state=None)), ev(1, "title", "t1", {"title": "x"}), ev(2, "foreground", "t1", {}))
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_a_remote_machines_terminal_never_pushes(self):
+        # Its own host's watcher says it; two watchers would ring twice for one block.
+        self.feed(
+            snap(term("rohan/t7", state="working")),
+            status_ev(1, "rohan/t7", "blocked"),
+            turn_ev(2, "rohan/t7", 1, "blocked"),
+        )
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_a_second_block_in_a_new_turn_pushes_even_inside_the_debounce(self):
+        self.feed(
+            snap(term(state="working")),
+            status_ev(1, "t1", "blocked"),
+            turn_ev(2, "t1", 1, "blocked"),
+            status_ev(3, "t1", "working"),
+            status_ev(4, "t1", "blocked"),
+            turn_ev(5, "t1", 2, "blocked"),
+        )
+        self.assertEqual([p["turn"] for p in self.posts], [1, 2])
+
+    def test_the_same_alert_of_the_same_turn_inside_the_debounce_pushes_once(self):
+        w = self.feed(snap(term(state="working")), status_ev(1, "t1", "blocked"), turn_ev(2, "t1", 1, "blocked"))
+        # No turn event this time: the turn is still 1.
+        w.consume(iter([status_ev(3, "t1", "working"), status_ev(4, "t1", "blocked")]))
+        self.timers.advance(2)
+        self.assertEqual(len(self.posts), 1)
+        self.timers.advance(21)
+        w.consume(iter([status_ev(5, "t1", "working"), status_ev(6, "t1", "blocked")]))
+        self.timers.advance(2)
+        self.assertEqual(len(self.posts), 2)
+
+    def test_a_removed_terminal_forgets_its_pending_push(self):
+        self.feed(snap(term(state="working")), status_ev(1, "t1", "done"), ev(2, "removed", "t1", {}))
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_missed_applies_the_fresh_snapshot_and_drops_older_events(self):
+        w = self.watcher()
+        w.consume(iter([snap(term(state="working"), seq=5)]))
+        # The gap hid a block; the missed snapshot says t1 is blocked now.
+        w.consume(iter([missed(60, term(state="blocked", kind="permission", turn=2))]))
+        self.assertEqual([p["state"] for p in self.posts], ["blocked"])
+        # An old status that was still queued (seq not above 60) changes nothing.
+        w.consume(iter([status_ev(59, "t1", "working"), status_ev(61, "t1", "blocked")]))
+        self.timers.advance(30)
+        self.assertEqual(len(self.posts), 1)
+
+    def test_missed_does_not_repeat_a_block_it_already_knew(self):
+        w = self.watcher()
+        w.consume(iter([snap(term(state="working")), status_ev(1, "t1", "blocked"), turn_ev(2, "t1", 1, "blocked")]))
+        w.consume(iter([missed(30, term(state="blocked", kind="permission", turn=1))]))
+        self.assertEqual(len(self.posts), 1)
+
+    def test_missed_forgets_terminals_the_snapshot_no_longer_has(self):
+        w = self.watcher()
+        w.consume(iter([snap(term(state="working")), missed(9)]))
+        self.assertEqual(w.terms, {})
+
+    def test_a_dropped_stream_is_followed_again_and_only_news_pushes(self):
+        self.rounds = [
+            [snap(term(state="blocked", turn=1), term("t2", state="working"))],  # ends: hc went away
+            [snap(term(state="blocked", turn=1), term("t2", state="blocked", turn=1), seq=0)],
+        ]
+        w = self.watcher()
+        with self.assertRaises(KeyboardInterrupt):
+            w.run()
+        self.timers.advance(5)
+        self.assertEqual([p["pane_id"] for p in self.posts], ["t2"])  # t1 was already blocked, t2 is new
+
+    def test_a_failing_start_is_retried_with_backoff(self):
+        sleeps = []
+        calls = []
+
+        def spawn():
+            calls.append(1)
+            if len(calls) < 4:
+                raise OSError("no hc")
+            raise KeyboardInterrupt
+
+        w = pw.CoreWatcher("box", self.endpoints, 20.0, spawn=spawn, schedule=self.timers.schedule, sleep=sleeps.append)
+        with self.assertRaises(KeyboardInterrupt):
+            w.run()
+        self.assertEqual(sleeps, [1.0, 2.0, 4.0])
+
+    def test_garbage_lines_are_skipped(self):
+        self.feed(
+            "",
+            "not json",
+            "[1]",
+            snap(term(state="working")),
+            "{}",
+            status_ev(1, "t1", "blocked"),
+            turn_ev(2, "t1", 1, "blocked"),
+        )
+        self.assertEqual(len(self.posts), 1)
+
+    def test_no_endpoints_means_no_push_and_no_crash(self):
+        Path(self.endpoints).write_text("# nothing\n")
+        self.feed(snap(term(state="working")), status_ev(1, "t1", "blocked"), turn_ev(2, "t1", 1, "blocked"))
+        self.assertEqual(self.posts, [])
+
+    def test_a_silent_stream_is_cut_after_the_stall_time(self):
+        command = [
+            "python3",
+            "-c",
+            'import time,sys;print(\'{"seq":0,"terminals":[]}\',flush=True);time.sleep(30)',
+        ]
+        started = time.monotonic()
+        lines = list(pw.hc_lines(command, stall=0.5))
+        self.assertEqual(len(lines), 1)
+        self.assertLess(time.monotonic() - started, 10)
+
+    def test_a_failing_post_or_odd_field_does_not_end_the_watcher(self):
+        import http.client
+
+        def post(url, body):
+            raise http.client.BadStatusLine("x")
+
+        w = pw.CoreWatcher("box", self.endpoints, 20.0, post=post, schedule=self.timers.schedule, sleep=lambda s: None)
+        w.consume(iter([snap(term(state="working")), status_ev(1, "t1", "blocked"), turn_ev(2, "t1", 1, "blocked")]))
+        self.rounds = [
+            [
+                snap(term(state="working")),
+                json.dumps(
+                    {
+                        "method": "event",
+                        "params": {"seq": 9, "type": "status", "terminal": "t1", "data": {"status": ["x"]}},
+                    }
+                ),
+            ]
+        ]
+        calls = []
+
+        def spawn():
+            calls.append(1)
+            if len(calls) > 2:
+                raise KeyboardInterrupt
+            return iter(self.rounds[0])
+
+        w.spawn = spawn
+        with self.assertRaises(KeyboardInterrupt):
+            w.run()
+        self.assertEqual(len(calls), 3)
+
+    def test_the_push_goes_out_without_holding_the_lock(self):
+        held = []
+        w = pw.CoreWatcher(
+            "box",
+            self.endpoints,
+            20.0,
+            post=lambda url, body: held.append(w.lock._is_owned()) or 200,
+            schedule=self.timers.schedule,
+        )
+        w.consume(iter([snap(term(state="working")), status_ev(1, "t1", "blocked"), turn_ev(2, "t1", 1, "blocked")]))
+        self.assertEqual(held, [False])
+
+    def test_a_terminal_that_comes_back_created_again_alerts_on_the_change(self):
+        # A machine's line returns: its changed terminals arrive as created, with the news in the record.
+        self.feed(snap(term("rohan/t7", state="working"), term(state="working")))
+        self.feed(ev(1, "created", "t1", term(state="blocked", kind="permission", turn=2)), w=self.last)
+        self.assertEqual([(p["pane_id"], p["state"]) for p in self.posts], [("t1", "blocked")])
+
+    def test_a_new_terminal_created_idle_is_silent(self):
+        self.feed(snap(), ev(1, "created", "t1", term(state="idle")))
+        self.timers.advance(30)
+        self.assertEqual(self.posts, [])
+
+    def test_a_finish_waits_for_its_turn_before_it_is_judged_seen(self):
+        # The last turn was seen (label 4 = turn 4); the finish is turn 5, but its event is late.
+        w = self.feed(snap(term(state="working", turn=4, labels={"herdr.seen": "4"})), status_ev(1, "t1", "done"))
+        self.timers.advance(3.1)
+        self.assertEqual(self.posts, [])  # not judged against turn 4
+        w.consume(iter([turn_ev(2, "t1", 5, "done")]))
+        self.timers.advance(5)
+        self.assertEqual([p["turn"] for p in self.posts], [5])
+
+    def test_a_finish_whose_turn_never_comes_is_judged_after_a_second_wait(self):
+        self.feed(snap(term(state="working", turn=4)), status_ev(1, "t1", "done"))
+        self.timers.advance(3.1)
+        self.assertEqual(self.posts, [])
+        self.timers.advance(2)
+        self.assertEqual(len(self.posts), 1)
+
+    def test_only_words_the_core_defines_and_a_short_agent_name_reach_the_push(self):
+        self.feed(
+            snap(term(state="working", app="x" * 500)),
+            status_ev(1, "t1", "blocked", kind="SECRET words", app="x" * 500),
+        )
+        self.timers.advance(3)
+        body = self.posts[0]
+        self.assertIsNone(body["kind"])
+        self.assertLessEqual(len(body["agent"]), 64)
+
+    def test_the_agent_is_never_taken_from_argv(self):
+        t = term(state="working")
+        t["status"]["app"] = ""
+        self.feed(snap(t), status_ev(1, "t1", "blocked", app=""), turn_ev(2, "t1", 1, "blocked"))
+        self.assertIsNone(self.posts[0]["agent"])
+
+    def test_a_bool_is_no_seq_or_turn(self):
+        w = self.feed(snap(term(state="working"), seq=5))
+        w.consume(iter([ev(True, "title", "t1", {}), turn_ev(6, "t1", True, "done")]))
+        self.assertEqual((w.floor, w.terms["t1"]["turn"]), (6, 0))
+
+    def test_bytes_that_are_not_utf8_do_not_break_the_reader(self):
+        command = ["python3", "-c", "import sys;sys.stdout.buffer.write(b'\\xff\\n{}\\n')"]
+        self.assertEqual(len(list(pw.hc_lines(command, stall=5))), 2)
+
+    def test_the_hc_to_run_can_be_named(self):
+        self.assertEqual(pw.make_parser().parse_args(["--core", "--hc", "/opt/hc"]).hc, "/opt/hc")
+
+    def test_the_core_watcher_is_off_unless_asked(self):
+        parser = pw.make_parser()
+        self.assertFalse(parser.parse_args([]).core)
+        self.assertTrue(parser.parse_args(["--core"]).core)
+
+
 if __name__ == "__main__":
     unittest.main()

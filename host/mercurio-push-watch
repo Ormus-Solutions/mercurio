@@ -23,6 +23,7 @@ import json
 import os
 import signal
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -94,6 +95,22 @@ def post_json(url: str, body: bytes, timeout: float = 5.0) -> int:
     req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.status
+
+
+def send(endpoints_path: str, message: dict, post: Callable[[str, bytes], int], what: str) -> None:
+    """POST [message] to every endpoint in the file; a failing endpoint does not stop the others."""
+    endpoints = read_endpoints(endpoints_path)
+    if not endpoints:
+        log(f"{what}: no endpoints in {endpoints_path}")
+        return
+    body = json.dumps(message, separators=(",", ":")).encode()
+    for url in endpoints:
+        where = urlsplit(url).netloc
+        try:
+            code = post(url, body)
+            log(f"{what}: pushed to {where} ({code})")
+        except Exception as e:  # a bad endpoint must not stop the others, or the watcher
+            log(f"{what}: push to {where} failed: {e}")
 
 
 def herdr_request(sock_path: str, method: str, params: dict) -> dict:
@@ -187,18 +204,7 @@ class Watcher:
         return message
 
     def push(self, pane_id: str, status: str) -> None:
-        endpoints = read_endpoints(self.endpoints_path)
-        if not endpoints:
-            log(f"{pane_id} {status}: no endpoints in {self.endpoints_path}")
-            return
-        body = json.dumps(self.payload(pane_id, status), separators=(",", ":")).encode()
-        for url in endpoints:
-            where = urlsplit(url).netloc
-            try:
-                code = self.post(url, body)
-                log(f"{pane_id} {status}: pushed to {where} ({code})")
-            except (OSError, urllib.error.URLError) as e:
-                log(f"{pane_id} {status}: push to {where} failed: {e}")
+        send(self.endpoints_path, self.payload(pane_id, status), self.post, f"{pane_id} {status}")
 
     def apply_snapshot(self, snap: dict) -> set[str]:
         panes = snap.get("panes", [])
@@ -264,6 +270,332 @@ class Watcher:
                 self.backoff = min(self.backoff * 2, MAX_BACKOFF)
 
 
+# --- herdr-core -------------------------------------------------------------
+# `hc events --json` prints the snapshot object ({"seq":..,"terminals":[..]}), then one JSON-RPC
+# notification per line: "event" (created, status, turn, labels, removed, ...), "heartbeat" every
+# 15 s, and "missed" with a fresh snapshot when this reader fell behind. Formats measured on core 0.1.20.
+
+CORE_SESSION = "@core"
+CORE_COMMAND = ("hc", "events", "--json")
+# The words a core status may give for why it blocks.
+CORE_KINDS = ("permission", "question", "auth")
+AGENT_MAX = 64
+# A heartbeat comes every 15 s; three missing ones mean the pipe is open and nobody is writing.
+CORE_STALL = 45.0
+# How long a block waits for the `turn` event that follows its status (the phone guards Approve on it).
+CORE_SETTLE = 1.0
+# How long a finish waits for the desktop app to mark it seen (label herdr.seen) before it counts as unseen.
+CORE_SEEN_GRACE = 3.0
+BUSY = ("working", "blocked", "error")
+NEEDS = ("blocked", "error")
+
+
+def whole(x: object) -> bool:
+    return isinstance(x, int) and not isinstance(x, bool)
+
+
+def core_alert(prev: str | None, new: str | None) -> str | None:
+    """The desktop app's rule (herdr-app model.rs `alert`) for a change of status word, before the seen check:
+    needing you always alerts; going from busy to not busy is a finish."""
+    if new in NEEDS and prev not in NEEDS:
+        return "blocked"
+    if prev in BUSY and new is not None and new not in BUSY:
+        return "done"
+    return None
+
+
+def hc_lines(command: Iterable[str] = CORE_COMMAND, stall: float = CORE_STALL) -> Iterable[str]:
+    """Lines of a command's output; the command is killed when it goes quiet for [stall] seconds."""
+    proc = subprocess.Popen(
+        list(command), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace"
+    )
+    last = [time.monotonic()]
+    over = threading.Event()
+
+    def watchdog() -> None:
+        while not over.wait(min(stall / 2, 5.0)):
+            if time.monotonic() - last[0] > stall:
+                proc.kill()
+                return
+
+    threading.Thread(target=watchdog, daemon=True).start()
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            last[0] = time.monotonic()
+            yield line
+    finally:
+        over.set()
+        proc.kill()
+        proc.wait()
+
+
+def after(delay: float, fn: Callable[[], None]) -> None:
+    t = threading.Timer(delay, fn)
+    t.daemon = True
+    t.start()
+
+
+class CoreWatcher:
+    """Follows herdr-core's event stream and pushes when a core agent needs the person.
+
+    Same rule as the desktop app: blocked always alerts, a finish alerts only if nobody looked (the shared
+    label herdr.seen is not at the turn), and a helper (a terminal with a parent) never does. The message
+    carries ids and labels only (address, agent kind, why it blocks, turn, space and tab names), never the
+    screen, the title or the status message: the phone reads the question itself.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        endpoints_path: str,
+        debounce: float,
+        post: Callable[[str, bytes], int] = post_json,
+        clock: Callable[[], float] = time.monotonic,
+        spawn: Callable[[], Iterable[str]] | None = None,
+        schedule: Callable[[float, Callable[[], None]], None] = after,
+        sleep: Callable[[float], None] = time.sleep,
+        settle: float = CORE_SETTLE,
+        seen_grace: float = CORE_SEEN_GRACE,
+    ) -> None:
+        self.host = host
+        self.endpoints_path = endpoints_path
+        self.debounce = debounce
+        self.post = post
+        self.clock = clock
+        self.spawn = spawn or (lambda: hc_lines())
+        self.schedule = schedule
+        self.sleep = sleep
+        self.settle = settle
+        self.seen_grace = seen_grace
+        self.terms: dict[str, dict] = {}
+        self.pending: dict[str, dict] = {}
+        self.last_push: dict[tuple[str, str, int], float] = {}
+        self.floor = -1
+        self.synced = False
+        self.snapshots = 0
+        self.token = 0
+        self.lock = threading.RLock()
+        self.outbox: list[tuple[dict, str]] = []
+
+    # -- reading the stream
+
+    def run(self) -> int:
+        backoff = 1.0
+        down = False
+        while True:
+            self.floor = -1
+            before = self.snapshots
+            try:
+                self.consume(self.spawn())
+                reason = "hc exited"
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as e:  # a surprise in the stream must not end the watcher: start over
+                reason = f"{type(e).__name__}: {e}"
+            if self.snapshots > before:
+                backoff = 1.0
+                down = False
+            if not down:
+                log(f"herdr-core unavailable ({reason}); retrying with backoff")
+                down = True
+            self.sleep(backoff)
+            backoff = min(backoff * 2, MAX_BACKOFF)
+
+    def consume(self, lines: Iterable[str]) -> None:
+        try:
+            for line in lines:
+                self.handle(line)
+        finally:
+            close = getattr(lines, "close", None)
+            if close:
+                close()
+
+    def handle(self, line: str) -> None:
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            return
+        if not isinstance(msg, dict):
+            return
+        params = msg.get("params")
+        params = params if isinstance(params, dict) else {}
+        with self.lock:
+            method = msg.get("method")
+            if method is None and isinstance(msg.get("terminals"), list):
+                self.sync(msg["terminals"], msg.get("seq"))
+                self.snapshots += 1
+            elif method == "missed" and isinstance(params.get("terminals"), list):
+                self.sync(params["terminals"], params.get("seq"))
+            elif method == "event":
+                self.apply(params)
+        self.flush()
+
+    def flush(self) -> None:
+        """POST what the last step decided, outside the lock: an endpoint may take 5 s and the reader must not wait."""
+        with self.lock:
+            out, self.outbox = self.outbox, []
+        for message, what in out:
+            send(self.endpoints_path, message, self.post, what)
+
+    def timed(self, addr: str, token: int) -> None:
+        self.fire(addr, token)
+        self.flush()
+
+    def record(self, t: dict) -> dict:
+        status = t.get("status") if isinstance(t.get("status"), dict) else {}
+        labels = t.get("labels") if isinstance(t.get("labels"), dict) else {}
+        return {
+            "parent": t.get("parent"),
+            "labels": labels,
+            "word": status.get("state"),
+            "kind": status.get("kind"),
+            "app": status.get("app"),
+            "turn": t.get("turn") if whole(t.get("turn")) else 0,
+        }
+
+    def sync(self, terminals: list, seq: object) -> None:
+        """A snapshot (the first line, or `missed`): the truth now. Changes since the last look alert as events do."""
+        notify = self.synced
+        seen: set[str] = set()
+        for t in terminals:
+            if not isinstance(t, dict) or not isinstance(t.get("address"), str):
+                continue
+            addr = t["address"]
+            seen.add(addr)
+            prev = self.terms.get(addr, {}).get("word")
+            self.terms[addr] = self.record(t)
+            alert = core_alert(prev, self.terms[addr]["word"])
+            if notify and alert and self.terms[addr]["parent"] is None:
+                self.raise_alert(addr, alert, turn_known=True)
+        for gone in set(self.terms) - seen:
+            self.forget(gone)
+        self.synced = True
+        if whole(seq):
+            self.floor = seq
+
+    def apply(self, params: dict) -> None:
+        seq = params.get("seq")
+        if whole(seq):
+            if seq <= self.floor:
+                return
+            self.floor = seq
+        kind = params.get("type")
+        data = params.get("data") if isinstance(params.get("data"), dict) else {}
+        addr = params.get("terminal")
+        if not isinstance(addr, str):
+            return
+        if kind in ("created", "restarted"):
+            # A machine whose line came back sends its changed terminals as created again.
+            prev = self.terms[addr]["word"] if addr in self.terms else None
+            self.terms[addr] = self.record(data)
+            alert = core_alert(prev, self.terms[addr]["word"])
+            if alert and self.terms[addr]["parent"] is None:
+                self.raise_alert(addr, alert, turn_known=True)
+        elif kind == "removed":
+            self.forget(addr)
+        elif addr not in self.terms:
+            return
+        elif kind == "status":
+            term = self.terms[addr]
+            status = data.get("status") if isinstance(data.get("status"), dict) else {}
+            prev, term["word"] = term["word"], status.get("state")
+            term["kind"], term["app"] = status.get("kind"), status.get("app") or term["app"]
+            alert = core_alert(prev, term["word"])
+            if alert and term["parent"] is None:
+                self.raise_alert(addr, alert)
+        elif kind == "turn":
+            term = self.terms[addr]
+            if whole(data.get("turn")):
+                term["turn"] = data["turn"]
+            pending = self.pending.get(addr)
+            if pending:
+                pending["turn"] = True
+                if pending["alert"] == "blocked":
+                    self.fire(addr, pending["token"])
+        elif kind == "labels" and isinstance(data.get("labels"), dict):
+            self.terms[addr]["labels"] = data["labels"]
+
+    def forget(self, addr: str) -> None:
+        self.terms.pop(addr, None)
+        self.pending.pop(addr, None)
+        for key in [k for k in self.last_push if k[0] == addr]:
+            del self.last_push[key]
+
+    # -- deciding to push
+
+    def raise_alert(self, addr: str, alert: str, turn_known: bool = False) -> None:
+        """A block waits for the turn event that follows its status (or [settle]); a finish waits for [seen_grace],
+        and then, if its turn event is still missing, once more for [settle]: it is judged on its own turn."""
+        self.token += 1
+        token = self.token
+        self.pending[addr] = {"token": token, "alert": alert, "turn": turn_known, "retried": False}
+        if alert == "blocked" and turn_known:
+            self.fire(addr, token)
+            return
+        self.schedule(self.settle if alert == "blocked" else self.seen_grace, lambda: self.timed(addr, token))
+
+    def seen(self, term: dict) -> bool:
+        """Nobody looked unless the shared label says someone saw this turn."""
+        try:
+            return int(term["labels"].get("herdr.seen")) >= term["turn"]
+        except (TypeError, ValueError):
+            return False
+
+    def fire(self, addr: str, token: int) -> None:
+        # Decides only; [flush] sends.
+        with self.lock:
+            pending = self.pending.get(addr)
+            if not pending or pending["token"] != token:
+                return
+            alert = pending["alert"]
+            term = self.terms.get(addr)
+            if alert == "done" and not pending["turn"] and not pending["retried"]:
+                pending["retried"] = True
+                self.schedule(self.settle, lambda: self.timed(addr, token))
+                return
+            del self.pending[addr]
+            # A remote machine's terminal ("rohan/t7") is that machine's watcher's to announce.
+            if term is None or term["parent"] is not None or "/" in addr:
+                return
+            word = term["word"]
+            if alert == "blocked":
+                if word not in NEEDS:
+                    return  # answered before we could say so
+            elif word is None or word in BUSY or self.seen(term):
+                return  # working again, or someone looked
+            now = self.clock()
+            key = (addr, alert, term["turn"])
+            last = self.last_push.get(key)
+            if last is not None and now - last < self.debounce:
+                log(f"{addr} {alert}: debounced")
+                return
+            self.last_push[key] = now
+            self.outbox.append((self.payload(addr, alert, term), f"{addr} {alert}"))
+
+    def payload(self, addr: str, alert: str, term: dict) -> dict:
+        where = term["labels"].get("where")
+        space, sep, tab = where.partition(" / ") if isinstance(where, str) else ("", "", "")
+        kind = term["kind"] if term["kind"] in CORE_KINDS else None
+        app = term["app"] if isinstance(term["app"], str) else ""
+        return {
+            "v": 1,
+            "event": "pane.agent_status_changed",
+            "state": alert,
+            "host": self.host,
+            "session": CORE_SESSION,
+            "pane_id": addr,
+            "agent": app[:AGENT_MAX] or None,
+            "kind": kind if alert == "blocked" else None,
+            "turn": term["turn"],
+            "workspace_id": None,
+            "workspace": space or None,
+            "tab_id": None,
+            "tab": (tab if sep else None) or None,
+            "ts": int(time.time()),
+        }
+
+
 class Sessions:
     """One Watcher thread per running Herdr session; [scan] starts the new ones."""
 
@@ -292,13 +624,20 @@ class Sessions:
             time.sleep(RESCAN)
 
 
-def main(argv: list[str] | None = None) -> int:
+def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Push Herdr agent alerts to Mercurio.")
     parser.add_argument("--session", help="follow only this Herdr session (default: every running session)")
     parser.add_argument("--states", default="blocked", help="comma list of states to push (default: blocked)")
     parser.add_argument("--debounce", type=float, default=20.0, help="seconds between pushes for one pane")
     parser.add_argument("--endpoints", default=os.path.join(config_home(), "mercurio", "push-endpoints"))
-    args = parser.parse_args(argv)
+    parser.add_argument("--core", action="store_true", help="also follow herdr-core (hc events); off by default")
+    parser.add_argument("--hc", default="hc", help="the hc to run for --core (a user service may lack ~/.local/bin on PATH)")
+    parser.add_argument("--seen-grace", type=float, default=CORE_SEEN_GRACE, help="seconds a core finish waits for a seen mark")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = make_parser().parse_args(argv)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     host = socket.gethostname()
     states = [s.strip() for s in args.states.split(",") if s.strip()]
@@ -306,10 +645,23 @@ def main(argv: list[str] | None = None) -> int:
     def make(sock_path: str, session: str) -> Watcher:
         return Watcher(sock_path, session, host, states, args.debounce, args.endpoints)
 
+    core = None
+    if args.core:
+        watcher = CoreWatcher(
+            host,
+            args.endpoints,
+            args.debounce,
+            spawn=lambda: hc_lines([args.hc, *CORE_COMMAND[1:]]),
+            seen_grace=args.seen_grace,
+        )
+        core = threading.Thread(target=watcher.run, name="watch-core", daemon=True)
+        core.start()
+        log("following herdr-core (hc events)")
     try:
-        if args.session:
-            return make(herdr_socket(args.session), args.session).run()
-        return Sessions(make).run()
+        code = make(herdr_socket(args.session), args.session).run() if args.session else Sessions(make).run()
+        if core is not None and code == 0:
+            core.join()  # no Herdr TUI here (it returns 0 at once); the core watcher is the job
+        return code
     except KeyboardInterrupt:
         return 0
 

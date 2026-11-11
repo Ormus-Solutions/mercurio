@@ -22,6 +22,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -125,7 +126,11 @@ class InboxViewModelTest {
     private val version = CommandOutput("herdr-core 0.1.0\n", "", 0)
     private val oneTerminal = CommandOutput("""{"terminals":[{"address":"t1","agent":"codex","status":"idle","where":"beta · TWO / main"}]}""", "", 0)
 
-    private fun answers(cmd: String) = if ("--version" in cmd) version else oneTerminal
+    private fun answers(cmd: String) = when {
+        "--version" in cmd -> version
+        solutions.ormus.logos.herd.CoreSource.PINNED_CMD in cmd -> CommandOutput("", "", 0)
+        else -> oneTerminal
+    }
 
     private fun awaitState(vm: InboxViewModel, ok: (InboxViewModel.State) -> Boolean) {
         val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
@@ -160,6 +165,9 @@ class InboxViewModelTest {
         vm.refresh()
         vm.refresh()
         vm.refresh()
+        // The read starts on another thread: wait until it is inside the hung command, else the check races it.
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (blocked.get() < 1 && System.nanoTime() < end) Thread.sleep(5)
         verify(herd, times(1)).exec(org.mockito.kotlin.any())
     }
 
@@ -171,5 +179,75 @@ class InboxViewModelTest {
         awaitState(vm) { it.notes.isNotEmpty() }
         assertEquals(listOf("bad: boom"), vm.state.value.notes)
         assertEquals(1, vm.state.value.rows.size)
+    }
+
+    private fun coreRow(vm: InboxViewModel) = vm.state.value.rows.first { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE }
+
+    @Test
+    fun aPin_isWrittenThroughTheLoginShell_andShowsAtOnce() = runTest {
+        val log = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val (b, _) = bridge(1L, "one") {
+            log += it
+            answers(it)
+        }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { s -> s.rows.first { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE }.agent.pinned }
+        assertTrue(solutions.ormus.logos.herd.HerdrApi.loginShell("hc label t1 herdr.pinned=1") in log)
+    }
+
+    @Test
+    fun aWriteThatFails_leavesTheRowAndSaysSo() = runTest {
+        val (b, _) = bridge(1L, "one") { if ("hc label" in it) CommandOutput("", "no", 1) else answers(it) }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { it.notes.any { n -> n.startsWith("one:") } }
+        assertEquals(false, coreRow(vm).agent.pinned)
+    }
+
+    @Test
+    fun anInterrupt_pressesEsc_andChangesNoRow() = runTest {
+        val log = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val (b, _) = bridge(1L, "one") {
+            log += it
+            answers(it)
+        }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE } }
+        val before = coreRow(vm)
+        vm.act(before, solutions.ormus.logos.herd.RowAction.INTERRUPT)
+        awaitState(vm) { _ -> solutions.ormus.logos.herd.HerdrApi.loginShell("hc keys t1 esc") in log }
+        assertEquals(before, coreRow(vm))
+    }
+
+    @Test
+    fun aTuiRow_isNeverWritten() = runTest {
+        val log = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val (b, _) = bridge(1L, "one") {
+            log += it
+            answers(it)
+        }
+        val vm = viewModel(false, b)
+        vm.refresh()
+        vm.act(vm.state.value.rows.first(), solutions.ormus.logos.herd.RowAction.PIN)
+        Thread.sleep(100)
+        assertTrue(log.isEmpty())
+    }
+
+    @Test
+    fun aFailedWriteNote_goesWhenTheInboxIsOpenedAgain() = runTest {
+        val (b, _) = bridge(1L, "one") { if ("hc label" in it) CommandOutput("", "no", 1) else answers(it) }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { it.notes.any { n -> n.startsWith("one:") } }
+        backgroundScope.launch(unconfined) { vm.watch() }
+        assertTrue(vm.state.value.notes.none { it.contains("could not write") })
     }
 }

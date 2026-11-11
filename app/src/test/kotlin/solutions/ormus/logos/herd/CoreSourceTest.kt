@@ -45,7 +45,13 @@ class CoreSourceTest {
         log: MutableList<String> = mutableListOf(),
     ): (String) -> CommandOutput? = { cmd ->
         log += cmd
-        if ("--version" in cmd) versionOut else lsOut
+        if ("--version" in cmd) {
+            versionOut
+        } else if (CoreSource.PINNED_CMD in cmd) {
+            CommandOutput("", "", 0)
+        } else {
+            lsOut
+        }
     }
 
     private fun agents(result: CoreSource.Result) = assertIs<CoreSource.Result.Agents>(result).agents
@@ -63,7 +69,7 @@ class CoreSourceTest {
         val log = mutableListOf<String>()
         CoreSource().read(true, "box", 1000L, host(lsOut = ls(), log = log))
         assertEquals(
-            listOf(HerdrApi.loginShell("herdr-core --version"), HerdrApi.loginShell("hc ls --json")),
+            listOf(HerdrApi.loginShell("herdr-core --version"), HerdrApi.loginShell("hc ls --json"), HerdrApi.loginShell(CoreSource.labelsCmd(emptyList()))),
             log,
         )
     }
@@ -259,7 +265,7 @@ class CoreSourceTest {
         src.read(true, "box", 1L, run)
         src.read(true, "box", 2L, run)
         assertEquals(1, log.count { "--version" in it })
-        assertEquals(2, log.count { "hc ls" in it })
+        assertEquals(2, log.count { "hc ls --json" in it })
     }
 
     @Test

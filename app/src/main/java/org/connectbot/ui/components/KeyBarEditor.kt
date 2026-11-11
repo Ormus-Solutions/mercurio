@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -45,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -134,6 +136,7 @@ private fun KeyBarEditor(
 ) {
     var picked by remember { mutableIntStateOf(0) }
     var confirmReset by remember { mutableStateOf(false) }
+    var customOpen by remember { mutableStateOf(false) }
     val page = picked.coerceIn(0, layout.pages.lastIndex)
     val keys = layout.pages[page]
 
@@ -149,6 +152,15 @@ private fun KeyBarEditor(
                 }) { Text(stringResource(R.string.key_bar_reset)) }
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.button_cancel)) } },
+        )
+    }
+    if (customOpen) {
+        CustomKeyDialog(
+            onAdd = { id ->
+                customOpen = false
+                onChange(layout.add(page, id))
+            },
+            onDismiss = { customOpen = false },
         )
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -221,6 +233,12 @@ private fun KeyBarEditor(
                         )
                     }
                 }
+                AssistChip(
+                    onClick = { customOpen = true },
+                    label = { Text(stringResource(R.string.key_bar_custom_key)) },
+                    enabled = keys.size < KeyBarLayout.MAX_KEYS_PER_PAGE,
+                    modifier = Modifier.testTag(KEY_BAR_CUSTOM_KEY_TAG),
+                )
                 if (layout.pages.size > 1) {
                     TextButton(onClick = {
                         onChange(layout.removePage(page))
@@ -230,4 +248,44 @@ private fun KeyBarEditor(
             }
         }
     }
+}
+
+internal const val KEY_BAR_CUSTOM_KEY_TAG = "key_bar_custom_key"
+internal const val KEY_BAR_CUSTOM_TEXT_TAG = "key_bar_custom_text"
+internal const val KEY_BAR_CUSTOM_ADD_TAG = "key_bar_custom_add"
+
+/** A key that types the text he writes (like /clear), and presses Enter after it when he asks. */
+@Composable
+private fun CustomKeyDialog(onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var enter by remember { mutableStateOf(false) }
+    val id = KeyBarCatalog.textKeyId(text, enter)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.key_bar_custom_key)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.key_bar_custom_key_hint), style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.take(KeyBarCatalog.MAX_TEXT_KEY) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag(KEY_BAR_CUSTOM_TEXT_TAG),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().toggleable(value = enter, role = Role.Checkbox, onValueChange = { enter = it }),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = enter, onCheckedChange = null)
+                    Text(stringResource(R.string.key_bar_custom_key_enter), modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { id?.let(onAdd) }, enabled = id != null, modifier = Modifier.testTag(KEY_BAR_CUSTOM_ADD_TAG)) {
+                Text(stringResource(R.string.button_add))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.button_cancel)) } },
+    )
 }

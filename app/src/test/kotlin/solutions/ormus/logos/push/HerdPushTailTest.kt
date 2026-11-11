@@ -40,6 +40,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoMoreInteractions
 import solutions.ormus.logos.herd.AgentsBoard
+import solutions.ormus.logos.herd.CoreFacts
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdApproval
 import solutions.ormus.logos.herd.HerdAttention
 import solutions.ormus.logos.herd.HerdrAgentInfo
@@ -243,6 +245,37 @@ class HerdPushTailTest {
         verify(savedHosts).getKnownHostsForHost(28)
         verify(savedHosts).getHostKeyAlgorithmsForHost(28)
         verifyNoMoreInteractions(savedHosts)
+    }
+
+    private val coreAgent = HerdrAgentInfo(paneId = "t15", workspaceId = "alpha", tabId = "alpha / build", agent = "claude-code", agentStatus = HerdrAgentStatus.BLOCKED, core = CoreFacts(null, 4))
+    private val coreNotice = HerdAttention.Notice.NeedsYou(coreAgent, null, null, session = CoreNotices.SESSION)
+
+    @Test
+    fun read_aCoreNotice_asksHcGetThroughTheLoginShell_andGivesTheScreensEnd() = runBlocking {
+        val get = """{"address":"t15","screen":"old line\n\nEdit build.gradle?\n1. Yes\n2. No\n","state":"live"}"""
+        val session = FakeSession(exec = { CommandOutput(get, "", 0) })
+
+        val read = reading(session).read(anyKey, coreNotice, 1_000)
+
+        assertEquals(HerdPushTail.Read.Text(HerdApproval.tail("old line\n\nEdit build.gradle?\n1. Yes\n2. No\n")!!), read)
+        assertEquals(listOf(CoreNotices.getCommand("t15")), session.commands)
+        assertEquals(1, session.closes)
+    }
+
+    @Test
+    fun read_aCoreNoticeWhoseAnswerHasNoScreen_isAMiss() = runBlocking {
+        val session = FakeSession(exec = { CommandOutput("""{"address":"t15"}""", "", 0) })
+
+        assertEquals(HerdPushTail.Read.Missed, reading(session).read(anyKey, coreNotice, 1_000))
+    }
+
+    @Test
+    fun read_aCoreNoticeWithAnOddAddress_runsNothing() = runBlocking {
+        val odd = coreNotice.copy(agent = coreAgent.copy(paneId = "t15; rm -rf ~"))
+        val session = FakeSession(exec = { error("must not run") })
+
+        assertEquals(HerdPushTail.Read.NotTried, reading(session).read(anyKey, odd, 1_000))
+        assertTrue(session.commands.isEmpty())
     }
 
     @Test

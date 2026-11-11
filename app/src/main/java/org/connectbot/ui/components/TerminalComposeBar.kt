@@ -24,6 +24,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,6 +43,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -182,8 +188,8 @@ private fun usageIdFor(sequence: String, herdrKeys: HerdrKeys): String = when (s
 
 // Hold-to-repeat for the arrow keys: the first press sends at once, then after
 // REPEAT_START_MS it repeats every REPEAT_EVERY_MS until released.
-private const val REPEAT_START_MS = 400L
-private const val REPEAT_EVERY_MS = 60L
+internal const val REPEAT_START_MS = 400L
+internal const val REPEAT_EVERY_MS = 60L
 
 // The ⏎ key at the end of row 2: a little wider than a key, as the bar's main action.
 private val ENTER_KEY_WIDTH = 56.dp
@@ -304,36 +310,137 @@ private fun EnterKey(
 internal const val KEY_BAR_TEST_TAG = "key_bar"
 
 /**
- * His key bar: the keys of one page in his order, then a key that shows which page it is
- * (1/4) and turns to the next. The row keeps its height on an empty page.
+ * His key bar, as the Herdr app's: five keys to a page, swipe to turn the page, a dot per page
+ * under the keys. Ctrl and Alt arm the next key (a tap), or stay on until tapped (a long press);
+ * [KeyBarModifiers] holds that state across the pages. The row keeps its height on an empty page.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PagedKeyRow(layout: KeyBarLayout, onSend: (String) -> Unit, modifier: Modifier = Modifier) {
-    var page by rememberSaveable { mutableIntStateOf(0) }
-    val current = page.coerceIn(0, layout.pages.lastIndex)
-    Row(
-        modifier = modifier.fillMaxWidth().heightIn(min = KEY_HEIGHT).testTag(KEY_BAR_TEST_TAG),
-        horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
-    ) {
-        layout.pages[current].mapNotNull { KeyBarCatalog.byId(it) }.forEach { key ->
-            if (key.repeats) {
-                RepeatingControlKey(key.label, key.sequence, onSend, Modifier.weight(1f), description = key.label)
-            } else {
-                ControlKey(key.label, key.sequence, onSend, Modifier.weight(1f), description = key.label)
+private fun PagedKeyRow(
+    layout: KeyBarLayout,
+    onSend: (String) -> Unit,
+    onPaste: () -> Unit,
+    onCompose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val pager = rememberPagerState { layout.pages.size }
+    val scope = rememberCoroutineScope()
+    var mods by remember { mutableStateOf(KeyBarModifiers()) }
+
+    // One key's bytes, with the armed or locked modifiers on them; armed ones are spent.
+    val takeBytes: (String) -> String = { sequence ->
+        val bytes = mods.encode(sequence)
+        mods = mods.afterKey()
+        bytes
+    }
+    val sendBytes: (String) -> Unit = { if (it.isNotEmpty()) onSend(it) }
+    val sendWithMods: (String) -> Unit = { sendBytes(takeBytes(it)) }
+    fun sendText(key: KeyBarKey) {
+        sendWithMods(key.sequence)
+        if (key.enter) {
+            scope.launch {
+                delay(SEND_ENTER_DELAY_MS)
+                onSend(CR)
+            }
+        }
+    }
+
+    Column(modifier = modifier.fillMaxWidth().testTag(KEY_BAR_TEST_TAG)) {
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth().heightIn(min = KEY_HEIGHT)) { index ->
+            val keys = layout.pages[index].mapNotNull { KeyBarCatalog.byId(it) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                keys.forEach { key ->
+                    val weight = Modifier.weight(1f)
+                    when (key.kind) {
+                        KeyKind.CTRL -> ModifierKey(key.label, mods.ctrl, { mods = mods.tap(BarModifier.CTRL) }, { mods = mods.longPress(BarModifier.CTRL) }, weight)
+
+                        KeyKind.ALT -> ModifierKey(key.label, mods.alt, { mods = mods.tap(BarModifier.ALT) }, { mods = mods.longPress(BarModifier.ALT) }, weight)
+
+                        KeyKind.ARROWS -> ArrowsKey(takeBytes, sendBytes, key.description, weight)
+
+                        KeyKind.PASTE -> ControlKey(key.label, "", { onPaste() }, weight, description = key.description)
+
+                        KeyKind.COMPOSE -> ControlKey(key.label, "", { onCompose() }, weight, description = key.description)
+
+                        KeyKind.TEXT -> ControlKey(key.label, key.sequence, { sendText(key) }, weight, description = key.description)
+
+                        KeyKind.SEQUENCE -> if (key.repeats) {
+                            HoldKey(
+                                resolve = { _, _ -> takeBytes(key.sequence) },
+                                activate = { takeBytes(key.sequence) },
+                                send = sendBytes,
+                                description = key.description,
+                                modifier = weight,
+                            ) { KeyLabel(key.label) }
+                        } else {
+                            ControlKey(key.label, key.sequence, sendWithMods, weight, description = key.description)
+                        }
+                    }
+                }
+                // Empty slots keep every page's keys the same width.
+                repeat((KeyBarLayout.MAX_KEYS_PER_PAGE - keys.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
             }
         }
         if (layout.pages.size > 1) {
-            ControlKey(
-                "${current + 1}/${layout.pages.size}",
-                "",
-                { page = (current + 1) % layout.pages.size },
-                Modifier.weight(1f),
-                emphasized = true,
-                description = stringResource(R.string.key_bar_next_page, current + 1, layout.pages.size),
-            )
+            PageDots(layout.pages.size, pager.currentPage) { page -> scope.launch { pager.animateScrollToPage(page) } }
         }
     }
 }
+
+/** Ctrl or Alt: gold while armed, gold with a dot while locked; the description says which. */
+@Composable
+private fun ModifierKey(
+    label: String,
+    level: ModLevel,
+    onTap: () -> Unit,
+    onLock: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val description = when (level) {
+        ModLevel.OFF -> label
+        ModLevel.ARMED -> stringResource(R.string.key_bar_modifier_armed, label)
+        ModLevel.LOCKED -> stringResource(R.string.key_bar_modifier_locked, label)
+    }
+    OrmusKey(
+        label = if (level == ModLevel.LOCKED) "$label \u2022" else label,
+        onClick = onTap,
+        modifier = modifier,
+        tone = if (level == ModLevel.OFF) KeyTone.PLAIN else KeyTone.ACCENT,
+        description = description,
+        onLongClick = onLock,
+    )
+}
+
+/** One dot per page, the current one lit; a tap on a dot goes to that page. */
+@Composable
+private fun PageDots(count: Int, current: Int, onPick: (Int) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(DOT_ROW_HEIGHT),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(count) { i ->
+            val description = stringResource(R.string.key_bar_page_dot, i + 1, count)
+            Box(
+                modifier = Modifier
+                    .testTag("key_bar_dot_$i")
+                    .clickable(role = Role.Button, onClickLabel = description) { onPick(i) }
+                    .semantics { contentDescription = description }
+                    .padding(horizontal = 4.dp, vertical = 3.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(DOT_SIZE)
+                        .clip(CircleShape)
+                        .background(if (i == current) MaterialTheme.colorScheme.primary else Ormus.extras.hairline),
+                )
+            }
+        }
+    }
+}
+
+private val DOT_SIZE = 6.dp
+private val DOT_ROW_HEIGHT = 12.dp
 
 /** The ⋯ key that opens and closes the tray. Gold-tinted while the tray is open. */
 @Composable
@@ -576,6 +683,19 @@ fun TerminalComposeBar(
         usage.log(usageIdFor(seq, herdrKeys))
         bridge.injectString(bridge.herd?.keystroke(seq) ?: seq)
         onSend()
+    }
+
+    // The key bar's Paste: whatever text is on the phone's clipboard, as a paste into the pane.
+    fun pasteClipboard() {
+        scope.launch {
+            // Byte 2 is Herdr's prefix: a paste never carries it.
+            val text = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.replace("\u0002", "")
+            if (text.isNullOrEmpty()) return@launch
+            usage.log(UsageActions.KEY_OTHER)
+            bridge.herd?.cancelPrefix()
+            bridge.injectString(BracketedPaste.wrap(text, bridge.bracketedPaste))
+            onSend()
+        }
     }
 
     // Jump to the latest output: one burst of Page Downs, logged once.
@@ -1036,7 +1156,7 @@ fun TerminalComposeBar(
                     modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG),
                     verticalArrangement = Arrangement.spacedBy(KEY_PILL_GAP),
                 ) {
-                    if (keyBar != null) KeyPill { PagedKeyRow(keyBar, sendKey) }
+                    if (keyBar != null) KeyPill { PagedKeyRow(keyBar, sendKey, onPaste = { pasteClipboard() }, onCompose = { draft.requestFocus() }) }
                     KeyPill {
                         // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎.
                         Row(

@@ -22,11 +22,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.connectbot.data.entity.Host
 import org.connectbot.util.HostConstants
+import solutions.ormus.logos.herd.CoreFacts
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdAttention
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentStatus
 import solutions.ormus.logos.herd.HerdrCommands
+import solutions.ormus.logos.herd.NeedsYouKind
 
 /**
  * One push from a Herdr host's watcher (`host/mercurio-push-watch`, schema `v: 1`):
@@ -37,6 +40,10 @@ import solutions.ormus.logos.herd.HerdrCommands
  *  "pane_id":"w1:p3","agent":"claude","workspace_id":"w1","workspace":"mercurio","tab_id":"w1:t2",
  *  "tab":"build","ts":1791214536}
  * ```
+ *
+ * A herdr-core agent's push (`mercurio-push-watch --core`) has session [CoreNotices.SESSION], a terminal
+ * address (`t15`, `box/t7`) as its pane id, and the `kind` (why it blocks) and `turn` that Approve and Deny
+ * are guarded on. Still ids and labels only.
  */
 @Serializable
 data class HerdPushAlert(
@@ -53,15 +60,21 @@ data class HerdPushAlert(
     @SerialName("tab_id") val tabId: String? = null,
     val tab: String? = null,
     val ts: Long = 0,
+    /** Core only: why the agent blocks (`permission`, `question`, `auth`). */
+    val kind: String? = null,
+    /** Core only: the agent's turn when it blocked or finished. */
+    val turn: Int? = null,
 ) {
     /** The notice the live monitor would post for this change; null for states that get none. */
     fun notice(): HerdAttention.Notice? {
+        val core = session == CoreNotices.SESSION
         val agent = HerdrAgentInfo(
             paneId = paneId,
             workspaceId = workspaceId.orEmpty(),
             tabId = tabId.orEmpty(),
             agent = agent?.ifBlank { null },
             agentStatus = state,
+            core = if (core) CoreFacts(needsOf(kind), turn) else null,
         )
         val herdrSession = session ?: HerdrCommands.DEFAULT_SESSION
         return when (state) {
@@ -79,6 +92,13 @@ data class HerdPushAlert(
         // Pane ids repeat across sessions, so the alert's session travels with its pane.
         private val ID = Regex("[A-Za-z0-9_.:-]+")
 
+        private fun needsOf(kind: String?): NeedsYouKind? = when (kind) {
+            "permission" -> NeedsYouKind.PERMISSION
+            "question" -> NeedsYouKind.QUESTION
+            "auth" -> NeedsYouKind.AUTH
+            else -> null
+        }
+
         private val json = Json {
             ignoreUnknownKeys = true
             coerceInputValues = true
@@ -87,11 +107,13 @@ data class HerdPushAlert(
         /** The alert in [content], or null when it is not a v1 alert this phone can act on. */
         fun parse(content: ByteArray): HerdPushAlert? {
             val alert = runCatching { json.decodeFromString<HerdPushAlert>(content.decodeToString()) }.getOrNull() ?: return null
+            // A core terminal's address may carry a machine (`box/t7`); a Herdr pane id may not.
+            val core = alert.session == CoreNotices.SESSION
             val usable = alert.v == VERSION &&
                 alert.event == EVENT &&
                 alert.host.isNotBlank() &&
-                ID.matches(alert.paneId) &&
-                (alert.session == null || ID.matches(alert.session))
+                (if (core) CoreNotices.isAddress(alert.paneId) else ID.matches(alert.paneId)) &&
+                (alert.session == null || core || ID.matches(alert.session))
             return alert.takeIf { usable }
         }
 

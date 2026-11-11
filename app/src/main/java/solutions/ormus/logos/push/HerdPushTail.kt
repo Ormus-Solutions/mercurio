@@ -35,6 +35,7 @@ import org.connectbot.transport.SavedHostKeyVerifier
 import org.connectbot.util.HostConstants
 import org.connectbot.util.PubkeyUtils
 import solutions.ormus.logos.herd.AgentsBoard
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdApproval
 import solutions.ormus.logos.herd.HerdAttention
 import java.security.KeyPair
@@ -90,6 +91,9 @@ class HerdPushTail internal constructor(
     /** [notice]'s pane end on [host], read within [budgetMs] from this call. */
     suspend fun read(host: Host, notice: HerdAttention.Notice.NeedsYou, budgetMs: Long): Read {
         val started = System.nanoTime()
+        val core = CoreNotices.isCore(notice.session)
+        // The address came off the wire: only one `hc` could have given reaches a shell.
+        if (core && !CoreNotices.isAddress(notice.agent.paneId)) return Read.NotTried
         if (!HerdOfflineAnswer.logsInAlone(host)) return Read.NotTried
         val stored = if (host.pubkeyId >= 0) pubkeyRepository.getById(host.pubkeyId) else null
         val keys = keys(host, pubkeyRepository.getStartupKeys(), stored, decode)
@@ -104,9 +108,16 @@ class HerdPushTail internal constructor(
         val text = withinBudget(left, close = session::close) {
             session.use {
                 if (it.login(keys) != HeadlessSsh.Login.Ok) return@use null
-                val out = it.exec(AgentsBoard.readCommand(notice.session, notice.agent.paneId, HerdApproval.READ_LINES))
-                // No exit status means the channel closed early: the output may be cut.
-                if (out.exitCode == 0) HerdApproval.tail(out.stdout) else null
+                val out = it.exec(
+                    if (core) CoreNotices.getCommand(notice.agent.paneId) else AgentsBoard.readCommand(notice.session, notice.agent.paneId, HerdApproval.READ_LINES),
+                )
+                // No exit status means the channel closed early: the output may be cut. A core terminal
+                // answers `hc get --json`; its screen is what Herdr's `pane read` gives for a pane.
+                when {
+                    out.exitCode != 0 -> null
+                    core -> CoreNotices.screenOf(out.stdout)?.let { screen -> HerdApproval.tail(screen) }
+                    else -> HerdApproval.tail(out.stdout)
+                }
             }
         }
         return text?.let { Read.Text(it) } ?: Read.Missed

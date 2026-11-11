@@ -27,6 +27,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.junit.Assert.assertEquals
@@ -38,6 +41,7 @@ import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.AgentState
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
+import solutions.ormus.logos.herd.RowAction
 
 /** The Inbox screen on synthetic rows: sections, folding, search, the tap. */
 @RunWith(AndroidJUnit4::class)
@@ -47,6 +51,7 @@ class InboxScreenTest {
 
     private val now = 10_000_000L
     private val opened = mutableListOf<InboxRow>()
+    private val acted = mutableListOf<Pair<InboxRow, RowAction>>()
 
     private fun row(
         address: String,
@@ -59,7 +64,7 @@ class InboxScreenTest {
     private fun show(rows: List<InboxRow>, notes: List<String> = emptyList()) {
         composeTestRule.setContent {
             ConnectBotTheme {
-                InboxContent(rows = rows, notes = notes, now = now, onOpen = { opened += it }, onNavigateBack = {})
+                InboxContent(rows = rows, notes = notes, now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
             }
         }
     }
@@ -138,5 +143,69 @@ class InboxScreenTest {
         composeTestRule.setContent { ConnectBotTheme { InboxEntry(onClick = { taps++ }) } }
         composeTestRule.onNodeWithTag(INBOX_ENTRY_TAG).performClick()
         assertEquals(1, taps)
+    }
+
+    private fun core(address: String, state: AgentState, unread: Boolean? = null, pinned: Boolean = false, turn: Int? = 3) = Inbox.row(1L, "box", Agent(address, AgentEngine.CORE, "box", "alpha · ONE", "work", null, null, state, null, turn, unread, pinned))
+
+    @Test
+    fun anUnreadRow_hasADot_aReadOneDoesNot() {
+        show(listOf(core("a", AgentState.Done, unread = true), core("b", AgentState.Done, unread = null), core("c", AgentState.Idle, unread = false)))
+        composeTestRule.onAllNodesWithTag(INBOX_UNREAD_TAG, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun aPinnedRow_showsAPin() {
+        show(listOf(core("a", AgentState.Idle, pinned = true), core("b", AgentState.Idle)))
+        composeTestRule.onAllNodesWithTag(INBOX_PINNED_TAG, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun swipeRight_pinsAnIdleRow() {
+        val r = core("a", AgentState.Idle)
+        show(listOf(r))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeRight() }
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(r to RowAction.PIN), acted)
+    }
+
+    @Test
+    fun swipeRight_marksAnUnreadRowRead() {
+        val r = core("a", AgentState.Done, unread = true)
+        show(listOf(r))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeRight() }
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(r to RowAction.MARK_READ), acted)
+    }
+
+    @Test
+    fun swipeLeft_asksFirst_andSendsEscOnlyOnConfirm() {
+        val r = core("a", AgentState.Working)
+        show(listOf(r))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        assertEquals(emptyList<Pair<InboxRow, RowAction>>(), acted)
+        composeTestRule.onNodeWithText("Send Esc to alpha · ONE?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Send Esc").performClick()
+        assertEquals(listOf(r to RowAction.INTERRUPT), acted)
+    }
+
+    @Test
+    fun swipeLeft_thenCancel_sendsNothing() {
+        show(listOf(core("a", AgentState.Working)))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+        assertEquals(emptyList<Pair<InboxRow, RowAction>>(), acted)
+        composeTestRule.onNodeWithText("Send Esc to alpha · ONE?").assertDoesNotExist()
+    }
+
+    @Test
+    fun aTuiRow_doesNotSwipe() {
+        show(listOf(row("a", AgentState.Idle)))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeRight() }
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        assertEquals(emptyList<Pair<InboxRow, RowAction>>(), acted)
+        composeTestRule.onNodeWithText("Send Esc").assertDoesNotExist()
     }
 }

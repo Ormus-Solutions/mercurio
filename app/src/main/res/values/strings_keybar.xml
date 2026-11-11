@@ -20,9 +20,15 @@
 	<string name="key_bar_move_up">Move %1$s up</string>
 	<string name="key_bar_move_down">Move %1$s down</string>
 	<string name="key_bar_remove">Remove %1$s</string>
-	<!-- Key bar: the key that turns to the next page -->
-	<!-- %1$d is the page shown, %2$d the number of pages -->
-	<string name="key_bar_next_page">Next page of keys, page %1$d of %2$d</string>
+	<!-- Key bar: Ctrl and Alt state; %1$s is the key -->
+	<string name="key_bar_modifier_armed">%1$s, armed for the next key</string>
+	<string name="key_bar_modifier_locked">%1$s, locked</string>
+	<!-- Key bar: a dot that goes to a page; %1$d is the page, %2$d the number of pages -->
+	<string name="key_bar_page_dot">Page %1$d of %2$d</string>
+	<!-- Editor: a key that types text he writes -->
+	<string name="key_bar_custom_key">Custom key</string>
+	<string name="key_bar_custom_key_hint">The key types this text, like /clear.</string>
+	<string name="key_bar_custom_key_enter">Press Enter after the text</string>
 	<string name="key_bar_page_full">This page is full</string>
 	<string name="key_bar_reset_confirm">Reset the key bar to the default keys?</string>
 </resources>

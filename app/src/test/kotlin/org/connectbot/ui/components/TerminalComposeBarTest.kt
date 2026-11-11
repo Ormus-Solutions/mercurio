@@ -41,6 +41,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -58,6 +59,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -719,19 +721,216 @@ class TerminalComposeBarTest {
     }
 
     @Test
-    fun keyBar_showsHisKeysInOrderAndTheNextPageKeyTurnsThePage() {
+    fun keyBar_showsHisKeysInOrderAndADotTurnsThePage() {
         val bridge = bridgeWithPostLogin(null)
         setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c", "up"), listOf("ctrl-z"))))
 
         composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).assertIsDisplayed()
         key("Ctrl+C").performClick()
         verify(bridge).injectString("\u0003")
-        composeTestRule.onAllNodesWithText("Ctrl+Z").assertCountEquals(0)
 
-        key("1/2").performClick()
+        composeTestRule.onNodeWithTag("key_bar_dot_1").performClick()
+        composeTestRule.waitForIdle()
         key("Ctrl+Z").performClick()
         verify(bridge).injectString("\u001a")
-        composeTestRule.onAllNodesWithText("Ctrl+C").assertCountEquals(0)
+    }
+
+    @Test
+    fun keyBar_showsOneDotPerPageAndNoneForASinglePage() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("esc"), listOf("tab"), listOf("up"))))
+        (0..2).forEach { composeTestRule.onNodeWithTag("key_bar_dot_$it").assertExists() }
+        composeTestRule.onAllNodesWithTag("key_bar_dot_3").assertCountEquals(0)
+    }
+
+    @Test
+    fun keyBar_aSwipeTurnsThePage() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"), listOf("ctrl-z"))))
+
+        composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        key("Ctrl+Z").performClick()
+        verify(bridge).injectString("\u001a")
+    }
+
+    @Test
+    fun keyBar_aTappedCtrlIsArmedForTheNextKeyOnly() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "left"))))
+
+        key("Ctrl").performClick()
+        key("Ctrl, armed for the next key").assertExists()
+        key("\u2190").performClick()
+        verify(bridge).injectString("\u001b[1;5D")
+        key("Ctrl").assertExists()
+        key("\u2190").performClick()
+        verify(bridge).injectString("\u001b[D")
+    }
+
+    @Test
+    fun keyBar_aLongPressLocksCtrlUntilItIsTapped() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "left"))))
+
+        key("Ctrl").performTouchInput { longClick() }
+        key("Ctrl, locked").assertExists()
+        key("\u2190").performClick()
+        key("\u2190").performClick()
+        verify(bridge, times(2)).injectString("\u001b[1;5D")
+
+        key("Ctrl, locked").performClick()
+        key("Ctrl").assertExists()
+        key("\u2190").performClick()
+        verify(bridge).injectString("\u001b[D")
+    }
+
+    @Test
+    fun keyBar_altArmsAcrossPagesAndPrefixesEscape() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("alt"), listOf("slash"))))
+
+        key("Alt").performClick()
+        composeTestRule.onNodeWithTag("key_bar_dot_1").performClick()
+        composeTestRule.waitForIdle()
+        key("/").performClick()
+        verify(bridge).injectString("\u001b/")
+    }
+
+    @Test
+    fun keyBar_theArrowsKeySendsTheArrowUnderTheTapAndTakesAnArmedCtrl() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "arrows"))))
+
+        composeTestRule.onNodeWithContentDescription("Arrows").performTouchInput { click(topCenter) }
+        verify(bridge).injectString("\u001b[A")
+        key("Ctrl").performClick()
+        composeTestRule.onNodeWithContentDescription("Arrows").performTouchInput { click(centerRight) }
+        verify(bridge).injectString("\u001b[1;5C")
+    }
+
+    @Test
+    fun keyBar_aTextKeyTypesItsTextAndEnterAfterAShortPause() {
+        val bridge = bridgeWithPostLogin(null)
+        val plain = KeyBarCatalog.textKeyId("/clear", enter = false)!!
+        val withEnter = KeyBarCatalog.textKeyId("/compact", enter = true)!!
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf(plain, withEnter))))
+
+        key("/clear").performClick()
+        verify(bridge).injectString("/clear")
+        verify(bridge, never()).injectString(CR)
+
+        key("/compact").performClick()
+        verify(bridge).injectString("/compact")
+        composeTestRule.mainClock.advanceTimeBy(200)
+        verify(bridge).injectString(CR)
+    }
+
+    @Test
+    fun keyBar_aTextKeyUsesAnArmedModifierWithoutChangingItsText() {
+        val bridge = bridgeWithPostLogin(null)
+        val id = KeyBarCatalog.textKeyId("/clear", enter = false)!!
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", id))))
+
+        key("Ctrl").performClick()
+        key("/clear").performClick()
+        verify(bridge).injectString("/clear")
+        key("Ctrl").assertExists()
+    }
+
+    @Test
+    fun keyBar_ctrlBNeverReachesTheTerminalFromATextKey() {
+        val bridge = bridgeWithPostLogin(null)
+        val id = KeyBarCatalog.textKeyId("b", enter = false)!!
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", id))))
+
+        key("Ctrl").performClick()
+        key("b").performClick()
+        verify(bridge, never()).injectString("\u0002")
+        verify(bridge, never()).injectString("b")
+    }
+
+    @Test
+    fun keyBar_aHeldArrowKeepsTheArmedModifierOnEveryRepeat() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "arrows"))))
+
+        key("Ctrl").performClick()
+        composeTestRule.onNodeWithContentDescription("Arrows").performTouchInput { down(topCenter) }
+        composeTestRule.mainClock.advanceTimeBy(1_000)
+        composeTestRule.onNodeWithContentDescription("Arrows").performTouchInput { up() }
+
+        verify(bridge, atLeast(3)).injectString("\u001b[1;5A")
+        verify(bridge, never()).injectString("\u001b[A")
+    }
+
+    @Test
+    fun keyBar_aSwipeStartedOnARepeatingKeySendsNothing() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("left"), listOf("ctrl-z"))))
+
+        key("\u2190").performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        verify(bridge, never()).injectString("\u001b[D")
+        key("Ctrl+Z").assertExists()
+    }
+
+    @Test
+    fun keyBar_aHeldRepeatingKeyRepeatsAndATapSendsOnce() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("left", "backspace"))))
+
+        key("Bksp").performClick()
+        verify(bridge, times(1)).injectString("\u007f")
+        key("\u2190").performTouchInput { down(center) }
+        composeTestRule.mainClock.advanceTimeBy(1_000)
+        key("\u2190").performTouchInput { up() }
+        verify(bridge, atLeast(3)).injectString("\u001b[D")
+    }
+
+    @Test
+    fun keyBar_pasteDropsAPrefixByte() {
+        val bridge = bridgeWithPostLogin(null)
+        val clipboard = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getSystemService(android.content.ClipboardManager::class.java)
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("t", "a\u0002b"))
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("paste"))))
+
+        key("Paste").performClick()
+        composeTestRule.waitForIdle()
+        verify(bridge).injectString("ab")
+    }
+
+    @Test
+    fun keyBar_functionKeysSendTheirSequences() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("f1", "f5"))))
+
+        key("F1").performClick()
+        key("F5").performClick()
+        verify(bridge).injectString("\u001bOP")
+        verify(bridge).injectString("\u001b[15~")
+    }
+
+    @Test
+    fun keyBar_composeKeyFocusesTheComposeField() {
+        val draft = DictationDraft()
+        setBar(bridgeWithPostLogin(null), draft = draft, keyBar = KeyBarLayout(listOf(listOf("compose"))))
+
+        key("Compose").performClick()
+        assertEquals(1, draft.focusRequests)
+    }
+
+    @Test
+    fun keyBar_pasteKeyWritesTheClipboardToTheTerminal() {
+        val bridge = bridgeWithPostLogin(null)
+        val clipboard = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getSystemService(android.content.ClipboardManager::class.java)
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("t", "ls -la"))
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("paste"))))
+
+        key("Paste").performClick()
+        composeTestRule.waitForIdle()
+        verify(bridge).injectString("ls -la")
     }
 
     @Test

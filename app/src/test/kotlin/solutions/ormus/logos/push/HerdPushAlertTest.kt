@@ -22,9 +22,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdApproval
 import solutions.ormus.logos.herd.HerdAttention.Notice
 import solutions.ormus.logos.herd.HerdrAgentStatus
+import solutions.ormus.logos.herd.NeedsYouKind
 
 /** A Herdr host's push: what the phone accepts, the notice it becomes, and which saved host it is about. */
 class HerdPushAlertTest {
@@ -120,5 +122,57 @@ class HerdPushAlertTest {
         // The watcher's `ts` is the time of the change, in seconds; the notification shows it.
         val notice = checkNotNull(parse(blocked)).notice() as Notice.NeedsYou
         assertEquals(1791214536_000L, notice.since)
+    }
+
+    // A herdr-core agent's push, as host/mercurio-push-watch --core sends it: the session is "@core", the
+    // pane id is the terminal address, and the kind and turn travel with it for Approve and Deny.
+    private val coreBlocked = """
+        {"v":1,"event":"pane.agent_status_changed","state":"blocked","host":"Sun","session":"@core",
+         "pane_id":"t15","agent":"claude-code","kind":"permission","turn":4,"workspace_id":null,
+         "workspace":"alpha · ONE","tab_id":null,"tab":"build","ts":1791214536}
+    """.trimIndent()
+
+    @Test
+    fun parse_acceptsACorePush_withItsAddressAndSession() {
+        val alert = checkNotNull(parse(coreBlocked))
+        assertEquals("t15", alert.paneId)
+        assertEquals(CoreNotices.SESSION, alert.session)
+        assertEquals("permission", alert.kind)
+        assertEquals(4, alert.turn)
+        assertEquals("box/t7", parse(coreBlocked.replace("\"t15\"", "\"box/t7\""))?.paneId)
+    }
+
+    @Test
+    fun parse_refusesACorePushWithAnAddressHcCouldNotHaveGiven() {
+        assertNull(parse(coreBlocked.replace("\"t15\"", "\"t15; rm -rf ~\"")))
+        assertNull(parse(coreBlocked.replace("\"t15\"", "\"-rf\"")))
+        assertNull("@core with no address", parse(coreBlocked.replace("\"t15\"", "\"\"")))
+        // A session name the phone does not know is refused.
+        assertNull(parse(blocked.replace("\"default\"", "\"@other\"")))
+    }
+
+    @Test
+    fun notice_coreBlockedIsNeedsYouInTheCoreSession_withApproveOnlyForAPermissionOfAProvenKind() {
+        val needsYou = checkNotNull(parse(coreBlocked)?.notice()) as Notice.NeedsYou
+        assertEquals(CoreNotices.SESSION, needsYou.session)
+        assertEquals("t15", needsYou.agent.paneId)
+        assertEquals("alpha · ONE", needsYou.workspaceLabel)
+        assertEquals(NeedsYouKind.PERMISSION, needsYou.agent.core?.needs)
+        assertEquals(4, needsYou.agent.core?.turn)
+        assertNull("no screen text in a push", needsYou.paneTail)
+        assertTrue(HerdApproval.offersAnswers(needsYou.agent))
+
+        val question = checkNotNull(parse(coreBlocked.replace("permission", "question"))?.notice()) as Notice.NeedsYou
+        assertEquals(NeedsYouKind.QUESTION, question.agent.core?.needs)
+        assertTrue(!HerdApproval.offersAnswers(question.agent))
+        val noTurn = checkNotNull(parse(coreBlocked.replace("\"turn\":4,", ""))?.notice()) as Notice.NeedsYou
+        assertTrue("no turn, nothing to guard an answer on", !HerdApproval.offersAnswers(noTurn.agent))
+    }
+
+    @Test
+    fun notice_coreDoneIsFinishedInTheCoreSession() {
+        val done = checkNotNull(parse(coreBlocked.replace("\"blocked\"", "\"done\""))?.notice())
+        assertTrue(done is Notice.Finished)
+        assertEquals(CoreNotices.SESSION, done.session)
     }
 }

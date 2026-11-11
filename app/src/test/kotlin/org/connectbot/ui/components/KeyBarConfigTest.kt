@@ -33,10 +33,104 @@ class KeyBarConfigTest {
     private val prefs = PreferenceManager.getDefaultSharedPreferences(ApplicationProvider.getApplicationContext<Context>())
 
     @Test
-    fun defaultBarHasEighteenKeysInFourPages() {
-        assertEquals(4, KeyBarLayout.DEFAULT.pages.size)
+    fun defaultBarIsTheHerdrAppsEighteenKeysInItsOrderFiveToAPage() {
+        assertEquals(
+            listOf(
+                listOf("esc", "ctrl", "alt", "tab", "shift-tab"),
+                listOf("arrows", "ctrl-c", "ctrl-d", "ctrl-z", "ctrl-l"),
+                listOf("pipe", "tilde", "slash", "dash", "home"),
+                listOf("end", "pgup", "pgdn"),
+            ),
+            KeyBarLayout.DEFAULT.pages,
+        )
         assertEquals(18, KeyBarLayout.DEFAULT.pages.sumOf { it.size })
-        assertEquals(listOf("esc", "tab", "shift-tab", "ctrl-c", "ctrl-d"), KeyBarLayout.DEFAULT.pages[0])
+    }
+
+    @Test
+    fun catalogHasModifiersActionsAndTheArrowsKey() {
+        assertEquals(KeyKind.CTRL, KeyBarCatalog.byId("ctrl")!!.kind)
+        assertEquals(KeyKind.ALT, KeyBarCatalog.byId("alt")!!.kind)
+        assertEquals(KeyKind.ARROWS, KeyBarCatalog.byId("arrows")!!.kind)
+        assertEquals(KeyKind.PASTE, KeyBarCatalog.byId("paste")!!.kind)
+        assertEquals(KeyKind.COMPOSE, KeyBarCatalog.byId("compose")!!.kind)
+        assertEquals(KeyKind.SEQUENCE, KeyBarCatalog.byId("esc")!!.kind)
+    }
+
+    @Test
+    fun catalogHasF1ToF12WithXtermSequences() {
+        val esc = "\u001b"
+        val expected = listOf("OP", "OQ", "OR", "OS", "[15~", "[17~", "[18~", "[19~", "[20~", "[21~", "[23~", "[24~")
+        expected.forEachIndexed { i, tail ->
+            val key = KeyBarCatalog.byId("f${i + 1}")
+            assertNotNull("f${i + 1}", key)
+            assertEquals(esc + tail, key!!.sequence)
+            assertEquals("F${i + 1}", key.label)
+        }
+        assertEquals(null, KeyBarCatalog.byId("f13"))
+    }
+
+    @Test
+    fun noKeyEverSendsHerdrsPrefix() {
+        assertTrue(KeyBarCatalog.all.none { it.sequence == "\u0002" })
+    }
+
+    @Test
+    fun textKeyTypesItsTextAndSurvivesTheLayoutEncoding() {
+        val text = "/clear, now; 100% \u00e9"
+        val id = KeyBarCatalog.textKeyId(text, enter = false)!!
+        val key = KeyBarCatalog.byId(id)!!
+        assertEquals(KeyKind.TEXT, key.kind)
+        assertEquals(text, key.sequence)
+        assertEquals(false, key.enter)
+        assertEquals(text, key.description)
+        val layout = KeyBarLayout(listOf(listOf("esc", id, "tab")))
+        assertEquals(layout, KeyBarLayout.decode(layout.encode()))
+    }
+
+    @Test
+    fun textKeyWithEnterIsAnotherKeyFromTheSameText() {
+        val plain = KeyBarCatalog.textKeyId("/clear", enter = false)!!
+        val withEnter = KeyBarCatalog.textKeyId("/clear", enter = true)!!
+        assertTrue(plain != withEnter)
+        val key = KeyBarCatalog.byId(withEnter)!!
+        assertEquals("/clear", key.sequence)
+        assertTrue(key.enter)
+    }
+
+    @Test
+    fun textKeyRefusesBlankAndTooLongText() {
+        assertEquals(null, KeyBarCatalog.textKeyId("", enter = false))
+        assertEquals(null, KeyBarCatalog.textKeyId("   ", enter = true))
+        assertEquals(null, KeyBarCatalog.textKeyId("x".repeat(KeyBarCatalog.MAX_TEXT_KEY + 1), enter = false))
+        assertNotNull(KeyBarCatalog.textKeyId("x".repeat(KeyBarCatalog.MAX_TEXT_KEY), enter = false))
+    }
+
+    @Test
+    fun textKeyRefusesControlCharactersSoNoPrefixByteGetsThrough() {
+        assertEquals(null, KeyBarCatalog.textKeyId("a\u0002b", enter = false))
+        assertEquals(null, KeyBarCatalog.byId("text:%02"))
+        assertEquals(null, KeyBarCatalog.byId("textcr:a%1Bb"))
+    }
+
+    @Test
+    fun aBrokenTextKeyIdIsDroppedOnDecode() {
+        assertEquals(KeyBarLayout(listOf(listOf("esc", "tab"))), KeyBarLayout.decode("esc,text:%ZZ,text:,tab"))
+    }
+
+    @Test
+    fun layoutAddTakesATextKey() {
+        val id = KeyBarCatalog.textKeyId("/compact", enter = true)!!
+        assertEquals(listOf("esc", id), KeyBarLayout(listOf(listOf("esc"))).add(0, id).pages[0])
+    }
+
+    @Test
+    fun arrowsKeySendsTheArrowUnderTheTap() {
+        val esc = "\u001b"
+        assertEquals(esc + "[A", ArrowPad.sequenceAt(50f, 5f, 100f, 100f))
+        assertEquals(esc + "[B", ArrowPad.sequenceAt(50f, 95f, 100f, 100f))
+        assertEquals(esc + "[D", ArrowPad.sequenceAt(5f, 50f, 100f, 100f))
+        assertEquals(esc + "[C", ArrowPad.sequenceAt(95f, 50f, 100f, 100f))
+        assertEquals(esc + "[A", ArrowPad.sequenceAt(60f, 10f, 100f, 100f))
     }
 
     @Test
@@ -80,8 +174,8 @@ class KeyBarConfigTest {
     }
 
     @Test
-    fun aPageFitsAPhoneRowNextToThePageKey() {
-        assertEquals(6, KeyBarLayout.MAX_KEYS_PER_PAGE)
+    fun aPageHoldsFiveKeysLikeTheHerdrApp() {
+        assertEquals(5, KeyBarLayout.MAX_KEYS_PER_PAGE)
     }
 
     @Test

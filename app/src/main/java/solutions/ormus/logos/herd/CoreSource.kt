@@ -89,7 +89,8 @@ class CoreSource {
         val records = parse(out.stdout)
             ?: return down("herdr-core answered something unreadable")
 
-        val agents = records.mapNotNull { toAgent(it, machine, now) }
+        val labels = readLabels(records, run)
+        val agents = records.mapNotNull { toAgent(it, machine, now, labels) }
         seen.keys.retainAll(agents.map { it.address }.toSet())
         return Result.Agents(agents)
     }
@@ -99,13 +100,64 @@ class CoreSource {
         return Result.Unavailable(reason)
     }
 
+    /** What the labels command gave: the pinned terminals, and the `herdr.seen` of the ones asked. */
+    private class Labels(val pinned: Set<String>, val seen: Map<String, Int>)
+
+    /**
+     * The shared labels of this host's terminals, in one command. Null when it could not be read:
+     * the agents then keep the core's own status, nothing is pinned, and no row is unread.
+     * Only an idle or done terminal past turn 0 can be unread, so only those are asked.
+     */
+    private fun readLabels(records: List<JsonObject>, run: (String) -> CommandOutput?): Labels? {
+        val asked = records.mapNotNull { r ->
+            val address = r.str("address")?.takeIf { TERMINAL.matches(it) } ?: return@mapNotNull null
+            val turn = (r["turn"] as? JsonPrimitive)?.intOrNull ?: return@mapNotNull null
+            address.takeIf { turn > 0 && stateOf(r["status"]).let { it == AgentState.Idle || it == AgentState.Done } }
+        }
+        val out = try {
+            run(HerdrApi.loginShell(labelsCmd(asked)))
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        val pinned = HashSet<String>()
+        val seen = HashMap<String, Int>()
+        var any = false
+        for (line in out.stdout.lineSequence()) {
+            val obj = try {
+                Json.parseToJsonElement(line.trim().ifEmpty { continue }) as? JsonObject
+            } catch (_: SerializationException) {
+                null
+            } ?: continue
+            val list = obj["terminals"] as? JsonArray
+            if (list != null) {
+                any = true
+                list.filterIsInstance<JsonObject>().mapNotNullTo(pinned) { it.str("address") }
+                continue
+            }
+            val address = obj.str("address") ?: continue
+            val value = (obj["labels"] as? JsonObject)?.str(SEEN)?.toIntOrNull() ?: continue
+            seen[address] = value
+        }
+        return if (any) Labels(pinned, seen) else null
+    }
+
     private fun toAgent(
         record: JsonObject,
         machine: String?,
         now: Long,
+        labels: Labels?,
     ): Agent? {
         val address = record.str("address") ?: return null
-        val state = stateOf(record["status"])
+        val turn = (record["turn"] as? JsonPrimitive)?.intOrNull
+        var state = stateOf(record["status"])
+        // The Herdr app's rule: idle or done is Done while the turn is past the seen one, else Idle.
+        // A missing (or unreadable) label is not 0: the core's own status stands and unread is unknown.
+        var unread: Boolean? = null
+        val mark = labels?.seen?.get(address)
+        if (mark != null && turn != null && (state == AgentState.Idle || state == AgentState.Done)) {
+            unread = turn > mark
+            state = if (unread) AgentState.Done else AgentState.Idle
+        }
         val reported = (record["status_ms"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull?.takeIf { it > 0 }
         val since = reported ?: run {
             val prev = seen[address]
@@ -125,7 +177,9 @@ class CoreSource {
             kind = record.str("agent") ?: (record["status"] as? JsonObject)?.str("app"),
             state = state,
             since = since,
-            turn = (record["turn"] as? JsonPrimitive)?.intOrNull,
+            turn = turn,
+            unread = unread,
+            pinned = labels != null && address in labels.pinned,
             parent = record.str("parent"),
         )
     }
@@ -139,7 +193,7 @@ class CoreSource {
         } catch (_: SerializationException) {
             return null
         } as? JsonObject ?: return null
-        return toAgent(root, machine, now)
+        return toAgent(root, machine, now, null)
     }
 
     private fun stateOf(status: JsonElement?): AgentState {
@@ -191,6 +245,43 @@ class CoreSource {
     companion object {
         const val VERSION_CMD = "herdr-core --version"
         const val LIST_CMD = "hc ls --json"
+
+        /** The terminals carrying `herdr.pinned=1`; `hc ls` does not print labels, but it can filter on them. */
+        const val PINNED_CMD = "hc ls --label herdr.pinned=1 --json"
+
+        /** The label a client raises to the turn it has shown; see herdr-app docs/labels.md. */
+        private const val SEEN = "herdr.seen"
+
+        // A terminal (`t7`) or a remote one (`mac/t7`); it starts with a letter or digit so it can never read as an option.
+        private val TERMINAL = Regex("[A-Za-z0-9][A-Za-z0-9_-]*(/[A-Za-z0-9][A-Za-z0-9_-]*)?")
+
+        /**
+         * One command that prints the pinned listing, then one `hc get` line per terminal in
+         * [addresses] (their `labels` object carries `herdr.seen`). An address that is not a plain
+         * terminal name is left out, so nothing else reaches the shell.
+         */
+        fun labelsCmd(addresses: List<String>): String = PINNED_CMD + addresses.filter { TERMINAL.matches(it) }.joinToString("") { "; hc get $it --json" }
+
+        /**
+         * Run [action] on terminal [address] of a host. [turn] is the terminal's current turn, which
+         * mark read writes into `herdr.seen`. False when nothing ran (a bad address, no turn) or the
+         * command failed.
+         */
+        fun write(action: RowAction, address: String, turn: Int?, run: (String) -> CommandOutput?): Boolean {
+            if (!TERMINAL.matches(address)) return false
+            val cmd = when (action) {
+                RowAction.MARK_READ -> "hc label $address $SEEN=${turn ?: return false}"
+                RowAction.PIN -> "hc label $address herdr.pinned=1"
+                RowAction.UNPIN -> "hc label $address herdr.pinned="
+                RowAction.INTERRUPT -> "hc keys $address esc"
+            }
+            val out = try {
+                run(HerdrApi.loginShell(cmd))
+            } catch (_: Exception) {
+                null
+            }
+            return out != null && out.exitCode == 0
+        }
 
         /** `hc ls` writes `where` as "<space> / <tab>". */
         private const val WHERE_SEP = " / "

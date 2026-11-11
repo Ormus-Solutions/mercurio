@@ -44,6 +44,11 @@ class DictationDraft {
     var sendRequests by mutableIntStateOf(0)
         private set
 
+    /** Ask for focus and the keyboard on the field, with the text as it is (the key bar's Compose key). */
+    fun requestFocus() {
+        focusRequests++
+    }
+
     fun requestSend() {
         sendRequests++
     }

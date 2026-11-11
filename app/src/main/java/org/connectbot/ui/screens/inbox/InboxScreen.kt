@@ -31,27 +31,36 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +90,7 @@ import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusTokens
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
+import solutions.ormus.logos.herd.RowAction
 
 /** Test tag of the search field. */
 const val INBOX_SEARCH_TAG = "inbox_search"
@@ -134,7 +144,7 @@ fun InboxScreen(
             value = System.currentTimeMillis()
         }
     }
-    InboxContent(rows = state.rows, notes = state.notes, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, modifier = modifier)
+    InboxContent(rows = state.rows, notes = state.notes, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, modifier = modifier)
 }
 
 /** The Inbox on [rows]: a search field, then one group per state, each folded after three rows. */
@@ -147,10 +157,28 @@ fun InboxContent(
     onOpen: (InboxRow) -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onAction: (InboxRow, RowAction) -> Unit = { _, _ -> },
 ) {
+    // The row a swipe left is asking about: Esc is sent only after the person confirms.
+    var interrupting by remember { mutableStateOf<InboxRow?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val sections = remember(rows, query, expanded) { Inbox.sections(rows, query, expanded.mapTo(HashSet()) { Inbox.Section.valueOf(it) }) }
+
+    interrupting?.let { target ->
+        AlertDialog(
+            onDismissRequest = { interrupting = null },
+            title = { Text(stringResource(R.string.inbox_esc_title, target.agent.space)) },
+            text = { Text(stringResource(R.string.inbox_esc_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    interrupting = null
+                    onAction(target, RowAction.INTERRUPT)
+                }) { Text(stringResource(R.string.inbox_esc_send)) }
+            },
+            dismissButton = { TextButton(onClick = { interrupting = null }) { Text(stringResource(R.string.button_cancel)) } },
+        )
+    }
 
     Scaffold(
         modifier = modifier,
@@ -186,7 +214,7 @@ fun InboxContent(
             items(sections, key = { it.section.name }) { section ->
                 val open = section.section.name in expanded
                 OrmusGroup(label = stringResource(label(section.section))) {
-                    section.shown.forEach { shown -> row { InboxRowItem(shown, now, onOpen) } }
+                    section.shown.forEach { shown -> row { key(shown.agent.address) { InboxRowItem(shown, now, onOpen, onAction) { interrupting = it } } } }
                     if (section.hidden > 0) {
                         row {
                             FoldLine(stringResource(R.string.inbox_show_more, section.hidden)) { expanded = expanded + section.section.name }
@@ -239,14 +267,86 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
     )
 }
 
+/** Test tag of the dot on an unread row. */
+const val INBOX_UNREAD_TAG = "inbox_unread"
+
+/** Test tag of the pin on a pinned row. */
+const val INBOX_PINNED_TAG = "inbox_pinned"
+
+private val DOT_SIZE = 8.dp
+
+/**
+ * One row. A herdr-core row swipes: right marks it read or toggles its pin ([Inbox.rightSwipe]),
+ * left asks [onInterrupt] to confirm an Esc. The swipe always springs back; the row moves when the
+ * next read says so.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InboxRowItem(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit) {
+private fun InboxRowItem(
+    row: InboxRow,
+    now: Long,
+    onOpen: (InboxRow) -> Unit,
+    onAction: (InboxRow, RowAction) -> Unit,
+    onInterrupt: (InboxRow) -> Unit,
+) {
+    val right = Inbox.rightSwipe(row.agent)
+    val left = Inbox.canInterrupt(row.agent)
+    if (right == null && !left) {
+        InboxRowBody(row, now, onOpen)
+        return
+    }
+    val currentRow by rememberUpdatedState(row)
+    val currentAction by rememberUpdatedState(onAction)
+    val currentInterrupt by rememberUpdatedState(onInterrupt)
+    val state = rememberSwipeToDismissBoxState()
+    // The swipe is read once, when it lands; then the row springs back. (confirmValueChange is asked
+    // many times during one drag, which wrote the same label many times.)
+    LaunchedEffect(state.currentValue) {
+        when (state.currentValue) {
+            SwipeToDismissBoxValue.StartToEnd -> Inbox.rightSwipe(currentRow.agent)?.let { currentAction(currentRow, it) }
+            SwipeToDismissBoxValue.EndToStart -> currentInterrupt(currentRow)
+            SwipeToDismissBoxValue.Settled -> return@LaunchedEffect
+        }
+        state.reset()
+    }
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = right != null,
+        enableDismissFromEndToStart = left,
+        backgroundContent = {
+            val toRight = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val toLeft = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            if (toRight || toLeft) {
+                Box(
+                    contentAlignment = if (toRight) Alignment.CenterStart else Alignment.CenterEnd,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(horizontal = Ormus.spacing.lg),
+                ) {
+                    val label = when (if (toRight) right else RowAction.INTERRUPT) {
+                        RowAction.MARK_READ -> R.string.inbox_swipe_read
+                        RowAction.PIN -> R.string.inbox_swipe_pin
+                        RowAction.UNPIN -> R.string.inbox_swipe_unpin
+                        else -> R.string.inbox_swipe_esc
+                    }
+                    Text(stringResource(label), color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        },
+    ) {
+        InboxRowBody(row, now, onOpen, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
+    }
+}
+
+@Composable
+private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, modifier: Modifier = Modifier) {
     val space = row.agent.space
     val description = stringResource(R.string.inbox_open, space, row.host)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.md),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = ROW_HEIGHT)
             .testTag(INBOX_ROW_TAG)
@@ -264,6 +364,17 @@ private fun InboxRowItem(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit) {
             Text(Inbox.letter(space), color = OrmusTokens.Deep, fontWeight = FontWeight.Bold)
         }
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            if (row.agent.unread == true) {
+                val unread = stringResource(R.string.inbox_unread)
+                Box(
+                    modifier = Modifier
+                        .size(DOT_SIZE)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .testTag(INBOX_UNREAD_TAG)
+                        .semantics { contentDescription = unread },
+                )
+            }
             Text(
                 text = space,
                 style = MaterialTheme.typography.bodyLarge,
@@ -278,6 +389,16 @@ private fun InboxRowItem(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (row.agent.pinned) {
+            Icon(
+                Icons.Filled.PushPin,
+                contentDescription = stringResource(R.string.inbox_pinned),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(16.dp)
+                    .testTag(INBOX_PINNED_TAG),
             )
         }
         Inbox.age(row, now)?.let {

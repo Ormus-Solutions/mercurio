@@ -50,6 +50,35 @@ One JSON object per push, schema `v: 1`:
 `state` is Herdr's agent status (`blocked` by default, `done` too with `--states blocked,done`).
 `workspace`, `tab` and `agent` can be null when Herdr has no label for them.
 
+## herdr-core agents
+
+The watcher can follow herdr-core too. It is off unless started with `--core` (for the systemd unit:
+`systemctl --user edit mercurio-push-watch`, set `ExecStart=` empty, then `ExecStart=%h/.local/bin/mercurio-push-watch --core --hc %h/.local/bin/hc`; a user unit may not have `~/.local/bin` on its PATH).
+It runs `hc events --json` (a snapshot, then one line per change, a `heartbeat` every 15 s, and `missed` with a
+fresh snapshot when it fell behind), and keeps the pipe alive: no line for 45 s kills the command and starts it
+again with backoff (any error in the stream starts over; a bad endpoint is logged and skipped). After a reconnect or a `missed`, only changes since the last look push.
+
+The rule is the desktop app's: a core agent that turns blocked (or error) always pushes; one that finishes pushes
+only if nobody looked (the shared label `herdr.seen` is not at its turn), judged after a 3 s grace (`--seen-grace`)
+so the desktop app can mark it first (and it waits for its own `turn` event, so it is judged on its own turn); a terminal with a parent (a helper) never pushes, and neither does a remote machine's terminal (`box/t7`): that machine's own watcher announces it. A repeat of the same alert for the same turn inside `--debounce` is dropped; a new turn is not. `--states` does not apply to core: blocks and finishes both push. A block waits for the
+`turn` event that follows its status (at most 1 s), because the phone guards Approve on the turn.
+
+```json
+{"v":1,"event":"pane.agent_status_changed","state":"blocked","host":"<hostname>","session":"@core",
+ "pane_id":"t15","agent":"claude-code","kind":"permission","turn":4,"workspace_id":null,
+ "workspace":"<space>","tab_id":null,"tab":"<tab>","ts":1791214536}
+```
+
+`session` is `@core` and `pane_id` is the terminal address (`t15`). `kind` is why it blocks
+(`permission`, `question`, `auth`, anything else is dropped; null for a finish); `agent` is the status `app`, at most 64 characters. Space and tab come from the terminal's `where` label.
+The screen, title and status message never leave the host.
+
+On the phone a `@core` push becomes the same "Needs you" or "Finished" notice the app's own core monitor
+posts (same tag, so they replace each other), with Approve and Deny only for a permission block of a proven kind.
+The question is read the same way, inside the same 4 s: a short login with no terminal, `hc get <address> --json`
+through the login shell, the end of its `screen`. When that login is not possible the notice keeps what the push
+carried.
+
 ## Endpoints file
 
 `${XDG_CONFIG_HOME:-~/.config}/mercurio/push-endpoints` on each Herdr host. One push endpoint URL

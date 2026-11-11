@@ -2151,6 +2151,19 @@
 	<string name="inbox_no_match">No terminal matches</string>
 	<!-- Spoken name of a row; %1$s is the space, %2$s the host it is on -->
 	<string name="inbox_open">Open %1$s on %2$s</string>
+	<!-- Swipe right on a row marks an unread agent read; on any other it pins or unpins it -->
+	<string name="inbox_swipe_read">Mark read</string>
+	<string name="inbox_swipe_pin">Pin</string>
+	<string name="inbox_swipe_unpin">Unpin</string>
+	<!-- Swipe left shows this under the row, then asks before sending Esc -->
+	<string name="inbox_swipe_esc">Esc</string>
+	<!-- Spoken marks on a row: a done agent not yet looked at, and a pinned one -->
+	<string name="inbox_unread">Unread</string>
+	<string name="inbox_pinned">Pinned</string>
+	<!-- Confirm before Esc is sent to an agent; %1$s is the space -->
+	<string name="inbox_esc_title">Send Esc to %1$s?</string>
+	<string name="inbox_esc_body">Esc interrupts the agent in the middle of what it is doing.</string>
+	<string name="inbox_esc_send">Send Esc</string>
 	<!-- Settings panel: the Inbox and the herdr-core agents in it -->
 	<string name="settings_panel_inbox">Inbox</string>
 	<string name="settings_panel_inbox_switch">Show the Inbox</string>

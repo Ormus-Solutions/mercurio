@@ -47,6 +47,9 @@ data class InboxSection(
     val canFold: Boolean get() = rows.size > Inbox.FOLD
 }
 
+/** What a swipe on a herdr-core row does; each is one `hc` write ([CoreSource.write]). */
+enum class RowAction { MARK_READ, PIN, UNPIN, INTERRUPT }
+
 /** The Inbox: every agent of every host in one list, sorted by what it needs. Pure; the screen draws it. */
 object Inbox {
     /** A section folds after this many rows. */
@@ -121,6 +124,33 @@ object Inbox {
         val a = row.agent
         val hay = listOfNotNull(a.space, a.tab, a.title, a.kind, row.host).joinToString(" ").lowercase(Locale.ROOT)
         return words.all { it in hay }
+    }
+
+    /** What a swipe right does to [agent]: mark an unread one read, else toggle its pin. Null for a TUI agent, which has no labels. */
+    fun rightSwipe(agent: Agent): RowAction? = when {
+        agent.engine != AgentEngine.CORE -> null
+        agent.unread == true -> RowAction.MARK_READ
+        agent.pinned -> RowAction.UNPIN
+        else -> RowAction.PIN
+    }
+
+    /** Whether a swipe left may send Esc to [agent]: herdr-core terminals only. */
+    fun canInterrupt(agent: Agent): Boolean = agent.engine == AgentEngine.CORE
+
+    /** [agent] as it will read once [action] has been written, so the row moves before the next poll. */
+    fun applied(agent: Agent, action: RowAction): Agent = when (action) {
+        RowAction.MARK_READ -> agent.copy(state = if (agent.state == AgentState.Done) AgentState.Idle else agent.state, unread = false)
+        RowAction.PIN -> agent.copy(pinned = true)
+        RowAction.UNPIN -> agent.copy(pinned = false)
+        RowAction.INTERRUPT -> agent
+    }
+
+    /** The terminal name on its host: a row's address is "<host>/<engine>/<terminal>", and a remote terminal is "mac/t7". */
+    fun terminal(address: String): String = address.split('/', limit = 3).let { if (it.size == 3) it[2] else address }
+
+    /** [rows] after [action] was written on [acted]: only that row, and only if it is still at the turn it was acted on. */
+    fun patched(rows: List<InboxRow>, acted: Agent, action: RowAction): List<InboxRow> = rows.map {
+        if (it.agent.address == acted.address && it.agent.turn == acted.turn) it.copy(agent = applied(it.agent, action)) else it
     }
 
     /** The group of a space: the part before " · ", or the whole name. */
