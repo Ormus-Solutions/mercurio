@@ -32,6 +32,8 @@ import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.transport.CommandOutput
+import org.connectbot.transport.HeadlessSession
+import org.connectbot.transport.HeadlessSsh
 import org.connectbot.util.PreferenceConstants
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,6 +46,7 @@ import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import solutions.ormus.logos.herd.AgentSince
+import solutions.ormus.logos.herd.CoreLinks
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentStatus
@@ -117,15 +120,41 @@ class InboxViewModelTest {
         `when`(herd.since).thenReturn(AgentSince(clock = { 0L }))
         `when`(herd.exec(org.mockito.kotlin.any())).thenAnswer { exec(it.getArgument(0)) }
         val bridge = mock(TerminalBridge::class.java)
-        `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname))
+        `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname, hostname = "box$id", username = "u"))
         `when`(bridge.herd).thenReturn(herd)
         return bridge to herd
     }
 
-    private fun viewModel(core: Boolean, vararg bridges: TerminalBridge): InboxViewModel {
+    private var logins = AtomicInteger(0)
+    private val closed = AtomicInteger(0)
+
+    /** A login that always works and runs [exec]: nothing here reaches a network. */
+    private fun fakeLinks(saved: List<Host>, exec: (String) -> CommandOutput?, skip: String? = null) = CoreLinks(
+        hosts = { saved },
+        login = {
+            logins.incrementAndGet()
+            if (skip != null) {
+                CoreLinks.Opened.Skipped(skip)
+            } else {
+                CoreLinks.Opened.Session(
+                    object : HeadlessSession {
+                        override fun login(keys: List<java.security.KeyPair>) = HeadlessSsh.Login.Ok
+
+                        override fun exec(command: String) = exec(command) ?: CommandOutput("", "", 1)
+
+                        override fun close() {
+                            closed.incrementAndGet()
+                        }
+                    },
+                )
+            }
+        },
+    )
+
+    private fun viewModel(core: Boolean, vararg bridges: TerminalBridge, links: CoreLinks = fakeLinks(bridges.map { it.host }, { null })): InboxViewModel {
         val manager = mock(TerminalManager::class.java)
         `when`(manager.bridgesFlow).thenReturn(MutableStateFlow(bridges.toList()))
-        return InboxViewModel(prefs(core), CoroutineDispatchers(unconfined, Dispatchers.IO, unconfined)).also {
+        return InboxViewModel(prefs(core), CoroutineDispatchers(unconfined, Dispatchers.IO, unconfined), links).also {
             it.setTerminalManager(manager)
             made += it
         }
@@ -153,6 +182,81 @@ class InboxViewModelTest {
         vm.refresh()
         assertEquals(1, vm.state.value.rows.size)
         verify(herd, never()).exec(org.mockito.kotlin.any())
+    }
+
+    private fun saved(id: Long, nickname: String, hostname: String = "box", post: String? = null) = Host(id = id, nickname = nickname, hostname = hostname, username = "u", postLogin = post)
+
+    private val core = solutions.ormus.logos.herd.AgentEngine.CORE
+
+    @Test
+    fun coreRowsAppear_withNoOpenConsole_throughAHeadlessLogin() = runTest {
+        val vm = viewModel(true, links = fakeLinks(listOf(saved(1, "one")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core && it.host == "one" } }
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun fiveSavedRowsOfOneMachine_areOneLogin_andOneSetOfRows() = runTest {
+        val hosts = listOf(saved(1, "shell"), saved(2, "plain", post = "herdr"), saved(3, "a", post = "herdr session attach 'x'"), saved(4, "b", post = "herdr session attach 'y'"), saved(5, "c", post = "herdr session attach 'z'"))
+        val vm = viewModel(true, links = fakeLinks(hosts, { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        assertEquals(1, vm.state.value.rows.count { it.agent.engine == core })
+        // A tap opens the plain herdr row.
+        assertEquals(2L, vm.state.value.rows.first { it.agent.engine == core }.hostId)
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun aMachineThatCannotBeLoggedInto_isSkippedWithItsReason() = runTest {
+        val vm = viewModel(true, links = fakeLinks(listOf(saved(1, "one")), { answers(it) }, skip = "no key that opens without asking"))
+        vm.refresh()
+        awaitState(vm) { it.notes.isNotEmpty() }
+        assertEquals(listOf("one: no key that opens without asking"), vm.state.value.notes)
+        assertTrue(vm.state.value.rows.none { it.agent.engine == core })
+    }
+
+    @Test
+    fun theVersionProbe_isAskedOnce_andTheLoginIsHeldAcrossPolls() = runTest {
+        val log = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val vm = viewModel(
+            true,
+            links = fakeLinks(listOf(saved(1, "one")), {
+                log += it
+                answers(it)
+            }),
+        )
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        vm.refresh()
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (log.count { "hc ls" in it } < 2 && System.nanoTime() < end) Thread.sleep(5)
+        assertEquals(1, log.count { "--version" in it })
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun anOpenConsole_isUsedInsteadOfALogin_andRowsAreNotDoubled() = runTest {
+        val (b, _) = bridge(1L, "one") { answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1"), saved(2, "other", "box1")).map { it.copy(hostname = "box1") }, { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        Thread.sleep(100)
+        assertEquals(1, vm.state.value.rows.count { it.agent.engine == core })
+        assertEquals(0, logins.get())
+    }
+
+    @Test
+    fun leavingTheScreen_logsOutOfEveryMachine() = runTest {
+        val links = fakeLinks(listOf(saved(1, "one")), { answers(it) })
+        val vm = viewModel(true, links = links)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        links.close()
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (closed.get() < 1 && System.nanoTime() < end) Thread.sleep(5)
+        assertEquals(1, closed.get())
     }
 
     @Test

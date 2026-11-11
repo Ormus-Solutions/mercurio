@@ -226,14 +226,21 @@ class CoreLabelsTest {
     }
 
     @Test
-    fun `the terminal of a row is the address after the last slash`() {
-        assertEquals("t7", Inbox.terminal("12/core/t7"))
-        assertEquals("t7", Inbox.terminal("t7"))
+    fun `a row keeps the terminal address, so the writes and the Esc go to t7`() {
+        val row = Inbox.row(12, "box", agent())
+        assertEquals("t7", row.agent.address)
+        assertEquals("12/core/t7", row.key)
+    }
+
+    @Test
+    fun `the same terminal on two hosts is two rows with two keys`() {
+        val rows = listOf(Inbox.row(1, "box", agent()), Inbox.row(2, "other", agent()))
+        assertEquals(listOf("1/core/t7", "2/core/t7"), Inbox.sections(rows, "", emptySet())[0].rows.map { it.key })
     }
 
     @Test
     fun `a remote terminal keeps its machine, so a write cannot land on a local one`() {
-        assertEquals("mac/t7", Inbox.terminal("12/core/mac/t7"))
+        assertEquals("mac/t7", Inbox.row(12, "box", agent().copy(address = "mac/t7")).agent.address)
         val (log, run) = record()
         assertTrue(CoreSource.write(RowAction.PIN, "mac/t7", turn = null, run = run))
         assertEquals(listOf(HerdrApi.loginShell("hc label mac/t7 herdr.pinned=1")), log)
@@ -250,7 +257,7 @@ class CoreLabelsTest {
 
     @Test
     fun `a patch lands only on the row that was acted on, at the turn it was acted on`() {
-        val acted = agent(state = AgentState.Done, unread = true, turn = 5).copy(address = "1/core/t7")
+        val acted = agent(state = AgentState.Done, unread = true, turn = 5).copy(address = "t7")
         val same = Inbox.row(1, "box", acted.copy(address = "t7"))
         val later = Inbox.row(1, "box", acted.copy(address = "t7", turn = 6))
         val other = Inbox.row(1, "box", acted.copy(address = "t8"))
@@ -265,6 +272,6 @@ class CoreLabelsTest {
             Inbox.row(1, "box", agent().copy(address = "t1", since = 1)),
             Inbox.row(1, "box", agent(pinned = true).copy(address = "t2", since = 99)),
         )
-        assertEquals(listOf("1/core/t2", "1/core/t1"), Inbox.sections(rows, "", emptySet())[0].rows.map { it.agent.address })
+        assertEquals(listOf("t2", "t1"), Inbox.sections(rows, "", emptySet())[0].rows.map { it.agent.address })
     }
 }

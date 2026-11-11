@@ -151,6 +151,13 @@ class JumpSheetTest {
     }
 
     @Test
+    fun coreItem_watchesTheTerminalAsHcLsNamedIt() {
+        val core = Inbox.fromCore(7, "box", CoreSource.Result.Agents(listOf(Agent(address = "t9", engine = AgentEngine.CORE, space = "gamma", tab = "logs", state = AgentState.Idle)))).rows
+        val row = JumpSheet.items(emptyList(), "box", core).single().core!!
+        assertEquals("hc attach --observe 't9'\n", CoreWatch.target(row.agent)?.let { CoreWatch.observeCommand(it.address) })
+    }
+
+    @Test
     fun query_findsAPaneByItsFolder() {
         val withFolder = JumpSheet.items(listOf(target("default", "t1", "alpha · ONE", "build", HerdrAgentStatus.IDLE).copy(folder = "my-project")), "box", emptyList())
         assertEquals(listOf("default/t1/t1:p"), keys(JumpSheet.sections(withFolder, emptyList(), "my-project").single()))

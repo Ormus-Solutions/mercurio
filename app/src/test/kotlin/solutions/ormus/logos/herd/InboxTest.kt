@@ -201,7 +201,7 @@ class InboxTest {
     @Test
     fun aCardWithTwoSessions_keepsBothRows_evenWithTheSamePaneId() {
         fun card(session: String) = BoardCard(session, "p1", "t1", null, HerdrAgentStatus.IDLE, null, "main", 1, "alpha · ONE", 1)
-        assertEquals(2, Inbox.fromCards(1L, "box", listOf(card("work"), card("review"))).map { it.agent.address }.distinct().size)
+        assertEquals(2, Inbox.fromCards(1L, "box", listOf(card("work"), card("review"))).map { it.key }.distinct().size)
     }
 
     @Test

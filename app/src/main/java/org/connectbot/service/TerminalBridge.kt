@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -66,6 +67,7 @@ import org.connectbot.util.HostConstants
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.TerminalText
 import solutions.ormus.logos.herd.CoreCompose
+import solutions.ormus.logos.herd.CoreSeen
 import solutions.ormus.logos.herd.CoreSend
 import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.CoreWatchState
@@ -1045,6 +1047,33 @@ class TerminalBridge {
             (transport as? SSH)?.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs)
         } catch (_: IOException) {
             null
+        }
+    }
+
+    /**
+     * Mark the watched terminal read for as long as this runs ([CoreSeen]). The caller runs it while the
+     * console is on screen and the app is in front, and cancels it otherwise. Returns at once on any
+     * other console.
+     */
+    suspend fun keepWatchSeen() {
+        val target = watch ?: return
+        val seen = CoreSeen(target.address)
+        while (true) {
+            if (isSessionOpen) {
+                withContext(dispatchers.io) {
+                    seen.look(
+                        run = { command ->
+                            try {
+                                (transport as? SSH)?.takeIf { it.isConnected() }?.execDetailed(command, WATCH_READ_TIMEOUT_MS)
+                            } catch (_: IOException) {
+                                null
+                            }
+                        },
+                        stillShown = { isActive },
+                    )
+                }
+            }
+            delay(CoreSeen.PERIOD_MS)
         }
     }
 

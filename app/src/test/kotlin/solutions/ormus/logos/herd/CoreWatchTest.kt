@@ -44,6 +44,22 @@ class CoreWatchTest {
         assertEquals("hc attach --observe 'box/t12'\n", CoreWatch.observeCommand("box/t12"))
     }
 
+    @Test fun `an Inbox row of a core agent watches the terminal as hc ls named it`() {
+        val row = Inbox.row(1, "box", agent())
+        assertEquals("t7", CoreWatch.target(row.agent)?.address)
+        assertEquals("hc attach --observe 't7'\n", CoreWatch.target(row.agent)?.let { CoreWatch.observeCommand(it.address) })
+        assertEquals("box/t7", CoreWatch.target(Inbox.row(1, "box", agent(address = "box/t7")).agent)?.address)
+    }
+
+    @Test fun `an address with more than one slash is not a terminal`() {
+        assertNull(CoreWatch.target(agent(address = "1/core/t7")))
+        assertNull(CoreWatch.observeCommand("1/core/t7"))
+        assertNull(CoreWatch.takeOverCommand("a/b/c"))
+        assertNull(CoreWatch.getCommand("a/b/c"))
+        assertFalse(CoreWatch.isSafe("a/b/c"))
+        assertTrue(CoreWatch.isSafe("box/t7"))
+    }
+
     @Test fun `the takeover attaches without observe`() {
         assertEquals("hc attach 't7'\n", CoreWatch.takeOverCommand("t7"))
     }

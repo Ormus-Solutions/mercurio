@@ -73,7 +73,7 @@ object JumpSheet {
         }
         val cores = core.filter { CoreWatch.target(it.agent) != null }.map { r ->
             Item(
-                key = r.agent.address,
+                key = r.key,
                 space = r.agent.space,
                 second = "${r.agent.tab} · ${r.host}",
                 third = r.agent.title?.takeIf { it.isNotBlank() },
@@ -82,8 +82,7 @@ object JumpSheet {
                 core = r,
             )
         }
-        val byAddress = (tui + cores).associateBy { it.agent.address }
-        return Agent.rank((tui + cores).map { it.agent }).mapNotNull { byAddress[it.address] }
+        return (tui + cores).sortedWith(compareBy<Item, Agent>(Agent.RANKING) { it.agent }.thenBy { it.key })
     }
 
     /**

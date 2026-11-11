@@ -55,8 +55,8 @@ object CoreWatch {
 
     private const val FONT_STEP_SP = 0.5f
 
-    // An address as `hc ls` gives it (`t7`, `box/t7`): nothing a shell would read as more than a word.
-    private val SAFE = Regex("""[A-Za-z0-9_][A-Za-z0-9_./-]*""")
+    // An address as `hc ls` gives it (`t7`, `box/t7`): at most one slash, nothing a shell would read as more than a word.
+    private val SAFE = Regex("""[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_.-]+)?""")
 
     /** Whether [address] is a plain word a shell reads as one argument. */
     fun isSafe(address: String): Boolean = SAFE.matches(address)

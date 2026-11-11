@@ -270,6 +270,9 @@ class CoreSource {
          */
         fun labelsCmd(addresses: List<String>): String = PINNED_CMD + addresses.filter { TERMINAL.matches(it) }.joinToString("") { "; hc get $it --json" }
 
+        /** The command that reads one terminal (its `turn` and `labels`) through the login shell; null for an address that is not a plain terminal. */
+        fun getCommand(address: String): String? = address.takeIf { TERMINAL.matches(it) }?.let { HerdrApi.loginShell("hc get $it --json") }
+
         /**
          * Run [action] on terminal [address] of a host. [turn] is the terminal's current turn, which
          * mark read writes into `herdr.seen`. False when nothing ran (a bad address, no turn) or the

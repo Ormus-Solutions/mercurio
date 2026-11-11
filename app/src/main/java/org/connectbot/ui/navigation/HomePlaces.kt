@@ -164,3 +164,16 @@ fun HomePlacesFrame(
         if (showBar) HomeBar(places = places, selected = place, onSelect = navController::selectPlace)
     }
 }
+
+/**
+ * Open the console at [route] for a core terminal picked on the Jump sheet. The sheet sits on a
+ * console, so the new console takes its place: Back returns to whatever opened
+ * it from, and a run of jumps does not pile consoles up. Like the Inbox, which leaves the stack
+ * when it opens one. No launchSingleTop: after the pop it would compare with the console below,
+ * and replace that one.
+ */
+fun NavController.openJumpedConsole(route: String) = navigate(route) {
+    if (currentDestination?.route == NavDestinations.CONSOLE_ROUTE) {
+        popUpTo(NavDestinations.CONSOLE_ROUTE) { inclusive = true }
+    }
+}

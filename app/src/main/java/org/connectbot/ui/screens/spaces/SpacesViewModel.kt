@@ -31,6 +31,7 @@ import kotlinx.coroutines.withContext
 import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.CoreLinks
 import solutions.ormus.logos.herd.CoreSpaces
 import solutions.ormus.logos.home.HomeStart
 import javax.inject.Inject
@@ -39,13 +40,16 @@ import javax.inject.Inject
 data class SpacesSection(val hostId: Long, val machine: String, val result: CoreSpaces.Result)
 
 /**
- * Backs the Spaces list: the spaces document of every connected host, one read per host at a time,
- * only while the herdr-core setting is on. Read only; nothing is written back to the host.
+ * Backs the Spaces list: the spaces document of every saved machine (hosts of one hostname, port and
+ * user are one), one read per machine at a time, only while the herdr-core setting is on. A machine
+ * with a console open is read over it, any other over one headless login held while the list shows.
+ * Read only; nothing is written back. [SpacesSection.hostId] is the machine's primary host.
  */
 @HiltViewModel
 class SpacesViewModel @Inject constructor(
     private val prefs: SharedPreferences,
     private val dispatchers: CoroutineDispatchers,
+    private val links: CoreLinks,
 ) : ViewModel() {
     private val _sections = MutableStateFlow<List<SpacesSection>>(emptyList())
     val sections: StateFlow<List<SpacesSection>> = _sections.asStateFlow()
@@ -55,6 +59,7 @@ class SpacesViewModel @Inject constructor(
     // What each host's last read gave, by host id, and the hosts being read now. Main thread only.
     private val read = LinkedHashMap<Long, SpacesSection>()
     private val reading = HashSet<Long>()
+    private var current: Set<Long> = emptySet()
 
     fun setTerminalManager(value: TerminalManager) {
         manager = value
@@ -62,35 +67,56 @@ class SpacesViewModel @Inject constructor(
 
     /** Read now and again every [PERIOD_MS], for as long as the caller stays: the screen while it shows. */
     suspend fun watch() {
-        while (true) {
-            refresh()
-            delay(PERIOD_MS)
+        links.reopen()
+        try {
+            while (true) {
+                refresh()
+                delay(PERIOD_MS)
+            }
+        } finally {
+            links.close()
         }
     }
 
-    internal fun refresh() {
+    override fun onCleared() {
+        links.close()
+    }
+
+    internal suspend fun refresh() {
         val bridges = manager?.bridgesFlow?.value ?: return
         val enabled = HomeStart.coreOn(prefs)
-        read.keys.retainAll(bridges.map { it.host.id }.toSet())
-        if (!enabled) read.clear()
+        if (!enabled) {
+            read.clear()
+            links.close()
+            _sections.value = emptyList()
+            return
+        }
+        val machines = withContext(dispatchers.io) { links.machines(bridges.map { it.host }) }
+        current = machines.map { it.primary.id }.toSet()
+        read.keys.retainAll(current)
         _sections.value = read.values.toList()
-        if (!enabled) return
-        for (bridge in bridges) {
-            val herd = bridge.herd ?: continue
-            val host = bridge.host
-            if (!reading.add(host.id)) continue
+        for (machine in machines) {
+            val id = machine.primary.id
+            if (!reading.add(id)) continue
+            val open = bridges.firstOrNull { b -> b.herd != null && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
             viewModelScope.launch {
                 try {
                     val result = try {
-                        withContext(dispatchers.io) { CoreSpaces.read(true, herd::exec) }
+                        withContext(dispatchers.io) {
+                            when (val link = links.link(machine, open)) {
+                                is CoreLinks.Link.Down -> CoreSpaces.Result.Unavailable(link.reason)
+                                is CoreLinks.Link.Up -> CoreSpaces.read(true, link.run)
+                            }
+                        }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         CoreSpaces.Result.Unavailable(e.message ?: e::class.simpleName.orEmpty())
                     }
-                    if (manager?.bridgesFlow?.value?.any { it.host.id == host.id } == true) read[host.id] = SpacesSection(host.id, host.nickname, result)
+                    val left = (result as? CoreSpaces.Result.Unavailable)?.reason == CoreLinks.LEFT
+                    if (!left && id in current) read[id] = SpacesSection(id, machine.name, result)
                 } finally {
-                    reading.remove(host.id)
+                    reading.remove(id)
                     _sections.value = read.values.toList()
                 }
             }

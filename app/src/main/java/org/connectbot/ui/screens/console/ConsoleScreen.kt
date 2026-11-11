@@ -136,6 +136,9 @@ import androidx.core.content.edit
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -303,6 +306,8 @@ fun ConsoleScreen(
     onNavigateToConsole: (Long) -> Unit = {},
     onNavigateToHostList: () -> Unit = {},
     onNavigateToRoute: (String) -> Unit = {},
+    // A core terminal picked on the Jump sheet: its console takes this one's place.
+    onOpenJumpedConsole: (String) -> Unit = onNavigateToRoute,
     viewModel: ConsoleViewModel = hiltViewModel(),
     wishViewModel: WishViewModel = hiltViewModel(),
     machinesViewModel: MachinesViewModel = hiltViewModel(),
@@ -611,6 +616,12 @@ fun ConsoleScreen(
     }
 
     val currentBridge = uiState.bridges.getOrNull(uiState.currentBridgeIndex)
+    // A watched core terminal is marked read while it is on screen and the app is in front.
+    val seenLifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(currentBridge, seenLifecycleOwner) {
+        val bridge = currentBridge?.takeIf { it.watch != null } ?: return@LaunchedEffect
+        seenLifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) { bridge.keepWatchSeen() }
+    }
     // The compose bar's dictation field for this session; the slash menu puts "/name " in it.
     val dictationDraft = remember(currentBridge) { DictationDraft() }
     // These values are computed from bridge state and will recompute when uiState.revision changes
@@ -1253,7 +1264,7 @@ fun ConsoleScreen(
                                         },
                                         // A core terminal picked on the Jump sheet opens as the Inbox opens it.
                                         onJumpCore = { row ->
-                                            onNavigateToRoute(NavDestinations.console(row.hostId, row.console, CoreWatch.target(row.agent)))
+                                            onOpenJumpedConsole(NavDestinations.console(row.hostId, row.console, CoreWatch.target(row.agent)))
                                         },
                                         boardOpen = boardBridge != null,
                                         // Herdr key once the session's Herdr side is up.

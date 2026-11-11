@@ -214,7 +214,7 @@ fun InboxContent(
             items(sections, key = { it.section.name }) { section ->
                 val open = section.section.name in expanded
                 OrmusGroup(label = stringResource(label(section.section))) {
-                    section.shown.forEach { shown -> row { key(shown.agent.address) { InboxRowItem(shown, now, onOpen, onAction) { interrupting = it } } } }
+                    section.shown.forEach { shown -> row { key(shown.key) { InboxRowItem(shown, now, onOpen, onAction) { interrupting = it } } } }
                     if (section.hidden > 0) {
                         row {
                             FoldLine(stringResource(R.string.inbox_show_more, section.hidden)) { expanded = expanded + section.section.name }

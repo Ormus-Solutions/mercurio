@@ -81,12 +81,13 @@ data class Agent(
          * [agents] in inbox order: pinned first, then needs you, done, working, idle, unknown;
          * inside a state the one waiting longest first (an unknown time last), then by address.
          */
-        fun rank(agents: List<Agent>): List<Agent> = agents.sortedWith(
-            compareBy<Agent> { !it.pinned }
-                .thenBy { urgency(it.state) }
-                .thenBy { it.since ?: Long.MAX_VALUE }
-                .thenBy { it.address },
-        )
+        fun rank(agents: List<Agent>): List<Agent> = agents.sortedWith(RANKING)
+
+        /** The inbox order of [rank], for a list that carries more than the agent. */
+        val RANKING: Comparator<Agent> = compareBy<Agent> { !it.pinned }
+            .thenBy { urgency(it.state) }
+            .thenBy { it.since ?: Long.MAX_VALUE }
+            .thenBy { it.address }
 
         private fun urgency(state: AgentState): Int = when (state) {
             is AgentState.NeedsYou -> 0

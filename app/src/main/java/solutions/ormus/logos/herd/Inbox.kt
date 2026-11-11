@@ -20,8 +20,9 @@ package solutions.ormus.logos.herd
 import java.util.Locale
 
 /**
- * One line of the Inbox: an [agent] of either engine, with the host it lives on. [agent]'s address
- * carries the host id and the engine, so the same pane id on two hosts, or in both engines, stays two rows. [console] is the Herdr
+ * One line of the Inbox: an [agent] of either engine, with the host it lives on. [agent]'s address is
+ * exactly what the engine gave (a core terminal is watched and written by it). [key] is the row's own
+ * identity, with the host id and the engine, so the same pane id on two hosts, or in both engines, stays two rows. [console] is the Herdr
  * console a tap opens on the host (a TUI agent's session); null opens the host's own console,
  * which is all a herdr-core agent has until it gets its own view.
  */
@@ -30,6 +31,7 @@ data class InboxRow(
     val hostId: Long,
     val host: String,
     val console: HerdrConsole? = null,
+    val key: String = Inbox.keyOf(hostId, agent),
 ) {
     /** The second line: the agent's title (its task) when it has one, else its tab. */
     val detail: String get() = agent.title?.takeIf { it.isNotBlank() } ?: agent.tab
@@ -83,13 +85,11 @@ object Inbox {
     /** What one host's herdr-core read gave: its rows, and a line for the user when it could not be read. */
     data class CoreRows(val rows: List<InboxRow>, val note: String?)
 
-    /** [agent] as a row on host [hostId]; its address is made unique across hosts. */
-    fun row(hostId: Long, host: String, agent: Agent, console: HerdrConsole? = null) = InboxRow(
-        agent = agent.copy(address = "$hostId/${agent.engine.name.lowercase(Locale.ROOT)}/${agent.address}"),
-        hostId = hostId,
-        host = host,
-        console = console,
-    )
+    /** The key of [agent]'s row on host [hostId]: unique across hosts and engines. */
+    fun keyOf(hostId: Long, agent: Agent): String = "$hostId/${agent.engine.name.lowercase(Locale.ROOT)}/${agent.address}"
+
+    /** [agent] as a row on host [hostId]; the agent is left as it is, the row's [InboxRow.key] is what is unique. */
+    fun row(hostId: Long, host: String, agent: Agent, console: HerdrConsole? = null) = InboxRow(agent, hostId, host, console)
 
     /** The TUI's [cards] of one host: a tap opens the card's session on that host. */
     fun fromCards(hostId: Long, host: String, cards: List<BoardCard>): List<InboxRow> = cards.map { card ->
@@ -108,8 +108,7 @@ object Inbox {
      * is folded to [FOLD] rows unless it is in [expanded]. Sections with no row are left out.
      */
     fun sections(rows: List<InboxRow>, query: String, expanded: Set<Section>): List<InboxSection> {
-        val byAddress = rows.associateBy { it.agent.address }
-        val ranked = Agent.rank(rows.filter { matches(it, query) }.map { it.agent }).mapNotNull { byAddress[it.address] }
+        val ranked = rows.filter { matches(it, query) }.sortedWith(compareBy<InboxRow, Agent>(Agent.RANKING) { it.agent }.thenBy { it.key })
         val grouped = ranked.groupBy { Section.of(it.agent.state) }
         return Section.entries.mapNotNull { section ->
             val all = grouped[section] ?: return@mapNotNull null
@@ -144,9 +143,6 @@ object Inbox {
         RowAction.UNPIN -> agent.copy(pinned = false)
         RowAction.INTERRUPT -> agent
     }
-
-    /** The terminal name on its host: a row's address is "<host>/<engine>/<terminal>", and a remote terminal is "mac/t7". */
-    fun terminal(address: String): String = address.split('/', limit = 3).let { if (it.size == 3) it[2] else address }
 
     /** [rows] after [action] was written on [acted]: only that row, and only if it is still at the turn it was acted on. */
     fun patched(rows: List<InboxRow>, acted: Agent, action: RowAction): List<InboxRow> = rows.map {
