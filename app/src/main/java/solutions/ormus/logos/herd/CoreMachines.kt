@@ -63,19 +63,23 @@ object CoreMachines {
 }
 
 /**
- * One headless login per machine, held while a screen shows and closed when it leaves. Commands
+ * One headless login per machine, held while a screen shows and let go when it leaves. Commands
  * run over exec channels of that one connection, so a poll costs no login. Nothing is asked: a
  * saved host key and keys that open without a passphrase, as [HerdPushTail] reads a pane. A login
  * that cannot be made is not retried before [RETRY_MS].
+ *
+ * The logins live in [pool], shared by every screen: the Inbox and Spaces of one machine use one,
+ * and a login let go stays open for [CoreConnections.LINGER_MS], so the next screen finds it.
  */
 class CoreLinks internal constructor(
     private val hosts: suspend () -> List<Host>,
     private val login: suspend (CoreMachines.Machine) -> Opened,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val pool: CoreConnections = CoreConnections(lingerMs = 0),
 ) : AutoCloseable {
     @Inject
-    constructor(hostRepository: HostRepository, pubkeyRepository: PubkeyRepository) :
-        this({ hostRepository.getHosts() }, { openHeadless(it, hostRepository, pubkeyRepository) })
+    constructor(hostRepository: HostRepository, pubkeyRepository: PubkeyRepository, pool: CoreConnections) :
+        this({ hostRepository.getHosts() }, { openHeadless(it, hostRepository, pubkeyRepository) }, pool = pool)
 
     /** What a login came to. */
     sealed interface Opened {
@@ -91,7 +95,8 @@ class CoreLinks internal constructor(
         class Down(val reason: String) : Link
     }
 
-    private val held = ConcurrentHashMap<String, HeadlessSession>()
+    // What this holds in the pool as, one per visit: a let-go of an old visit cannot touch a newer one.
+    private var holder = Any()
     private val failed = ConcurrentHashMap<String, Pair<Long, String>>()
     private val locks = ConcurrentHashMap<String, Mutex>()
     private val state = Any()
@@ -116,8 +121,12 @@ class CoreLinks internal constructor(
     }
 
     private suspend fun linkLocked(machine: CoreMachines.Machine): Link {
-        held[machine.key]?.let { return up(machine, it) }
-        val started = synchronized(state) { if (open) generation else return Link.Down(LEFT) }
+        // Held in one step with close(): a screen that left holds nothing.
+        val started = synchronized(state) {
+            if (!open) return Link.Down(LEFT)
+            pool.join(machine.key, holder)?.let { return up(machine, it) }
+            generation
+        }
         failed[machine.key]?.let { (at, why) -> if (clock() - at < RETRY_MS) return Link.Down(why) }
         val opened = try {
             login(machine)
@@ -136,13 +145,15 @@ class CoreLinks internal constructor(
 
             is Opened.Session -> {
                 // Held or refused in one step with close(): a screen that left cannot be left holding a login.
-                val kept = synchronized(state) { (open && generation == started).also { if (it) held[machine.key] = opened.session } }
-                if (!kept) {
+                val kept = synchronized(state) {
+                    if (open && generation == started) pool.put(machine.key, holder, opened.session) else null
+                }
+                if (kept == null) {
                     closeAside(opened.session)
                     return Link.Down(LEFT)
                 }
                 failed.remove(machine.key)
-                up(machine, opened.session)
+                up(machine, kept)
             }
         }
     }
@@ -155,22 +166,23 @@ class CoreLinks internal constructor(
             throw e
         }
         // No exit status: the channel closed early, so the connection is dead; the next read logs in again.
-        if (out.exitCode == null) drop(machine, session)
+        if (out.exitCode == null) drop(machine, session) else pool.answered(machine.key, session)
         out
     }
 
+    // Dead for every holder; a late answer from an older session drops nothing (it is not the key's any more).
     private fun drop(machine: CoreMachines.Machine, session: HeadlessSession) {
-        if (held.remove(machine.key, session)) closeAside(session)
+        pool.drop(machine.key, session)
     }
 
-    /** Log out of every machine, and make no more links until [reopen] (the next visit). A login that could not be made stays remembered. */
+    /** Let go of every machine, and make no more links until [reopen] (the next visit). A login that could not be made stays remembered. */
     override fun close() {
-        val all = synchronized(state) {
+        val left = synchronized(state) {
             open = false
             generation++
-            held.values.toList().also { held.clear() }
+            holder.also { holder = Any() }
         }
-        all.forEach(::closeAside)
+        pool.releaseAll(left)
     }
 
     // trilead's close waits for a connect or login in progress: never on the caller's thread.
