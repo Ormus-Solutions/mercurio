@@ -39,6 +39,7 @@ import org.connectbot.ui.screens.help.HelpScreen
 import org.connectbot.ui.screens.hints.HintsScreen
 import org.connectbot.ui.screens.hosteditor.HostEditorScreen
 import org.connectbot.ui.screens.hostlist.HostListScreen
+import org.connectbot.ui.screens.inbox.InboxScreen
 import org.connectbot.ui.screens.panel.SettingsPanelScreen
 import org.connectbot.ui.screens.portforwardlist.PortForwardListScreen
 import org.connectbot.ui.screens.profiles.ProfileEditorScreen
@@ -98,6 +99,7 @@ fun ConnectBotNavHost(
                 onNavigateToHelp = {
                     navController.navigateSafely(NavDestinations.HELP)
                 },
+                onNavigateToInbox = { navController.navigateSafely(NavDestinations.INBOX) },
                 shouldShowNotificationWarning = shouldShowNotificationWarning,
                 onNotificationSnackbarFinish = onNotificationSnackbarFinish,
             )
@@ -153,6 +155,20 @@ fun ConnectBotNavHost(
             ),
         ) {
             HostEditorScreen(
+                onNavigateBack = { navController.safePopBackStack() },
+            )
+        }
+
+        composable(NavDestinations.INBOX) {
+            InboxScreen(
+                // A TUI agent opens its Herdr console, a core agent its host's own console.
+                onOpen = { row ->
+                    // The Inbox leaves the back stack: Back from the console returns to where the Inbox was opened.
+                    navController.navigate(NavDestinations.console(row.hostId, row.console)) {
+                        popUpTo(NavDestinations.INBOX) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onNavigateBack = { navController.safePopBackStack() },
             )
         }

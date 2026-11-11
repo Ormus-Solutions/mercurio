@@ -30,6 +30,21 @@ Run: 2026-11-10 (third fill, one restock for one program: Mercurio on herdr-core
 - Reader shows clean agent output (`reader-cleanup`): parked, Chat View (PR #111, #141) shows Claude and Codex panes clean; the reader was opened 7 times in 4,247 actions and its scroll keys were never used; Linear ORM-168 says keep for non-agent panes or close
 - Vibe fleet roster folded into Logos (`vibe-fold`): parked, DNA G3 keeps machine names out of the tree and PR #100 removed the built-in machines; Linear ORM-167
 - Spike: herdr-core from Mercurio over exec and PTY: done and never merged (a spike branch by rule); its measurements are cited in atoms 3, 5, 6 and 7.
+- `hcore-01-agent-model`: shipped, PR #239 (Jump order on the model: PR #245)
+- `hcore-02-design-pieces`: shipped, PR #241
+- `hcore-03-core-source`: shipped, PR #243
+- `hcore-11-key-bar-editor`: shipped, PR #240
+- `hcore-12-design-grouped-lists`: shipped, PR #246 and #250
+- `hcore-13-design-chat-bubbles`: shipped, PR #247
+- `hcore-14-design-compose-groups`: shipped, PR #244 and #249
+- `hcore-04-inbox-screen`: parked, built now by a session agent (Ormus 2026-11-10: "open more agents to drive deveopment faster"); its PR merges on the gate
+- `hcore-06-core-spaces`: parked, built now by a session agent; its PR merges on the gate
+- `hcore-09-core-notices`: parked, built now by a session agent; its PR merges on the gate
+- `hcore-05-inbox-unread-pinned`: parked, waits for hcore-04; the session's agents build it next
+- `hcore-07-core-open-terminal`: parked, waits for hcore-04; the session's agents build it next
+- `hcore-08-core-compose-keys`: parked, waits for hcore-07; the session's agents build it
+- `hcore-10-core-push-watch`: parked, waits for hcore-09; the session's agents build it
+- `hcore-15-inbox-first-home`: parked, waits for hcore-04, 05, 07, 09; the session's agents build it
 - Container radius and accent tokens in the brand repo (plan PR D0): merged in `ormus-brand`, a different repo; atom 2 copies the tokens in.
 - The framed JSON-RPC client for herdr-core: only if use shows the CLI is too slow (plan out of scope).
 - Writing spaces or layouts from the phone: read-only by the plan; a later restock.

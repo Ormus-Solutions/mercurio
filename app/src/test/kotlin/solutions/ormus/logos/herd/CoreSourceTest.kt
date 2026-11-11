@@ -250,4 +250,24 @@ class CoreSourceTest {
         val noisy = CommandOutput("Welcome to box\n" + ls(rec("t1")).stdout, "", 0)
         assertEquals(listOf("t1"), agents(CoreSource().read(true, "box", 1L, host(lsOut = noisy))).map { it.address })
     }
+
+    @Test
+    fun `a good version probe is not run again while the host keeps answering`() {
+        val log = mutableListOf<String>()
+        val src = CoreSource()
+        val run = host(lsOut = ls(), log = log)
+        src.read(true, "box", 1L, run)
+        src.read(true, "box", 2L, run)
+        assertEquals(1, log.count { "--version" in it })
+        assertEquals(2, log.count { "hc ls" in it })
+    }
+
+    @Test
+    fun `after a failed read the version is probed again`() {
+        val log = mutableListOf<String>()
+        val src = CoreSource()
+        src.read(true, "box", 1L, host(lsOut = CommandOutput("", "down", 1), log = log))
+        src.read(true, "box", 2L, host(lsOut = ls(), log = log))
+        assertEquals(2, log.count { "--version" in it })
+    }
 }

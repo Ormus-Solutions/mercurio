@@ -484,6 +484,17 @@ class HerdSession(
         HerdAnswerOutcome.Sent
     }
 
+    /**
+     * Run [command] on the host's connection without touching the Herdr failure state: for readers
+     * that are not Herdr, such as the Inbox's herdr-core read. Null when it never ran.
+     */
+    fun exec(command: String): CommandOutput? = try {
+        runner(command)
+    } catch (e: Exception) {
+        Timber.w(e, "Command failed on %s", hostName)
+        null
+    }
+
     private fun stdoutOrNull(command: String): String? = run(command)?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout
 
     private fun run(command: String): CommandOutput? {

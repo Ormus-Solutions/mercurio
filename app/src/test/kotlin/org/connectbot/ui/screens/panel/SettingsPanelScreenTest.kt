@@ -145,4 +145,20 @@ class SettingsPanelScreenTest {
     private fun inGroup(tag: String, group: String) {
         composeTestRule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag(group)), useUnmergedTree = true).assertCountEquals(1)
     }
+
+    @Test
+    fun theInboxAndCoreSwitches_areOffByDefault_andEachIsSaved() {
+        setPanel()
+        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOff()
+        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOff()
+        assertFalse(prefs.getBoolean(PreferenceConstants.INBOX, false))
+
+        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).performClick()
+        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).performClick()
+
+        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOn()
+        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOn()
+        assertTrue(prefs.getBoolean(PreferenceConstants.INBOX, false))
+        assertTrue(prefs.getBoolean(PreferenceConstants.HERDR_CORE, false))
+    }
 }

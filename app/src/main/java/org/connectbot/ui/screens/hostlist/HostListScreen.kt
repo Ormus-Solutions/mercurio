@@ -101,6 +101,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.launch
 import org.connectbot.R
 import org.connectbot.data.entity.Host
@@ -117,6 +118,7 @@ import org.connectbot.ui.home.HomeBoardsViewModel
 import org.connectbot.ui.home.WorkboardsSection
 import org.connectbot.ui.machines.MachinesSection
 import org.connectbot.ui.machines.MachinesViewModel
+import org.connectbot.ui.screens.inbox.InboxEntry
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
@@ -129,6 +131,7 @@ import org.connectbot.ui.workspaces.WorkspacesViewModel
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.IconStyle
+import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.home.HomeHosts
@@ -151,6 +154,7 @@ fun HostListScreen(
     onNavigateToProfiles: () -> Unit,
     onNavigateToHelp: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigateToInbox: () -> Unit = {},
     onNavigateToSettingsHighlightConnPersist: () -> Unit = {},
     makingShortcut: Boolean = false,
     onSelectShortcut: (Host, String?, IconStyle) -> Unit = { _, _, _ -> },
@@ -166,6 +170,7 @@ fun HostListScreen(
     val context = LocalContext.current
     val terminalManager = LocalTerminalManager.current
     val workspaces by workspacesViewModel.workspaces.collectAsState()
+    val inboxOn = remember(context) { PreferenceManager.getDefaultSharedPreferences(context).getBoolean(PreferenceConstants.INBOX, false) }
 
     LaunchedEffect(terminalManager) {
         terminalManager?.let { viewModel.setTerminalManager(it) }
@@ -358,6 +363,12 @@ fun HostListScreen(
         } else {
             null
         },
+        // The Inbox key, once the setting is on.
+        inbox = if (!makingShortcut && inboxOn) {
+            { InboxEntry(onClick = onNavigateToInbox) }
+        } else {
+            null
+        },
         // The Herdr hosts' kept workboards, one key each, less those a feed key already opens:
         // one key per workspace, and none goes missing.
         workspaces = if (!makingShortcut && uncovered.isNotEmpty()) {
@@ -403,6 +414,7 @@ fun HostListScreenContent(
     saveErrorToWishList: (Host, () -> Unit) -> Unit = { _, _ -> },
     machines: @Composable () -> Unit = {},
     workspaces: (@Composable () -> Unit)? = null,
+    inbox: (@Composable () -> Unit)? = null,
     workboards: (@Composable () -> Unit)? = null,
     places: Map<Long, HostPlace> = emptyMap(),
     sortedByPlace: Boolean = false,
@@ -615,6 +627,7 @@ fun HostListScreenContent(
                         // The workboards first: they are what the phone is for; then the saved
                         // hosts, then the tailnet, which can list many machines.
                         if (workboards != null) item(key = "workboards") { workboards() }
+                        if (inbox != null) item(key = "inbox") { inbox() }
                         if (workspaces != null) item(key = "workspaces") { workspaces() }
                         item(key = "hosts_label") {
                             MonoLabel(

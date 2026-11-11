@@ -201,6 +201,7 @@ class TerminalComposeBarTest {
         recentOutput: String = "",
         lastReply: String? = null,
         onBoard: (() -> Unit)? = null,
+        onInbox: (() -> Unit)? = null,
         enterNewLine: Boolean = false,
         keyBar: KeyBarLayout? = null,
     ) {
@@ -223,6 +224,7 @@ class TerminalComposeBarTest {
                             onPasteScreenshot = onPasteScreenshot,
                             onSlashMenu = onSlashMenu,
                             onBoard = onBoard,
+                            onInbox = onInbox,
                             draft = draft,
                             enterNewLine = enterNewLine,
                             keyBar = keyBar,
@@ -440,6 +442,34 @@ class TerminalComposeBarTest {
 
         assertEquals(1, boards)
         assertEquals(listOf(UsageActions.NEEDS_YOU_BOARD), logged)
+    }
+
+    @Test
+    fun needsYou_withTheInbox_longPressOpensTheInbox_notTheBoard() {
+        val bridge = herdrBridgeWithWaitingAgents()
+        var boards = 0
+        var inboxes = 0
+        setBar(bridge, onBoard = { boards++ }, onInbox = { inboxes++ })
+
+        key("Needs you, 2 waiting").performTouchInput { longClick() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(1, inboxes)
+        assertEquals(0, boards)
+    }
+
+    @Test
+    fun needsYou_withTheInbox_tapWithNoneWaiting_stillOpensTheBoard() {
+        val bridge = herdrBridgeWithWaitingAgents(blockedInDefault = false, blockedInWork = false)
+        var boards = 0
+        var inboxes = 0
+        setBar(bridge, onBoard = { boards++ }, onInbox = { inboxes++ })
+
+        key("Needs you, 0 waiting").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(1, boards)
+        assertEquals(0, inboxes)
     }
 
     @Test

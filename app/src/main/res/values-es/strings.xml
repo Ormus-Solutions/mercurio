@@ -585,4 +585,25 @@
   <string name="planet_mars">Marte</string>
   <string name="planet_jupiter">Júpiter</string>
   <string name="planet_saturn">Saturno</string>
+
+	<!-- Inbox: one list of every agent, sorted by what it needs -->
+	<string name="inbox_title">Bandeja</string>
+	<string name="inbox_search_hint">Ir a una terminal…</string>
+	<string name="inbox_section_needs_you">Te necesitan</string>
+	<string name="inbox_section_done">Listos</string>
+	<string name="inbox_section_working">Trabajando</string>
+	<string name="inbox_section_idle">En reposo</string>
+	<string name="inbox_section_unknown">Desconocido</string>
+	<string name="inbox_show_more">Mostrar %1$d más</string>
+	<string name="inbox_show_fewer">Mostrar menos</string>
+	<string name="inbox_empty">Aún no hay agentes</string>
+	<string name="inbox_no_match">Ninguna terminal coincide</string>
+	<string name="inbox_open">Abrir %1$s en %2$s</string>
+	<string name="settings_panel_inbox">Bandeja</string>
+	<string name="settings_panel_inbox_switch">Mostrar la bandeja</string>
+	<string name="settings_panel_inbox_on">El inicio tiene una tecla Bandeja, y una pulsación larga en Te necesitan la abre.</string>
+	<string name="settings_panel_inbox_off">Una pulsación larga en Te necesitan abre el tablero de agentes.</string>
+	<string name="settings_panel_core_switch">Incluir agentes de herdr-core</string>
+	<string name="settings_panel_core_on">La bandeja lee herdr-core en cada host conectado.</string>
+	<string name="settings_panel_core_off">La bandeja lista solo agentes de Herdr.</string>
 </resources>

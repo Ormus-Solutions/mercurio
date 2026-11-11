@@ -502,6 +502,8 @@ fun TerminalComposeBar(
     onChat: (() -> Unit)? = null,
     /** Opens the Agents board, from the Herdr panel's Board key or the Needs you key. */
     onBoard: (() -> Unit)? = null,
+    /** Opens the Inbox from a long press on the Needs you key, in place of the Agents board; null keeps the board. */
+    onInbox: (() -> Unit)? = null,
     /** Whether the Agents board shows, reading the other sessions itself. */
     boardOpen: Boolean = false,
     /** The Herdr panel's Diff key: open the diff viewer. */
@@ -612,6 +614,16 @@ fun TerminalComposeBar(
         if (bridge.herd == null || !herdrSession || onBoard == null) return
         usage.log(UsageActions.NEEDS_YOU_BOARD)
         onBoard()
+    }
+
+    // The long press: the Inbox when the setting gives one, else the board.
+    fun openInboxOrBoard() {
+        if (onInbox != null && bridge.herd != null && herdrSession) {
+            usage.log(UsageActions.NEEDS_YOU_BOARD)
+            onInbox()
+        } else {
+            openBoard()
+        }
     }
 
     // The next waiting agent after the attached session's focus, by the board's jump path
@@ -1087,7 +1099,7 @@ fun TerminalComposeBar(
                             NeedsYouKey(
                                 waiting = needsYou,
                                 onClick = { jumpToNeedsYou() },
-                                onLongClick = { openBoard() },
+                                onLongClick = { openInboxOrBoard() },
                                 enabled = herdrSession && bridge.herd != null,
                                 modifier = Modifier.weight(2f),
                             )

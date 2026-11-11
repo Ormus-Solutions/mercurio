@@ -89,6 +89,8 @@ fun SettingsPanelScreen(
     val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
     val usage = LocalUsageLog.current
     var enterNewLine by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false)) }
+    var inbox by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.INBOX, false)) }
+    var core by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.HERDR_CORE, false)) }
     val planet = rememberPlanet()
 
     SettingsPanelContent(
@@ -102,6 +104,16 @@ fun SettingsPanelScreen(
             usage.log(UsageActions.PANEL_ENTER_NEW_LINE)
             enterNewLine = on
             prefs.edit { putBoolean(PreferenceConstants.ENTER_NEW_LINE, on) }
+        },
+        inbox = inbox,
+        onInboxChange = { on ->
+            inbox = on
+            prefs.edit { putBoolean(PreferenceConstants.INBOX, on) }
+        },
+        core = core,
+        onCoreChange = { on ->
+            core = on
+            prefs.edit { putBoolean(PreferenceConstants.HERDR_CORE, on) }
         },
         onNavigateBack = onNavigateBack,
         onAllSettings = {
@@ -124,6 +136,10 @@ fun SettingsPanelContent(
     onAllSettings: () -> Unit,
     modifier: Modifier = Modifier,
     keyBar: @Composable () -> Unit = {},
+    inbox: Boolean = false,
+    onInboxChange: ((Boolean) -> Unit)? = null,
+    core: Boolean = false,
+    onCoreChange: ((Boolean) -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier,
@@ -170,6 +186,12 @@ fun SettingsPanelContent(
                 }
                 row { keyBar() }
             }
+            if (onInboxChange != null && onCoreChange != null) {
+                OrmusGroup(label = stringResource(R.string.settings_panel_inbox), modifier = Modifier.testTag(INBOX_GROUP_TAG)) {
+                    row { SwitchRow(R.string.settings_panel_inbox_switch, R.string.settings_panel_inbox_on, R.string.settings_panel_inbox_off, inbox, INBOX_SWITCH_TAG, onInboxChange) }
+                    row { SwitchRow(R.string.settings_panel_core_switch, R.string.settings_panel_core_on, R.string.settings_panel_core_off, core, CORE_SWITCH_TAG, onCoreChange) }
+                }
+            }
             OrmusGroup(label = stringResource(R.string.settings_panel_more), modifier = Modifier.testTag(MORE_GROUP_TAG)) {
                 row {
                     ListItem(
@@ -185,6 +207,19 @@ fun SettingsPanelContent(
             }
         }
     }
+}
+
+@Composable
+private fun SwitchRow(title: Int, on: Int, off: Int, checked: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(stringResource(title)) },
+        supportingContent = { Text(stringResource(if (checked) on else off)) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        modifier = Modifier
+            .testTag(tag)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+    )
 }
 
 /**
@@ -225,6 +260,9 @@ private val PLANET_TILE = 76.dp
 internal fun planetTag(planet: Planet) = "panel_planet_${planet.key}"
 
 internal const val ENTER_NEW_LINE_TAG = "panel_enter_new_line"
+internal const val INBOX_SWITCH_TAG = "panel_inbox_switch"
+internal const val CORE_SWITCH_TAG = "panel_core_switch"
+internal const val INBOX_GROUP_TAG = "panel_inbox_group"
 internal const val ALL_SETTINGS_TAG = "panel_all_settings"
 
 internal const val THEME_GROUP_TAG = "panel_theme_group"

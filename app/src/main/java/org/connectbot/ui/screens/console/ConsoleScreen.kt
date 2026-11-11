@@ -340,6 +340,7 @@ fun ConsoleScreen(
     var titleBarHide by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false)) }
     // Read again each time the console comes back from the settings panel.
     val enterNewLine = remember { prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false) }
+    val inboxOn = prefs.getBoolean(PreferenceConstants.INBOX, false)
     val keyBar = remember { KeyBarStore(prefs).takeIf { it.enabled }?.layout }
     val volumeKeysChangeFontSize = remember { prefs.getBoolean(PreferenceConstants.VOLUME_FONT, true) }
     val keepScreenAwake = remember { prefs.getBoolean(PreferenceConstants.KEEP_ALIVE, true) }
@@ -1240,6 +1241,11 @@ fun ConsoleScreen(
                                         onBoard = {
                                             herdrPanelBridge = null
                                             boardBridge = bridge
+                                        },
+                                        onInbox = if (inboxOn) {
+                                            { onNavigateToRoute(NavDestinations.INBOX) }
+                                        } else {
+                                            null
                                         },
                                         boardOpen = boardBridge != null,
                                         // Herdr key once the session's Herdr side is up.

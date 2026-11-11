@@ -2129,4 +2129,34 @@
 	<string name="planet_mars">Mars</string>
 	<string name="planet_jupiter">Jupiter</string>
 	<string name="planet_saturn">Saturn</string>
+
+	<!-- Inbox: one list of every agent, sorted by what it needs -->
+	<!-- Title of the Inbox screen and of the key that opens it -->
+	<string name="inbox_title">Inbox</string>
+	<!-- Hint of the search field at the top of the Inbox -->
+	<string name="inbox_search_hint">Jump to a terminal…</string>
+	<!-- Section labels of the Inbox, one per agent state -->
+	<string name="inbox_section_needs_you">Needs you</string>
+	<string name="inbox_section_done">Done</string>
+	<string name="inbox_section_working">Working</string>
+	<string name="inbox_section_idle">Idle</string>
+	<string name="inbox_section_unknown">Unknown</string>
+	<!-- Opens a folded section; %1$d is how many rows it hides -->
+	<string name="inbox_show_more">Show %1$d more</string>
+	<!-- Folds an opened section back to its first rows -->
+	<string name="inbox_show_fewer">Show fewer</string>
+	<!-- Shown when no host has an agent -->
+	<string name="inbox_empty">No agents yet</string>
+	<!-- Shown when the search matches no row -->
+	<string name="inbox_no_match">No terminal matches</string>
+	<!-- Spoken name of a row; %1$s is the space, %2$s the host it is on -->
+	<string name="inbox_open">Open %1$s on %2$s</string>
+	<!-- Settings panel: the Inbox and the herdr-core agents in it -->
+	<string name="settings_panel_inbox">Inbox</string>
+	<string name="settings_panel_inbox_switch">Show the Inbox</string>
+	<string name="settings_panel_inbox_on">The home has an Inbox key, and a long press on Needs you opens it.</string>
+	<string name="settings_panel_inbox_off">The Needs you key opens the Agents board on a long press.</string>
+	<string name="settings_panel_core_switch">Include herdr-core agents</string>
+	<string name="settings_panel_core_on">The Inbox reads herdr-core on each connected host.</string>
+	<string name="settings_panel_core_off">The Inbox lists Herdr agents only.</string>
 </resources>

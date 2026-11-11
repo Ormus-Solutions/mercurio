@@ -55,6 +55,9 @@ class CoreSource {
 
     private val seen = HashMap<String, Seen>()
 
+    // The --version probe answered once; it is not asked again until a read fails, so a poll is one command.
+    private var installed = false
+
     /**
      * Read the host's terminals.
      *
@@ -71,21 +74,29 @@ class CoreSource {
     ): Result {
         if (!enabled) return Result.Off
 
-        val version = run(HerdrApi.loginShell(VERSION_CMD))
-            ?: return Result.Unavailable("could not reach the host")
-        if (version.exitCode != 0 || version.stdout.isBlank()) {
-            return Result.Unavailable("herdr-core is not installed on this host")
+        if (!installed) {
+            val version = run(HerdrApi.loginShell(VERSION_CMD))
+                ?: return Result.Unavailable("could not reach the host")
+            if (version.exitCode != 0 || version.stdout.isBlank()) {
+                return Result.Unavailable("herdr-core is not installed on this host")
+            }
+            installed = true
         }
 
         val out = run(HerdrApi.loginShell(LIST_CMD))
-            ?: return Result.Unavailable("herdr-core did not answer")
-        if (out.exitCode != 0) return Result.Unavailable("herdr-core is not running (hc ls exit ${out.exitCode})")
+            ?: return down("herdr-core did not answer")
+        if (out.exitCode != 0) return down("herdr-core is not running (hc ls exit ${out.exitCode})")
         val records = parse(out.stdout)
-            ?: return Result.Unavailable("herdr-core answered something unreadable")
+            ?: return down("herdr-core answered something unreadable")
 
         val agents = records.mapNotNull { toAgent(it, machine, now) }
         seen.keys.retainAll(agents.map { it.address }.toSet())
         return Result.Agents(agents)
+    }
+
+    private fun down(reason: String): Result.Unavailable {
+        installed = false
+        return Result.Unavailable(reason)
     }
 
     private fun toAgent(
