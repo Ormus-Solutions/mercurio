@@ -18,6 +18,8 @@
 package org.connectbot.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -35,12 +37,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.coroutineScope
@@ -49,6 +53,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private const val ARROW_UP = "\u001b[A"
+
+// The travel of one arrow on a swipe: the Herdr app's swipe handler steps at 24 (read from its code).
+internal val ARROW_STEP = 24.dp
 
 /**
  * A key of the paged bar that repeats while held. It sends on release (a tap), or, held past
@@ -119,8 +126,47 @@ internal fun HoldKey(
 private const val PRESSED_ALPHA = 0.16f
 
 /**
- * The Herdr app's one "arrows" key: four arrows in the space of a key, the tap position
- * choosing which ([ArrowPad]). A hold repeats. A screen reader gets one action, Up.
+ * A swipe on a key presses arrows ([ArrowSwipe], one per [step]). A touch that stays within
+ * the touch slop is left alone, for the key's own tap and hold. Past the slop the swipe is
+ * this key's: its events are consumed on the Initial pass, so the bar's pager does not turn
+ * the page, the bar's vertical drag does not open the tray, and the key's tap and hold are
+ * cancelled (they see a consumed change). A short touch that drifted past the slop but pressed no
+ * arrow by its lift was a tap: it presses [tap] at the press point, as the key's tap would have.
+ */
+internal fun Modifier.arrowSwipe(step: Dp, tap: (at: Offset, size: IntSize) -> String, press: (String) -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val swipe = ArrowSwipe(step.toPx())
+        var swiping = false
+        var pressed = 0
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val finger = event.changes.firstOrNull { it.id == down.id } ?: break
+            val moved = finger.position - down.position
+            if (!swiping && finger.pressed && moved.getDistance() > viewConfiguration.touchSlop) swiping = true
+            if (!swiping) {
+                if (!finger.pressed) break
+                continue
+            }
+            finger.consume()
+            // The lift's own position counts too: a last step crossed on it is still pressed.
+            swipe.to(moved.x, moved.y).forEach {
+                press(it)
+                pressed++
+            }
+            if (!finger.pressed) {
+                // Not after a hold: the key's hold already repeated, and a hold sends no tap.
+                if (pressed == 0 && finger.uptimeMillis - down.uptimeMillis < REPEAT_START_MS) press(tap(down.position, size))
+                break
+            }
+        }
+    }
+}
+
+/**
+ * The Herdr app's one "arrows" key: four arrows in the space of a key. A swipe on it presses
+ * the arrows it crosses, one per [ARROW_STEP], as the Herdr app's does; a tap presses the arrow
+ * under the finger ([ArrowPad]), and a hold repeats it. A screen reader gets one action, Up.
  */
 @Composable
 internal fun ArrowsKey(
@@ -130,12 +176,15 @@ internal fun ArrowsKey(
     modifier: Modifier = Modifier,
 ) {
     val tint = keyColors(KeyTone.PLAIN).contentColor
+    val takeNow by rememberUpdatedState(takeBytes)
+    val sendNow by rememberUpdatedState(send)
     HoldKey(
         resolve = { at, size -> takeBytes(ArrowPad.sequenceAt(at.x, at.y, size.width.toFloat(), size.height.toFloat())) },
         activate = { takeBytes(ARROW_UP) },
         send = send,
         description = description,
-        modifier = modifier,
+        // Outside HoldKey's own touch handling, so a swipe is seen (and taken) before its tap and hold.
+        modifier = modifier.arrowSwipe(ARROW_STEP, { at, size -> ArrowPad.sequenceAt(at.x, at.y, size.width.toFloat(), size.height.toFloat()) }) { sendNow(takeNow(it)) },
     ) {
         Canvas(Modifier.size(18.dp)) {
             val c = Offset(size.width / 2, size.height / 2)

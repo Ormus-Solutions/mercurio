@@ -58,6 +58,37 @@ object ArrowPad {
 }
 
 /**
+ * A swipe on the Arrows key, as the Herdr app's: it locks to the axis it first goes along and
+ * presses one arrow per [stepPx] it crosses from the press point; back over a step presses the
+ * opposite arrow. One swipe can press many arrows, as the drag on the terminal does (that one
+ * picks its axis from whole cells; this one from the first step's raw travel).
+ */
+class ArrowSwipe(private val stepPx: Float) {
+    private var horizontal: Boolean? = null
+    private var sent = 0
+
+    /** The arrows to press now, for the finger at ([dx], [dy]) from the press point. */
+    fun to(dx: Float, dy: Float): List<String> {
+        val cols = (dx / stepPx).toInt()
+        val rows = (dy / stepPx).toInt()
+        val across = horizontal ?: if (cols == 0 && rows == 0) return emptyList() else (abs(dx) > abs(dy)).also { horizontal = it }
+        val target = if (across) cols else rows
+        val out = mutableListOf<String>()
+        while (sent != target) {
+            val forward = target > sent
+            out += ESC_SEQ + when {
+                across && forward -> "[C"
+                across -> "[D"
+                forward -> "[B"
+                else -> "[A"
+            }
+            sent += if (forward) 1 else -1
+        }
+        return out
+    }
+}
+
+/**
  * Every key he can put on the bar. Ids are saved, so never rename one. No Ctrl+B: it is
  * Herdr's default prefix, and the bar's own prefix tracking must see that key.
  */

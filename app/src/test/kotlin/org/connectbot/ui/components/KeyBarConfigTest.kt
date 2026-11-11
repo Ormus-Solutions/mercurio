@@ -134,6 +134,33 @@ class KeyBarConfigTest {
     }
 
     @Test
+    fun aSwipeOnTheArrowsKeyPressesOneArrowPerStepItCrosses() {
+        val esc = "\u001b"
+        val swipe = ArrowSwipe(stepPx = 10f)
+        assertEquals(emptyList<String>(), swipe.to(9f, 2f))
+        assertEquals(listOf(esc + "[C"), swipe.to(12f, 3f))
+        assertEquals(listOf(esc + "[C", esc + "[C"), swipe.to(31f, 3f))
+        assertEquals(emptyList<String>(), swipe.to(35f, 3f))
+    }
+
+    @Test
+    fun aSwipeOnTheArrowsKeyKeepsTheAxisItFirstWentAlong_andGoingBackPressesTheOppositeArrow() {
+        val esc = "\u001b"
+        val swipe = ArrowSwipe(stepPx = 10f)
+        assertEquals(listOf(esc + "[A", esc + "[A"), swipe.to(4f, -25f))
+        // Sideways drift on a vertical swipe is no left or right arrow.
+        assertEquals(emptyList<String>(), swipe.to(40f, -25f))
+        assertEquals(listOf(esc + "[B", esc + "[B", esc + "[B"), swipe.to(40f, 12f))
+    }
+
+    @Test
+    fun aSwipeOnTheArrowsKeyGoesLeftAndDownToo() {
+        val esc = "\u001b"
+        assertEquals(listOf(esc + "[D"), ArrowSwipe(stepPx = 10f).to(-14f, 3f))
+        assertEquals(listOf(esc + "[B"), ArrowSwipe(stepPx = 10f).to(3f, 14f))
+    }
+
+    @Test
     fun everyDefaultKeyIsInTheCatalog() {
         KeyBarLayout.DEFAULT.pages.flatten().forEach { assertNotNull(it, KeyBarCatalog.byId(it)) }
     }
