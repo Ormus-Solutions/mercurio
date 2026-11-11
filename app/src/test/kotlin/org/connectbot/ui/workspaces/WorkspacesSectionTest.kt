@@ -21,8 +21,11 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -74,6 +77,15 @@ class WorkspacesSectionTest {
         composeTestRule.onNodeWithText("review").assertIsDisplayed()
         // One host: its name adds nothing.
         composeTestRule.onNodeWithText("box").assertDoesNotExist()
+    }
+
+    @Test
+    fun theKeys_areOneLabeledGroup() {
+        show(listOf(HerdrWorkspace(box, work), HerdrWorkspace(other, review)))
+
+        composeTestRule.onNodeWithTag(WORKSPACES_GROUP_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Workspaces").assertIsDisplayed()
+        composeTestRule.onAllNodes(hasTestTag(WORKSPACE_KEY_TAG) and !hasAnyAncestor(hasTestTag(WORKSPACES_GROUP_TAG))).assertCountEquals(0)
     }
 
     @Test

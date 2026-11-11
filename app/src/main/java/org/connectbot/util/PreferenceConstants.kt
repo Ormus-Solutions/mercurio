@@ -104,4 +104,7 @@ object PreferenceConstants {
 
     /** The URL of the sessions feed the home reads its workboards from; absent when none is set. */
     const val HOME_FEED_URL: String = "homeFeedUrl"
+
+    /** Read herdr-core agents on a host (boolean, off by default); nothing reads it until the Inbox. */
+    const val HERDR_CORE: String = "herdrCore"
 }

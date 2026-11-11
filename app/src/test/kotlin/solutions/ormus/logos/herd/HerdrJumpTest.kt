@@ -32,14 +32,14 @@ class HerdrJumpTest {
     private val targets = HerdrJump.targets(mapOf("work" to snapshot("snapshot-picker-test.json"), "default" to snapshot("snapshot-sun-mixed.json")))
 
     @Test
-    fun targets_everyTabOfEverySession_blockedThenWorkingThenDoneThenTheRest() {
+    fun targets_everyTabOfEverySession_likeTheInbox_needsYouDoneWorkingIdle() {
         assertEquals(15, targets.size)
         assertEquals(
-            listOf("w1:tC", "w1:tJ", "w1:tB", "w1:tK", "w1:tH"),
+            listOf("w1:tC", "w1:tJ", "w1:tH", "w1:tB", "w1:tK"),
             targets.take(5).map { it.tabId },
         )
         assertEquals(
-            listOf(HerdrAgentStatus.BLOCKED, HerdrAgentStatus.BLOCKED, HerdrAgentStatus.WORKING, HerdrAgentStatus.WORKING, HerdrAgentStatus.DONE),
+            listOf(HerdrAgentStatus.BLOCKED, HerdrAgentStatus.BLOCKED, HerdrAgentStatus.DONE, HerdrAgentStatus.WORKING, HerdrAgentStatus.WORKING),
             targets.take(5).map { it.state },
         )
         // The rest: the default session's tabs by workspace and tab number, then work's.
@@ -74,6 +74,17 @@ class HerdrJumpTest {
         assertEquals(listOf("w1:pJ"), HerdrJump.filter(targets, "flaky").map { it.paneId })
         assertEquals(3, HerdrJump.filter(targets, "tmp").size)
         assertEquals(emptyList<JumpTarget>(), HerdrJump.filter(targets, "nothing-like-it"))
+    }
+
+    @Test
+    fun targets_insideOneState_theDefaultSessionFirst_thenSessionWorkspaceAndTabNumber_notTheAddressText() {
+        val sun = snapshot("snapshot-sun-mixed.json")
+        val rows = HerdrJump.targets(mapOf("alpha" to sun, "default" to sun))
+        assertEquals(24, rows.size)
+        val blocked = rows.filter { it.state == HerdrAgentStatus.BLOCKED }
+        assertEquals(listOf("default", "default", "alpha", "alpha"), blocked.map { it.session })
+        val idle = rows.filter { it.state == HerdrAgentStatus.IDLE }.filter { it.session == "default" }
+        assertEquals(idle.sortedWith(compareBy({ it.workspaceNumber }, { it.tabNumber })), idle)
     }
 
     @Test

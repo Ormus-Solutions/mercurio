@@ -17,6 +17,8 @@
 
 package org.connectbot.ui.screens.chat
 
+import org.connectbot.ui.components.BubbleAuthor
+
 /**
  * One row of the conversation: the items from [first], [count] of them. A run of tool calls
  * folds into one row; a message is a row of its own. [turn] marks the first row of an agent
@@ -24,6 +26,13 @@ package org.connectbot.ui.screens.chat
  */
 data class ChatRow(val first: Int, val count: Int, val turn: Boolean) {
     val range: IntRange get() = first until first + count
+
+    /** Who the row's bubble belongs to in [items]: you, the agent, or a tool step (a run of tool calls is one). */
+    fun author(items: List<ChatItem>): BubbleAuthor = when {
+        items[first].isUser -> BubbleAuthor.YOU
+        items[first].isTool -> BubbleAuthor.TOOL
+        else -> BubbleAuthor.AGENT
+    }
 
     companion object {
         /** [items] as rows: each run of tool calls in one row. */

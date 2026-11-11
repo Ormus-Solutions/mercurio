@@ -43,6 +43,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -57,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.connectbot.R
+import org.connectbot.ui.theme.Ormus
 
 internal const val KEY_BAR_SWITCH_TAG = "key_bar_switch"
 internal const val KEY_BAR_EDIT_TAG = "key_bar_edit"
@@ -80,6 +83,7 @@ fun KeyBarSettingsSection(store: KeyBarStore, modifier: Modifier = Modifier) {
 
     Column(modifier) {
         ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             headlineContent = { Text(stringResource(R.string.key_bar_custom)) },
             supportingContent = {
                 Text(stringResource(if (enabled) R.string.key_bar_custom_on else R.string.key_bar_custom_off))
@@ -92,8 +96,9 @@ fun KeyBarSettingsSection(store: KeyBarStore, modifier: Modifier = Modifier) {
                     store.enabled = it
                 },
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(modifier = Modifier.padding(start = Ormus.spacing.lg), color = Ormus.extras.hairline)
         ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             headlineContent = { Text(stringResource(R.string.key_bar_edit)) },
             supportingContent = {
                 Text(stringResource(R.string.key_bar_edit_summary, layout.pages.sumOf { it.size }, layout.pages.size))

@@ -32,7 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.connectbot.R
 import org.connectbot.data.entity.Host
-import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.WORD_KEY_PADDING
 import org.connectbot.ui.theme.Ormus
@@ -43,6 +43,9 @@ import solutions.ormus.logos.herd.HerdrWorkspace
 
 /** Tag of every workboard key, for tests. */
 internal const val WORKSPACE_KEY_TAG = "workspace-key"
+
+/** Tag of the Workspaces group, for tests. */
+internal const val WORKSPACES_GROUP_TAG = "workspaces-group"
 
 /**
  * The workboards of the saved Herdr hosts, one key each, at the top of the host list: a tap
@@ -62,40 +65,41 @@ fun WorkspacesSection(
     modifier: Modifier = Modifier,
 ) {
     val usage = LocalUsageLog.current
-    Column(modifier = modifier.padding(horizontal = Ormus.spacing.xs)) {
-        MonoLabel(
-            text = stringResource(R.string.workspaces_title),
-            modifier = Modifier.padding(top = Ormus.spacing.xs),
-        )
-        val byHost = workspaces.groupBy { it.host.id }
+    val byHost = workspaces.groupBy { it.host.id }
+    OrmusGroup(
+        label = stringResource(R.string.workspaces_title),
+        modifier = modifier.testTag(WORKSPACES_GROUP_TAG),
+    ) {
+        // One row per host; its name only when more than one host has workboards.
         byHost.values.forEach { rows ->
-            // The host's name only when more than one host has workboards: one host needs none.
-            if (byHost.size > 1) {
-                Text(
-                    text = rows.first().host.nickname,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-            ) {
-                rows.forEach { row ->
-                    OrmusKey(
-                        label = row.name,
-                        onClick = {
-                            usage.log(UsageActions.WORKSPACES_OPEN)
-                            onOpen(row.host, row.console)
-                        },
-                        contentPadding = WORD_KEY_PADDING,
-                        description = stringResource(R.string.workspaces_open, row.name, row.host.nickname),
-                        modifier = Modifier.testTag(WORKSPACE_KEY_TAG),
-                    )
+            row {
+                Column(modifier = Modifier.padding(Ormus.spacing.md)) {
+                    if (byHost.size > 1) {
+                        Text(
+                            text = rows.first().host.nickname,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        rows.forEach { ws ->
+                            OrmusKey(
+                                label = ws.name,
+                                onClick = {
+                                    usage.log(UsageActions.WORKSPACES_OPEN)
+                                    onOpen(ws.host, ws.console)
+                                },
+                                contentPadding = WORD_KEY_PADDING,
+                                description = stringResource(R.string.workspaces_open, ws.name, ws.host.nickname),
+                                modifier = Modifier.testTag(WORKSPACE_KEY_TAG),
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -68,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -94,10 +95,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.connectbot.R
 import org.connectbot.service.TerminalBridge
+import org.connectbot.ui.components.BubbleAuthor
 import org.connectbot.ui.components.KeyTone
+import org.connectbot.ui.components.OrmusBubble
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.WORD_KEY_PADDING
 import org.connectbot.ui.theme.Ormus
+import org.connectbot.ui.theme.OrmusContainerShape
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusMono
 import org.connectbot.usage.LocalUsageLog
@@ -350,7 +354,7 @@ fun ChatContent(
                         Column {
                             if (row.turn) TurnLabel(state.target?.agent)
                             when {
-                                item.isUser -> UserBubble(item.text)
+                                row.author(state.items) == BubbleAuthor.YOU -> UserBubble(item.text)
 
                                 row.count > 1 -> ToolRun(
                                     calls = state.items.subList(row.first, row.first + row.count),
@@ -479,55 +483,51 @@ private fun TurnLabel(agent: String?) {
     }
 }
 
-/** Your message: on the right, on the gold tint. */
+/** Your message: a gold-tinted bubble on the right. */
 @Composable
 private fun UserBubble(text: String) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Surface(
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = OrmusCornerShape,
-            modifier = Modifier
-                .widthIn(max = BUBBLE_MAX_WIDTH)
-                .border(1.dp, Ormus.extras.hairline, OrmusCornerShape)
-                .testTag(CHAT_USER_TAG),
-        ) {
-            SelectionContainer {
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = Ormus.spacing.md, vertical = Ormus.spacing.sm),
-                )
-            }
+    OrmusBubble(
+        author = BubbleAuthor.YOU,
+        bubbleModifier = Modifier
+            .widthIn(max = BUBBLE_MAX_WIDTH)
+            .testTag(CHAT_USER_TAG),
+    ) {
+        SelectionContainer {
+            Text(text, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
 
-/** An agent reply: body text at 16sp, headings bold at that size; past [REPLY_LINES] lines, its start and Show more. */
+/** An agent reply in a bubble on the left: body text at 16sp, headings bold at that size; past [REPLY_LINES] lines, its start and Show more. */
 @Composable
 private fun AgentText(text: String, onMore: () -> Unit) {
     val blocks = remember(text) { ChatMarkdown.blocks(text) }
     val code = SpanStyle(fontFamily = OrmusMono, background = MaterialTheme.colorScheme.surfaceContainerHighest)
     val cap = with(LocalDensity.current) { (MaterialTheme.typography.bodyLarge.lineHeight * REPLY_LINES).toDp() }
     var more by rememberSaveable(text) { mutableStateOf(false) }
-    CutToHeight(
-        cap = cap,
-        open = more,
-        more = {
-            OrmusKey(
-                label = stringResource(R.string.chat_more),
-                onClick = {
-                    onMore()
-                    more = true
-                },
-                contentPadding = WORD_KEY_PADDING,
-            )
-        },
-        modifier = Modifier
-            .widthIn(max = REPLY_MAX_WIDTH)
+    // The cap counts the text, so the bubble's own padding comes on top of it.
+    OrmusBubble(
+        author = BubbleAuthor.AGENT,
+        bubbleModifier = Modifier
+            .widthIn(max = REPLY_MAX_WIDTH + Ormus.spacing.md * 2)
             .testTag(CHAT_AGENT_TAG),
     ) {
-        SelectionContainer { AgentBlocks(blocks, code) }
+        CutToHeight(
+            cap = cap,
+            open = more,
+            more = {
+                OrmusKey(
+                    label = stringResource(R.string.chat_more),
+                    onClick = {
+                        onMore()
+                        more = true
+                    },
+                    contentPadding = WORD_KEY_PADDING,
+                )
+            },
+        ) {
+            SelectionContainer { AgentBlocks(blocks, code) }
+        }
     }
 }
 
@@ -605,7 +605,7 @@ private fun AgentBlocks(blocks: List<ChatBlock>, code: SpanStyle, modifier: Modi
     }
 }
 
-/** A tool call on one hairline row; a tap opens its full target. */
+/** A tool call on one mono line, no bubble; a tap opens its full target. */
 @Composable
 private fun ToolRow(item: ChatItem, onOpen: () -> Unit) {
     var open by rememberSaveable(item.line, item.detail) { mutableStateOf(false) }
@@ -617,7 +617,6 @@ private fun ToolRow(item: ChatItem, onOpen: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Ormus.extras.hairline, OrmusCornerShape)
             .clickable(enabled = item.detail.isNotEmpty()) {
                 if (!open) onOpen()
                 open = !open
@@ -671,7 +670,6 @@ private fun ToolRun(calls: List<ChatItem>, onOpen: () -> Unit, onOpenCall: () ->
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, Ormus.extras.hairline, OrmusCornerShape)
                 .clickable {
                     if (!open) onOpen()
                     open = !open
@@ -715,20 +713,18 @@ private fun AskCard(ask: ChatAsk, state: ChatUiState, onAnswer: (HerdAnswer) -> 
     val usage = LocalUsageLog.current
     val target = state.target ?: return
     val blocked = ask is ChatAsk.Blocked
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = OrmusCornerShape,
-        modifier = Modifier
-            .padding(horizontal = Ormus.spacing.md, vertical = Ormus.spacing.xs)
-            .fillMaxWidth()
-            .border(1.dp, if (blocked) Ormus.extras.cardAccent else Ormus.extras.hairline, OrmusCornerShape)
+    OrmusBubble(
+        author = if (blocked) BubbleAuthor.ASK else BubbleAuthor.AGENT,
+        modifier = Modifier.padding(horizontal = Ormus.spacing.md, vertical = Ormus.spacing.xs),
+        bubbleModifier = Modifier
+            .clip(OrmusContainerShape)
             .clickable(enabled = ask.item != null, onClick = onOpen)
             .testTag(if (blocked) CHAT_WAITING_TAG else CHAT_ASK_TAG),
     ) {
-        Column(modifier = Modifier.padding(Ormus.spacing.md), verticalArrangement = Arrangement.spacedBy(Ormus.spacing.sm)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Ormus.spacing.sm)) {
             when (ask) {
                 is ChatAsk.Blocked -> {
-                    MicroLabel(stringResource(R.string.chat_waiting), color = Ormus.extras.status.blocked)
+                    MicroLabel(stringResource(R.string.chat_waiting), color = MaterialTheme.colorScheme.onPrimaryContainer)
                     val call = ask.item?.let { state.items.getOrNull(it) }?.takeIf { it.isTool }
                     call?.let { Text(it.line, fontFamily = OrmusMono, style = MaterialTheme.typography.bodySmall) }
                     if (ask.question.isNotEmpty() && ask.question != call?.line) AskQuestion(ask.question)

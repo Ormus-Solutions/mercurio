@@ -38,12 +38,13 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.connectbot.R
 import org.connectbot.data.entity.Host
-import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.WORD_KEY_PADDING
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
+import org.connectbot.usage.UsageLog
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.home.HomeBoard
 import solutions.ormus.logos.home.HomeShortcuts
@@ -53,6 +54,9 @@ import solutions.ormus.logos.home.WorkboardOff
 
 /** Tag of every workspace key, for tests. */
 internal const val WORKBOARD_KEY_TAG = "workboard-key"
+
+/** Tag of the Workboards group, for tests. */
+internal const val WORKBOARDS_GROUP_TAG = "workboards-group"
 
 /** Tag of a board's Save key, for tests. */
 internal const val WORKBOARD_SAVE_TAG = "workboard-save"
@@ -98,68 +102,64 @@ fun WorkboardsSection(
             value = System.currentTimeMillis()
         }
     }
-    Column(modifier = modifier.padding(horizontal = Ormus.spacing.xs)) {
+    OrmusGroup(
+        label = stringResource(R.string.workboards_title),
+        modifier = modifier.testTag(WORKBOARDS_GROUP_TAG),
+    ) {
+        if (fetchedAt > 0L || error != null) {
+            row {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Ormus.spacing.md, vertical = Ormus.spacing.sm)) {
+                    if (fetchedAt > 0L) {
+                        // A read lands between two ticks: never "in 0 minutes".
+                        val ago = DateUtils.getRelativeTimeSpanString(fetchedAt, maxOf(now, fetchedAt), DateUtils.MINUTE_IN_MILLIS).toString()
+                        Text(
+                            text = stringResource(R.string.workboards_as_of, ago),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (error != null) {
+                        Text(
+                            text = stringResource(R.string.workboards_not_read, error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+        blocks.forEach { block -> row { BoardBlock(block, onOpen, onSave, usage) } }
+    }
+}
+
+/** One workboard: its heading line, Save keys when no saved host attaches it, and a key per workspace. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BoardBlock(block: WorkboardBlock, onOpen: (Host, HerdrConsole) -> Unit, onSave: (Host) -> Unit, usage: UsageLog) {
+    val board = block.board
+    Column(modifier = Modifier.fillMaxWidth().padding(Ormus.spacing.md)) {
         Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Ormus.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            MonoLabel(text = stringResource(R.string.workboards_title))
-            if (fetchedAt > 0L) {
-                // A read lands between two ticks: never "in 0 minutes".
-                val ago = DateUtils.getRelativeTimeSpanString(fetchedAt, maxOf(now, fetchedAt), DateUtils.MINUTE_IN_MILLIS).toString()
+            Text(
+                text = board.machine?.let { stringResource(R.string.workboards_board, board.name, it) } ?: board.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                // A long name yields before the count and the Save key do.
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (board.agents.blocked > 0) {
                 Text(
-                    text = stringResource(R.string.workboards_as_of, ago),
+                    text = stringResource(R.string.workboards_needs_you, board.agents.blocked),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            block.shortcuts.singleOrNull()?.let { shortcut -> SaveKey(board, shortcut, alone = true, onSave = onSave) }
         }
-        if (error != null) {
-            Text(
-                text = stringResource(R.string.workboards_not_read, error),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-        blocks.forEach { block ->
-            val board = block.board
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 10.dp),
-            ) {
-                Text(
-                    text = board.machine?.let { stringResource(R.string.workboards_board, board.name, it) } ?: board.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    // A long name yields before the count and the Save key do.
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (board.agents.blocked > 0) {
-                    Text(
-                        text = stringResource(R.string.workboards_needs_you, board.agents.blocked),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                block.shortcuts.singleOrNull()?.let { shortcut -> SaveKey(board, shortcut, alone = true, onSave = onSave) }
-            }
-            if (block.shortcuts.size > 1) {
-                // Several Save keys get a line of their own: the heading row has no room to wrap.
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
-                ) {
-                    block.shortcuts.forEach { shortcut -> SaveKey(board, shortcut, alone = false, onSave = onSave) }
-                }
-            }
+        if (block.shortcuts.size > 1) {
+            // Several Save keys get a line of their own: the heading row has no room to wrap.
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -167,22 +167,31 @@ fun WorkboardsSection(
                     .fillMaxWidth()
                     .padding(top = 6.dp),
             ) {
-                block.keys.forEach { key ->
-                    val target = key.target
-                    OrmusKey(
-                        label = if (key.workspace.agents.blocked > 0) NEEDS_YOU_MARK + key.name else key.name,
-                        onClick = {
-                            if (target != null) {
-                                usage.log(UsageActions.WORKBOARDS_OPEN)
-                                onOpen(target.host, target.console)
-                            }
-                        },
-                        enabled = target != null,
-                        contentPadding = WORD_KEY_PADDING,
-                        description = keyDescription(key),
-                        modifier = Modifier.testTag(WORKBOARD_KEY_TAG),
-                    )
-                }
+                block.shortcuts.forEach { shortcut -> SaveKey(board, shortcut, alone = false, onSave = onSave) }
+            }
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+        ) {
+            block.keys.forEach { key ->
+                val target = key.target
+                OrmusKey(
+                    label = if (key.workspace.agents.blocked > 0) NEEDS_YOU_MARK + key.name else key.name,
+                    onClick = {
+                        if (target != null) {
+                            usage.log(UsageActions.WORKBOARDS_OPEN)
+                            onOpen(target.host, target.console)
+                        }
+                    },
+                    enabled = target != null,
+                    contentPadding = WORD_KEY_PADDING,
+                    description = keyDescription(key),
+                    modifier = Modifier.testTag(WORKBOARD_KEY_TAG),
+                )
             }
         }
     }

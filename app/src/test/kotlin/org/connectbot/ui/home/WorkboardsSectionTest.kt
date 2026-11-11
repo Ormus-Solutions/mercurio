@@ -23,9 +23,13 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -93,6 +97,17 @@ class WorkboardsSectionTest {
         composeTestRule.onNodeWithText("ops").assertIsDisplayed()
         composeTestRule.onNodeWithText("Needs you · 0").assertDoesNotExist()
         composeTestRule.onNodeWithText("Not read:", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun theBoards_areOneLabeledGroup_withEveryKeyAndSaveKeyInside() {
+        show(blocks)
+
+        composeTestRule.onNodeWithTag(WORKBOARDS_GROUP_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Workboards").assertIsDisplayed()
+        composeTestRule.onAllNodes(hasText("as of ", substring = true) and hasAnyAncestor(hasTestTag(WORKBOARDS_GROUP_TAG))).assertCountEquals(1)
+        composeTestRule.onAllNodes(hasTestTag(WORKBOARD_KEY_TAG) and !hasAnyAncestor(hasTestTag(WORKBOARDS_GROUP_TAG))).assertCountEquals(0)
+        composeTestRule.onAllNodes(hasTestTag(WORKBOARD_SAVE_TAG) and !hasAnyAncestor(hasTestTag(WORKBOARDS_GROUP_TAG))).assertCountEquals(0)
     }
 
     @Test

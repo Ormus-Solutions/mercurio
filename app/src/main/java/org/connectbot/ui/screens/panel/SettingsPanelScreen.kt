@@ -36,10 +36,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -53,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -64,7 +65,8 @@ import androidx.preference.PreferenceManager
 import org.connectbot.R
 import org.connectbot.ui.components.KeyBarSettingsSection
 import org.connectbot.ui.components.KeyBarStore
-import org.connectbot.ui.components.MonoLabel
+import org.connectbot.ui.components.OrmusGroup
+import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.Planet
 import org.connectbot.ui.theme.rememberPlanet
@@ -140,48 +142,47 @@ fun SettingsPanelContent(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(Ormus.spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Ormus.spacing.lg),
         ) {
             // Muted section labels: the picked planet and the switch carry the accent.
-            MonoLabel(
-                text = stringResource(R.string.settings_panel_theme),
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
-            )
-            PlanetPicker(
-                picked = planet,
-                onPick = onPlanetChange,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 16.dp))
-            MonoLabel(
-                text = stringResource(R.string.settings_panel_compose_bar),
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_panel_enter_new_line)) },
-                supportingContent = {
-                    Text(
-                        stringResource(
-                            if (enterNewLine) R.string.settings_panel_enter_new_line_on else R.string.settings_panel_enter_new_line_off,
-                        ),
+            OrmusGroup(label = stringResource(R.string.settings_panel_theme), modifier = Modifier.testTag(THEME_GROUP_TAG)) {
+                row { PlanetPicker(picked = planet, onPick = onPlanetChange, modifier = Modifier.padding(Ormus.spacing.md)) }
+            }
+            OrmusGroup(label = stringResource(R.string.settings_panel_compose_bar), modifier = Modifier.testTag(COMPOSE_GROUP_TAG)) {
+                row {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(stringResource(R.string.settings_panel_enter_new_line)) },
+                        supportingContent = {
+                            Text(
+                                stringResource(
+                                    if (enterNewLine) R.string.settings_panel_enter_new_line_on else R.string.settings_panel_enter_new_line_off,
+                                ),
+                            )
+                        },
+                        trailingContent = { Switch(checked = enterNewLine, onCheckedChange = null) },
+                        modifier = Modifier
+                            .testTag(ENTER_NEW_LINE_TAG)
+                            .toggleable(value = enterNewLine, role = Role.Switch, onValueChange = onEnterNewLineChange),
                     )
-                },
-                trailingContent = { Switch(checked = enterNewLine, onCheckedChange = null) },
-                modifier = Modifier
-                    .testTag(ENTER_NEW_LINE_TAG)
-                    .toggleable(value = enterNewLine, role = Role.Switch, onValueChange = onEnterNewLineChange),
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            keyBar()
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_panel_all_settings)) },
-                supportingContent = { Text(stringResource(R.string.settings_panel_all_settings_summary)) },
-                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
-                modifier = Modifier
-                    .testTag(ALL_SETTINGS_TAG)
-                    .clickable(onClick = onAllSettings),
-            )
+                }
+                row { keyBar() }
+            }
+            OrmusGroup(label = stringResource(R.string.settings_panel_more), modifier = Modifier.testTag(MORE_GROUP_TAG)) {
+                row {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(stringResource(R.string.settings_panel_all_settings)) },
+                        supportingContent = { Text(stringResource(R.string.settings_panel_all_settings_summary)) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+                        modifier = Modifier
+                            .testTag(ALL_SETTINGS_TAG)
+                            .clickable(onClick = onAllSettings),
+                    )
+                }
+            }
         }
     }
 }
@@ -225,3 +226,7 @@ internal fun planetTag(planet: Planet) = "panel_planet_${planet.key}"
 
 internal const val ENTER_NEW_LINE_TAG = "panel_enter_new_line"
 internal const val ALL_SETTINGS_TAG = "panel_all_settings"
+
+internal const val THEME_GROUP_TAG = "panel_theme_group"
+internal const val COMPOSE_GROUP_TAG = "panel_compose_group"
+internal const val MORE_GROUP_TAG = "panel_more_group"

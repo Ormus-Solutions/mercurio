@@ -42,6 +42,16 @@ data class JumpTarget(
 ) {
     /** The title when the tab's label does not already carry it (Herdr's title sync puts it there). */
     val titleLine: String? get() = title.takeIf { it.isNotBlank() && !tabLabel.contains(it) }
+
+    internal fun toAgent(address: String): Agent = Agent(
+        address = address,
+        engine = AgentEngine.TUI,
+        space = workspaceLabel,
+        tab = tabLabel,
+        title = title.ifBlank { null },
+        kind = agent,
+        state = AgentState.of(state),
+    )
 }
 
 /**
@@ -50,9 +60,10 @@ data class JumpTarget(
  */
 object HerdrJump {
     /**
-     * Every pane in [snapshots] (by session name): blocked first, then working, then done,
-     * then the rest; inside each, the default session first, then by session name,
-     * workspace number, tab number and Herdr's pane order.
+     * Every pane in [snapshots] (by session name) in the Inbox's order ([Agent.rank]): blocked
+     * first, then done, working, idle and the rest; inside each, the default session first, then
+     * by session name, workspace number, tab number and Herdr's pane order. The TUI gives no
+     * time in state, so that part of the rank does not apply here.
      */
     fun targets(snapshots: Map<String, HerdrSessionSnapshot>): List<JumpTarget> = snapshots.flatMap { (session, snapshot) ->
         snapshot.tabs.flatMap { tab ->
@@ -88,13 +99,21 @@ object HerdrJump {
                 }
             }
         }
-    }.sortedWith(
-        compareBy<JumpTarget> { urgency(it.state) }
-            .thenBy { !HerdrSessions.isDefault(it.session) }
-            .thenBy { it.session }
-            .thenBy { it.workspaceNumber }
-            .thenBy { it.tabNumber },
-    )
+    }.let(::inboxOrder)
+
+    // Rows in the old tie order (default session first, then session, workspace and tab number; the
+    // sort is stable, so Herdr's pane order stays), then the Inbox's rank over each row as an Agent.
+    // The Agent's address is the row's place in that order, so a tie keeps it and no two rows collide.
+    private fun inboxOrder(rows: List<JumpTarget>): List<JumpTarget> {
+        val placed = rows.sortedWith(
+            compareBy<JumpTarget> { !HerdrSessions.isDefault(it.session) }
+                .thenBy { it.session }
+                .thenBy { it.workspaceNumber }
+                .thenBy { it.tabNumber },
+        )
+        val agents = placed.mapIndexed { i, row -> row.toAgent("%09d".format(i)) }
+        return Agent.rank(agents).map { placed[it.address.toInt()] }
+    }
 
     /** The [targets] matching every word of [query] in their title, folder, tab, workspace, session or agent, ignoring case. */
     fun filter(targets: List<JumpTarget>, query: String): List<JumpTarget> {
@@ -124,14 +143,6 @@ object HerdrJump {
     internal const val CARRY_CHARS = 16
 
     private const val LEAVE_ALT_SCREEN = "\u001b[?1049l"
-
-    // Blocked, working, done, then idle and unknown together.
-    private fun urgency(state: HerdrAgentStatus): Int = when (state) {
-        HerdrAgentStatus.BLOCKED -> 0
-        HerdrAgentStatus.WORKING -> 1
-        HerdrAgentStatus.DONE -> 2
-        HerdrAgentStatus.IDLE, HerdrAgentStatus.UNKNOWN -> 3
-    }
 
     private val EXEC_HERDR = Regex("""\bexec\s+(\S*/)?herdr\b""")
 }

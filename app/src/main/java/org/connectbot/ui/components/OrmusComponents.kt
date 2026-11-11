@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -253,7 +254,7 @@ fun OrmusGroup(
 
 /** Who wrote a message. Each author has its own container tone, shape and side. */
 enum class BubbleAuthor {
-    /** The person using the app: right side, the highest surface tone. */
+    /** The person using the app: right side, the highest surface tone with a gold tint. */
     YOU,
 
     /** The agent's reply: left side, the card tone. */
@@ -275,11 +276,14 @@ internal data class BubbleTone(
 )
 
 internal fun bubbleTone(author: BubbleAuthor, scheme: ColorScheme): BubbleTone = when (author) {
-    BubbleAuthor.YOU -> BubbleTone(scheme.surfaceContainerHighest, scheme.onSurface, scheme.onSurfaceVariant, Color.Transparent)
+    BubbleAuthor.YOU -> BubbleTone(scheme.primary.copy(alpha = YOU_GOLD_TINT).compositeOver(scheme.surfaceContainerHighest), scheme.onSurface, scheme.onSurfaceVariant, Color.Transparent)
     BubbleAuthor.AGENT -> BubbleTone(scheme.surfaceContainer, scheme.onSurface, scheme.onSurfaceVariant, scheme.outlineVariant)
     BubbleAuthor.TOOL -> BubbleTone(scheme.surfaceContainerLowest, scheme.onSurfaceVariant, scheme.onSurfaceVariant, scheme.outlineVariant)
     BubbleAuthor.ASK -> BubbleTone(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.onPrimaryContainer, scheme.primary.copy(alpha = 0.7f))
 }
+
+/** How much gold the YOU bubble takes over the highest surface: a tint, so the ASK stays the one gold container by its gold border and label. */
+private const val YOU_GOLD_TINT = 0.16f
 
 /** The tail corner of YOU and AGENT bubbles, half the key radius. */
 private val BubbleTail = (OrmusTokens.RADIUS_DP / 2f).dp
@@ -301,11 +305,13 @@ private fun bubbleShape(author: BubbleAuthor): RoundedCornerShape {
  * @param label optional mono author line above the content
  * @param accent an identity accent that colors the label (what the author is, never state);
  * ignored for [BubbleAuthor.ASK], the gold container, where accents miss 4.5:1 on some planets
+ * @param bubbleModifier applied to the bubble itself, not the full-width row: a test tag, a width cap, a tap
  */
 @Composable
 fun OrmusBubble(
     author: BubbleAuthor,
     modifier: Modifier = Modifier,
+    bubbleModifier: Modifier = Modifier,
     label: String? = null,
     accent: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -321,7 +327,7 @@ fun OrmusBubble(
             color = tone.container,
             contentColor = tone.content,
             border = if (tone.border == Color.Transparent) null else BorderStroke(1.dp, tone.border),
-            modifier = if (author == BubbleAuthor.TOOL) Modifier.fillMaxWidth() else Modifier.weight(0.88f, fill = false),
+            modifier = (if (author == BubbleAuthor.TOOL) Modifier.fillMaxWidth() else Modifier.weight(0.88f, fill = false)).then(bubbleModifier),
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = Ormus.spacing.md, vertical = Ormus.spacing.sm),

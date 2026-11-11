@@ -63,9 +63,9 @@ class AgentModelPinTest {
     }
 
     @Test
-    fun jumpOrder_blockedWorkingDoneThenTheRest_aSplitTabIsOneRowPerPane() {
+    fun jumpOrder_likeTheInbox_needsYouDoneWorkingIdleUnknown_aSplitTabIsOneRowPerPane() {
         assertEquals(
-            listOf("build:BLOCKED", "tests:BLOCKED", "docs:WORKING", "docs:DONE", "shell:UNKNOWN", "shell:IDLE"),
+            listOf("build:BLOCKED", "tests:BLOCKED", "docs:DONE", "docs:WORKING", "shell:IDLE", "shell:UNKNOWN"),
             HerdrJump.targets(mapOf("default" to main)).map { "${it.tabLabel}:${it.state}" },
         )
     }

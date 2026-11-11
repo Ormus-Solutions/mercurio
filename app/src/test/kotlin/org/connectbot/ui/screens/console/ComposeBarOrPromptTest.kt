@@ -238,8 +238,9 @@ class ComposeBarOrPromptTest {
     fun twoRowBar_isShorterThanTheFourRowBar() {
         setContent(bridge("herdr\n"), mutableStateOf(null), 891.dp)
         val heightDp = barHeightPx / composeTestRule.density.density
-        // Before the tray the Herdr bar stacked four rows (about 245dp on a 411dp phone).
-        assertTrue("two-row bar is $heightDp dp", heightDp < 130f)
+        // Before the tray the Herdr bar stacked four rows (about 245dp on a 411dp phone). The key bar
+        // and the compose box are separate groups now, with the space between them (144dp measured).
+        assertTrue("two-row bar is $heightDp dp", heightDp < 150f)
     }
 
     private companion object {

@@ -121,8 +121,9 @@ class OrmusContrastTest {
             OrmusTokens.Accents.Iris,
         )
         Planet.entries.forEach { planet ->
-            // ASK is the gold container and never takes an accent (the Moon tint reads 4.41:1 with the lowest one).
-            BubbleAuthor.entries.filter { it != BubbleAuthor.ASK }.forEach { author ->
+            // ASK is the gold container and YOU the gold tint: neither takes an accent (the Moon tint reads 4.41:1
+            // with the lowest one; YOU is unlabeled, it is already the person's own side).
+            BubbleAuthor.entries.filter { it != BubbleAuthor.ASK && it != BubbleAuthor.YOU }.forEach { author ->
                 val container = bubbleTone(author, planet.colorScheme).container
                 accents.forEachIndexed { i, color -> assertContrast("${planet.key} $author accent #$i", color, container, 4.5) }
             }
@@ -142,6 +143,14 @@ class OrmusContrastTest {
             val panel = overlay.overlayBackground.compositeOver(planet.palette.codeBg)
             assertContrast("${planet.key} overlay text", overlay.overlayText, panel, 4.5)
             assertContrast("${planet.key} overlay secondary text", overlay.overlayTextSecondary, panel, 4.5)
+        }
+    }
+
+    @Test
+    fun youBubble_isTintedGold_notTheNeutralHighestSurface() {
+        Planet.entries.forEach { planet ->
+            val scheme = planet.colorScheme
+            assertTrue("${planet.key} YOU bubble carries the gold tint", bubbleTone(BubbleAuthor.YOU, scheme).container != scheme.surfaceContainerHighest)
         }
     }
 }

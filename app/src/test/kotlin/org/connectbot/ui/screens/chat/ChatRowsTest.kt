@@ -17,6 +17,7 @@
 
 package org.connectbot.ui.screens.chat
 
+import org.connectbot.ui.components.BubbleAuthor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -57,5 +58,23 @@ class ChatRowsTest {
         assertEquals(2, ChatRow.indexOf(rows, 2))
         assertEquals(2, ChatRow.indexOf(rows, 4))
         assertEquals(3, ChatRow.indexOf(rows, 5))
+    }
+
+    @Test
+    fun everyRow_hasTheAuthorWhoseBubbleItGets() {
+        val items = listOf(user, agent, tool, tool, agent, user)
+        val rows = ChatRow.of(items)
+
+        assertEquals(
+            listOf(BubbleAuthor.YOU, BubbleAuthor.AGENT, BubbleAuthor.TOOL, BubbleAuthor.AGENT, BubbleAuthor.YOU),
+            rows.map { it.author(items) },
+        )
+    }
+
+    @Test
+    fun aRunOfToolCalls_isOneToolRowNoMatterHowLong() {
+        val items = listOf(agent, tool, tool, tool, tool)
+
+        assertEquals(listOf(BubbleAuthor.AGENT, BubbleAuthor.TOOL), ChatRow.of(items).map { it.author(items) })
     }
 }

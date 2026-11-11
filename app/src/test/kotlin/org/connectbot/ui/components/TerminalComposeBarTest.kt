@@ -1004,6 +1004,59 @@ class TerminalComposeBarTest {
         listOf("↑", "↓", "Herdr", MORE, NEEDS_YOU, "Esc", "Tab", ENTER).forEach { assertComfortable(it) }
     }
 
+    // The compose box and the key bar are two separate parts.
+
+    private fun bounds(tag: String) = composeTestRule.onNodeWithTag(tag).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+
+    private fun assertInside(label: String, group: androidx.compose.ui.geometry.Rect) {
+        val b = key(label).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue("'$label' sits inside its group", b.left >= group.left - 0.5f && b.right <= group.right + 0.5f && b.top >= group.top - 0.5f && b.bottom <= group.bottom + 0.5f)
+    }
+
+    @Test
+    fun composeBox_andKeyGroup_areTwoPartsWithSpaceBetween() {
+        setBar(bridgeWithPostLogin("herdr\n"), onSlashMenu = {})
+
+        val box = bounds(COMPOSE_BOX_TEST_TAG)
+        val keys = bounds(KEY_GROUP_TEST_TAG)
+        val gap = (box.top - keys.bottom) / composeTestRule.density.density
+        assertTrue("the key group is $gap dp clear of the compose box, needs 10", gap >= 10f)
+    }
+
+    @Test
+    fun keysInBothGroups_stillSendTheirBytes() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge)
+
+        key("Esc").performClick()
+        key("↓").performClick()
+
+        assertEquals(listOf(ESC, ESC + "[6~"), sentBytes(bridge))
+    }
+
+    @Test
+    fun composeBox_holdsTheFieldAndItsKeys_keyGroupHoldsThePageKeys() {
+        setBar(bridgeWithPostLogin("herdr\n"), onSlashMenu = {})
+
+        val box = bounds(COMPOSE_BOX_TEST_TAG)
+        val keys = bounds(KEY_GROUP_TEST_TAG)
+        listOf("Esc", "Tab", ENTER).forEach { assertInside(it, box) }
+        val field = composeTestRule.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot
+        assertTrue("the field sits inside the compose box", field.left >= box.left && field.right <= box.right && field.top >= box.top && field.bottom <= box.bottom)
+        listOf("↑", "↓", "Herdr", MORE, CHAT, NEEDS_YOU).forEach { assertInside(it, keys) }
+    }
+
+    @Test
+    fun editableKeyRow_staysInTheKeyGroup_apartFromTheComposeBox() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c", "up"), listOf("ctrl-z"))))
+
+        val keys = bounds(KEY_GROUP_TEST_TAG)
+        val row = bounds(KEY_BAR_TEST_TAG)
+        val box = bounds(COMPOSE_BOX_TEST_TAG)
+        assertTrue("the editable row is inside the key group", row.top >= keys.top - 0.5f && row.bottom <= keys.bottom + 0.5f)
+        assertTrue("the compose box does not overlap the key group", keys.bottom <= box.top)
+    }
+
     private fun androidx.compose.ui.test.SemanticsNodeInteractionCollection.assertCountEquals0() {
         assertEquals(0, fetchSemanticsNodes().size)
     }

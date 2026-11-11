@@ -20,10 +20,13 @@ package org.connectbot.ui.screens.panel
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -127,5 +130,19 @@ class SettingsPanelScreenTest {
 
         assertTrue(opened)
         assertEquals(listOf(UsageActions.PANEL_ALL_SETTINGS), logged)
+    }
+
+    @Test
+    fun eachKindOfSetting_isInItsOwnLabeledGroup() {
+        setPanel()
+
+        listOf("Theme", "Compose bar", "More").forEach { composeTestRule.onNodeWithText(it).assertExists() }
+        Planet.entries.forEach { inGroup(planetTag(it), THEME_GROUP_TAG) }
+        inGroup(ENTER_NEW_LINE_TAG, COMPOSE_GROUP_TAG)
+        inGroup(ALL_SETTINGS_TAG, MORE_GROUP_TAG)
+    }
+
+    private fun inGroup(tag: String, group: String) {
+        composeTestRule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag(group)), useUnmergedTree = true).assertCountEquals(1)
     }
 }

@@ -115,8 +115,10 @@ import org.connectbot.ui.screens.herd.boardSnapshots
 import org.connectbot.ui.screens.reader.LastReply
 import org.connectbot.ui.screens.reader.RecentOutput
 import org.connectbot.ui.theme.Ormus
+import org.connectbot.ui.theme.OrmusContainerShape
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusMono
+import org.connectbot.ui.theme.OrmusPillShape
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.LatestUrl
@@ -965,119 +967,155 @@ fun TerminalComposeBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Ormus.spacing.sm, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(GROUP_GAP),
             ) {
-                if (keyBar != null) PagedKeyRow(keyBar, sendKey)
-
-                // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you above ⏎.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                // The key bar: its own pill row (two with his editable row on), apart from the
+                // compose box below it.
+                Column(
+                    modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG),
+                    verticalArrangement = Arrangement.spacedBy(KEY_PILL_GAP),
                 ) {
-                    // ↑ and ↓ page: Page Up and Page Down, the way he scrolls. The arrow keys
-                    // themselves are in the tray.
-                    RepeatingControlKey(
-                        "↑",
-                        PAGE_UP,
-                        sendKey,
-                        Modifier.weight(1f),
-                        symbolSize = 20.sp,
-                        description = stringResource(R.string.herdr_key_page_up),
-                    )
-                    RepeatingControlKey(
-                        "↓",
-                        PAGE_DOWN,
-                        sendKey,
-                        Modifier.weight(1f),
-                        symbolSize = 20.sp,
-                        description = stringResource(R.string.herdr_key_page_down),
-                    )
-                    // On every host. Dimmed, not hidden, until Herdr answers, so the row never
-                    // shifts under the thumb. Gold-tinted while the panel is open. Held, it opens
-                    // the pane search (Jump to) with the keyboard up: the panel's own Jump to key
-                    // was never tapped in 5,000 console actions, so the search gets a gesture here.
-                    OrmusKey(
-                        label = stringResource(R.string.herdr_key_commands),
-                        onClick = { toggleHerdrPanel() },
-                        modifier = Modifier.weight(1.2f),
-                        tone = if (herdrPanel) KeyTone.ACCENT else KeyTone.PLAIN,
-                        enabled = herdrSession && onHerdrPanelChange != null,
-                        description = stringResource(R.string.herdr_key_commands_description),
-                        onLongClick = { openHerdrJump(UsageActions.HERDR_JUMP_KEY) },
-                    )
-                    MoreKey(
-                        open = trayOpen,
-                        onClick = { if (trayOpen) closeTray() else openTray(UsageActions.BAR_TRAY_OPEN) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    // Chat: the pane under the thumb as a conversation (an agent pane opens Chat
-                    // View on it; any other pane its output reader), one tap from Needs you. Chat
-                    // View was reached only through the Agents board before (board:chat 16,
-                    // chat:open 0 in about 5,000 console actions). Dimmed, like Herdr, until the
-                    // session runs Herdr, so the row never shifts.
-                    OrmusKey(
-                        label = stringResource(R.string.chat_key),
-                        onClick = {
-                            usage.log(UsageActions.CHAT_KEY)
-                            onRead?.invoke()
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = herdrSession && onRead != null,
-                        description = stringResource(R.string.chat_key_description),
-                    )
-                    // Where the tab arrows were: swipes switch tabs now. Dimmed, like Herdr,
-                    // until the session runs Herdr, so the row never shifts.
-                    NeedsYouKey(
-                        waiting = needsYou,
-                        onClick = { jumpToNeedsYou() },
-                        onLongClick = { openBoard() },
-                        enabled = herdrSession && bridge.herd != null,
-                        modifier = Modifier.weight(2f),
-                    )
+                    if (keyBar != null) KeyPill { PagedKeyRow(keyBar, sendKey) }
+                    KeyPill {
+                        // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you above ⏎.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                        ) {
+                            // ↑ and ↓ page: Page Up and Page Down, the way he scrolls. The arrow keys
+                            // themselves are in the tray.
+                            RepeatingControlKey(
+                                "↑",
+                                PAGE_UP,
+                                sendKey,
+                                Modifier.weight(1f),
+                                symbolSize = 20.sp,
+                                description = stringResource(R.string.herdr_key_page_up),
+                            )
+                            RepeatingControlKey(
+                                "↓",
+                                PAGE_DOWN,
+                                sendKey,
+                                Modifier.weight(1f),
+                                symbolSize = 20.sp,
+                                description = stringResource(R.string.herdr_key_page_down),
+                            )
+                            // On every host. Dimmed, not hidden, until Herdr answers, so the row never
+                            // shifts under the thumb. Gold-tinted while the panel is open. Held, it opens
+                            // the pane search (Jump to) with the keyboard up: the panel's own Jump to key
+                            // was never tapped in 5,000 console actions, so the search gets a gesture here.
+                            OrmusKey(
+                                label = stringResource(R.string.herdr_key_commands),
+                                onClick = { toggleHerdrPanel() },
+                                modifier = Modifier.weight(1.2f),
+                                tone = if (herdrPanel) KeyTone.ACCENT else KeyTone.PLAIN,
+                                enabled = herdrSession && onHerdrPanelChange != null,
+                                description = stringResource(R.string.herdr_key_commands_description),
+                                onLongClick = { openHerdrJump(UsageActions.HERDR_JUMP_KEY) },
+                            )
+                            MoreKey(
+                                open = trayOpen,
+                                onClick = { if (trayOpen) closeTray() else openTray(UsageActions.BAR_TRAY_OPEN) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            // Chat: the pane under the thumb as a conversation (an agent pane opens Chat
+                            // View on it; any other pane its output reader), one tap from Needs you. Chat
+                            // View was reached only through the Agents board before (board:chat 16,
+                            // chat:open 0 in about 5,000 console actions). Dimmed, like Herdr, until the
+                            // session runs Herdr, so the row never shifts.
+                            OrmusKey(
+                                label = stringResource(R.string.chat_key),
+                                onClick = {
+                                    usage.log(UsageActions.CHAT_KEY)
+                                    onRead?.invoke()
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = herdrSession && onRead != null,
+                                description = stringResource(R.string.chat_key_description),
+                            )
+                            // Where the tab arrows were: swipes switch tabs now. Dimmed, like Herdr,
+                            // until the session runs Herdr, so the row never shifts.
+                            NeedsYouKey(
+                                waiting = needsYou,
+                                onClick = { jumpToNeedsYou() },
+                                onLongClick = { openBoard() },
+                                enabled = herdrSession && bridge.herd != null,
+                                modifier = Modifier.weight(2f),
+                            )
+                        }
+                    }
                 }
 
-                // Row 2: Esc, Tab, the dictation field and ⏎ (Send or Enter).
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                // The compose box: the field with Esc, Tab and ⏎, in one container.
+                Surface(
+                    modifier = Modifier.fillMaxWidth().testTag(COMPOSE_BOX_TEST_TAG),
+                    shape = OrmusContainerShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    border = BorderStroke(1.dp, Ormus.extras.hairline),
                 ) {
-                    ControlKey("Esc", ESC, sendKey, Modifier.width(ROW2_KEY_WIDTH))
-                    ControlKey("Tab", TAB, sendKey, Modifier.width(ROW2_KEY_WIDTH))
-                    TextField(
-                        value = draft.value,
-                        onValueChange = { onTextChange(it) },
-                        placeholder = {
-                            Text(stringResource(R.string.terminal_text_input_dialog_label), maxLines = 1)
-                        },
-                        maxLines = 4,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            // Default on a multi-line field is a new line; Send turns Enter into ⏎.
-                            imeAction = if (enterNewLine) ImeAction.Default else ImeAction.Send,
-                        ),
-                        keyboardActions = KeyboardActions(onSend = { send(UsageActions.SEND_IME) }),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            cursorColor = MaterialTheme.colorScheme.primary,
-                        ),
-                        shape = OrmusCornerShape,
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(dictationFocus),
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(COMPOSE_BOX_PADDING),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                    ) {
+                        ControlKey("Esc", ESC, sendKey, Modifier.width(ROW2_KEY_WIDTH))
+                        ControlKey("Tab", TAB, sendKey, Modifier.width(ROW2_KEY_WIDTH))
+                        TextField(
+                            value = draft.value,
+                            onValueChange = { onTextChange(it) },
+                            placeholder = {
+                                Text(stringResource(R.string.terminal_text_input_dialog_label), maxLines = 1)
+                            },
+                            maxLines = 4,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                // Default on a multi-line field is a new line; Send turns Enter into ⏎.
+                                imeAction = if (enterNewLine) ImeAction.Default else ImeAction.Send,
+                            ),
+                            keyboardActions = KeyboardActions(onSend = { send(UsageActions.SEND_IME) }),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            shape = OrmusCornerShape,
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(dictationFocus),
+                        )
 
-                    EnterKey(
-                        sendsText = draft.text.isNotEmpty(),
-                        onClick = { enter() },
-                        modifier = Modifier.width(ENTER_KEY_WIDTH),
-                    )
+                        EnterKey(
+                            sendsText = draft.text.isNotEmpty(),
+                            onClick = { enter() },
+                            modifier = Modifier.width(ENTER_KEY_WIDTH),
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** Clear space between the key bar and the compose box. */
+private val GROUP_GAP = 10.dp
+private val KEY_PILL_GAP = 4.dp
+private val COMPOSE_BOX_PADDING = 6.dp
+
+/**
+ * One key row in its own pill. The side padding keeps the first and last key's corners inside the
+ * pill's curve.
+ */
+@Composable
+private fun KeyPill(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = OrmusPillShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, Ormus.extras.hairline),
+    ) {
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) { content() }
     }
 }
 
@@ -1118,3 +1156,9 @@ internal const val HERDR_PANEL_TEST_TAG = "composeBarHerdrPanel"
 
 /** Test tag on the open tray, for tests that check it is there or swipe it closed. */
 internal const val TRAY_TEST_TAG = "composeBarTray"
+
+/** The compose box: the field with its Esc, Tab and Enter keys. */
+internal const val COMPOSE_BOX_TEST_TAG = "composeBox"
+
+/** The key bar group: the paged key row (when on) and the page keys, apart from the compose box. */
+internal const val KEY_GROUP_TEST_TAG = "composeKeyGroup"
