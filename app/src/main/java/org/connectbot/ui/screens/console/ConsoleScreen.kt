@@ -35,6 +35,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -632,6 +633,8 @@ fun ConsoleScreen(
     // A pull down on the title bar: past one mark the session drawer, past two the
     // disconnect confirmation (no session, the drawer).
     val hasBridge by rememberUpdatedState(currentBridge != null)
+    // A core terminal's console holds that terminal alone: nothing opens the session drawer over it.
+    val drawerBlocked by rememberUpdatedState(currentBridge?.watch != null)
     val titlePull = remember {
         TitlePull { level ->
             if (level == TitlePullLevel.DISCONNECT && hasBridge) {
@@ -639,7 +642,7 @@ fun ConsoleScreen(
                 showDisconnectDialog = true
             } else if (level != TitlePullLevel.NONE) {
                 usage.log(UsageActions.TITLE_PULL_DRAWER)
-                coroutineScope.launch { drawerState.open() }
+                if (!drawerBlocked) coroutineScope.launch { drawerState.open() }
             }
         }
     }
@@ -888,7 +891,7 @@ fun ConsoleScreen(
 
                 PaletteScreen.READER -> showOutputReader = bridge != null
 
-                PaletteScreen.SESSIONS, PaletteScreen.MACHINES -> coroutineScope.launch { drawerState.open() }
+                PaletteScreen.SESSIONS, PaletteScreen.MACHINES -> if (!drawerBlocked) coroutineScope.launch { drawerState.open() }
 
                 PaletteScreen.WISH -> showWishDialog = true
 
@@ -923,6 +926,8 @@ fun ConsoleScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // A core terminal's console holds that terminal alone: no edge swipe to the other sessions.
+        gesturesEnabled = currentBridge?.watch == null || drawerState.isOpen,
         drawerContent = {
             SessionDrawer(
                 bridges = allBridges,
@@ -1162,7 +1167,7 @@ fun ConsoleScreen(
                                         detectHorizontalDragGestures { change, dragAmount ->
                                             if (dragAmount > 0 && drawerState.isClosed) {
                                                 change.consume()
-                                                coroutineScope.launch { drawerState.open() }
+                                                if (!drawerBlocked) coroutineScope.launch { drawerState.open() }
                                             }
                                         }
                                     },
@@ -1538,25 +1543,41 @@ fun ConsoleScreen(
                     // The host name opens the session drawer (sessions, Herd, Quick connect,
                     // Machines, the host list); the ▾ says it is tappable.
                     title = {
-                        val openSessions = stringResource(R.string.drawer_sessions_title)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .testTag(CONSOLE_TITLE_TAG)
-                                .clickable(onClickLabel = openSessions) {
-                                    usage.log(UsageActions.DRAWER_OPEN)
-                                    coroutineScope.launch { drawerState.open() }
-                                },
-                        ) {
-                            val attached = currentBridge?.herd?.attached?.collectAsState()?.value ?: HerdrCommands.DEFAULT_SESSION
-                            Text(
-                                currentBridge?.host?.nickname?.let { currentBridge.watch?.label ?: HerdrConsoles.label(it, attached, currentBridge.console) }
-                                    ?: stringResource(R.string.console_default_title),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        val watched = currentBridge?.watch
+                        if (watched != null) {
+                            // A core terminal's console: its tab and `space · host`, as the Herdr app's terminal view
+                            // has them. No drop-down: this screen holds that terminal alone, so no drawer to open.
+                            Column(modifier = Modifier.testTag(CONSOLE_TITLE_TAG)) {
+                                Text(CoreView.title(watched), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    CoreView.subtitle(watched, currentBridge?.host?.nickname.orEmpty()),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        } else {
+                            val openSessions = stringResource(R.string.drawer_sessions_title)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .testTag(CONSOLE_TITLE_TAG)
+                                    .clickable(onClickLabel = openSessions) {
+                                        usage.log(UsageActions.DRAWER_OPEN)
+                                        coroutineScope.launch { drawerState.open() }
+                                    },
+                            ) {
+                                val attached = currentBridge?.herd?.attached?.collectAsState()?.value ?: HerdrCommands.DEFAULT_SESSION
+                                Text(
+                                    currentBridge?.host?.nickname?.let { currentBridge.watch?.label ?: HerdrConsoles.label(it, attached, currentBridge.console) }
+                                        ?: stringResource(R.string.console_default_title),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
                         }
                     },
                     modifier = Modifier

@@ -74,6 +74,7 @@ import org.connectbot.util.ProviderLoader
 import org.connectbot.util.ProviderLoaderListener
 import org.connectbot.util.PubkeyUtils
 import solutions.ormus.logos.herd.CoreNotices
+import solutions.ormus.logos.herd.CoreWatchReuse
 import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
@@ -414,10 +415,12 @@ class TerminalManager :
 
     /**
      * One more console on [host] that watches the herdr-core terminal [watch] ([TerminalBridge.watch]);
-     * the one already watching it when there is one. Built as [openHerdrConsole] builds its console.
+     * the one already watching it when there is one and its session is up. Built as [openHerdrConsole] builds its console.
      */
     fun openCoreWatch(host: Host, watch: CoreWatchTarget): TerminalBridge = synchronized(_bridges) {
-        _bridges.firstOrNull { it.host.id == host.id && it.watch?.address == watch.address }?.let { return it }
+        CoreWatchReuse.live(_bridges, host.id, watch.address)?.let { return it }
+        // A console whose attach ended (the overlay shows) is closed, not reopened: the tap gets a fresh one.
+        CoreWatchReuse.dead(_bridges, host.id, watch.address).forEach { it.dispatchDisconnect(DisconnectReason.USER_REQUESTED) }
         val shown = _bridges.firstOrNull { it.host.id == host.id }
         val bridge = TerminalBridge(this, host, dispatchers, watch = watch)
         shown?.let(bridge::sizeLike)

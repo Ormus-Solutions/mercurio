@@ -114,6 +114,7 @@ import kotlinx.coroutines.withContext
 import org.connectbot.R
 import org.connectbot.service.TerminalBridge
 import org.connectbot.ui.components.ormusPanelTop
+import org.connectbot.ui.screens.console.CoreView
 import org.connectbot.ui.screens.herd.HerdrCommandPanel
 import org.connectbot.ui.screens.herd.HerdrJumpPicker
 import org.connectbot.ui.screens.herd.HerdrSection
@@ -786,7 +787,10 @@ fun TerminalComposeBar(
 
     // The group the Herdr panel shows: the last one picked in this session.
     var herdrSection by rememberSaveable(bridge) { mutableStateOf(HerdrSection.AGENTS) }
-    val herdrPanel = herdrPanelOpen && bridge.herd != null && herdrSession
+    // A core terminal's console (a watch) has no Herdr TUI to talk to: its Herdr, Chat and Needs you keys, the
+    // sidebar key and the Herdr panel would type the Herdr prefix into the program, so they are left out.
+    val coreView = bridge.watch != null
+    val herdrPanel = herdrPanelOpen && bridge.herd != null && herdrSession && !coreView
 
     // Needs you: the agents waiting for the user in every session the Herdr side holds a
     // snapshot of (the Agents board's count). The default and the attached session are polled;
@@ -1074,13 +1078,17 @@ fun TerminalComposeBar(
                         // Herdr's side panel, shown or hidden. The tray stays open, so one more
                         // tap puts it back.
                         val sidebar = herdrKeys.bytes(HerdrKey.TOGGLE_SIDEBAR)
-                        ControlKey(
-                            stringResource(R.string.herdr_action_toggle_sidebar),
-                            sidebar.orEmpty(),
-                            sendKey,
-                            Modifier.weight(1.5f),
-                            enabled = herdrSession && sidebar != null,
-                        )
+                        if (coreView) {
+                            Spacer(Modifier.weight(1.5f))
+                        } else {
+                            ControlKey(
+                                stringResource(R.string.herdr_action_toggle_sidebar),
+                                sidebar.orEmpty(),
+                                sendKey,
+                                Modifier.weight(1.5f),
+                                enabled = herdrSession && sidebar != null,
+                            )
+                        }
                         if (onSlashMenu != null) {
                             ControlKey(
                                 "/",
@@ -1224,7 +1232,7 @@ fun TerminalComposeBar(
                     modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG),
                     verticalArrangement = Arrangement.spacedBy(KEY_PILL_GAP),
                 ) {
-                    if (keyBar != null) KeyPill { PagedKeyRow(keyBar, sendKey, onPaste = { pasteClipboard() }, onCompose = { draft.requestFocus() }) }
+                    if (keyBar != null) KeyPill { PagedKeyRow(if (coreView) CoreView.keyBar(keyBar, herdrKeys) else keyBar, sendKey, onPaste = { pasteClipboard() }, onCompose = { draft.requestFocus() }) }
                     KeyPill {
                         // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎.
                         Row(
@@ -1253,15 +1261,17 @@ fun TerminalComposeBar(
                             // shifts under the thumb. Gold-tinted while the panel is open. Held, it opens
                             // the pane search (Jump to) with the keyboard up: the panel's own Jump to key
                             // was never tapped in 5,000 console actions, so the search gets a gesture here.
-                            OrmusKey(
-                                label = stringResource(R.string.herdr_key_commands),
-                                onClick = { toggleHerdrPanel() },
-                                modifier = Modifier.weight(1.2f),
-                                tone = if (herdrPanel) KeyTone.ACCENT else KeyTone.PLAIN,
-                                enabled = herdrSession && onHerdrPanelChange != null,
-                                description = stringResource(R.string.herdr_key_commands_description),
-                                onLongClick = { openHerdrJump(UsageActions.HERDR_JUMP_KEY) },
-                            )
+                            if (!coreView) {
+                                OrmusKey(
+                                    label = stringResource(R.string.herdr_key_commands),
+                                    onClick = { toggleHerdrPanel() },
+                                    modifier = Modifier.weight(1.2f),
+                                    tone = if (herdrPanel) KeyTone.ACCENT else KeyTone.PLAIN,
+                                    enabled = herdrSession && onHerdrPanelChange != null,
+                                    description = stringResource(R.string.herdr_key_commands_description),
+                                    onLongClick = { openHerdrJump(UsageActions.HERDR_JUMP_KEY) },
+                                )
+                            }
                             MoreKey(
                                 open = trayOpen,
                                 onClick = { if (trayOpen) closeTray() else openTray(UsageActions.BAR_TRAY_OPEN) },
@@ -1272,25 +1282,29 @@ fun TerminalComposeBar(
                             // View was reached only through the Agents board before (board:chat 16,
                             // chat:open 0 in about 5,000 console actions). Dimmed, like Herdr, until the
                             // session runs Herdr, so the row never shifts.
-                            OrmusKey(
-                                label = stringResource(R.string.chat_key),
-                                onClick = {
-                                    usage.log(UsageActions.CHAT_KEY)
-                                    onRead?.invoke()
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = herdrSession && onRead != null,
-                                description = stringResource(R.string.chat_key_description),
-                            )
+                            if (!coreView) {
+                                OrmusKey(
+                                    label = stringResource(R.string.chat_key),
+                                    onClick = {
+                                        usage.log(UsageActions.CHAT_KEY)
+                                        onRead?.invoke()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = herdrSession && onRead != null,
+                                    description = stringResource(R.string.chat_key_description),
+                                )
+                            }
                             // Where the tab arrows were: swipes switch tabs now. Dimmed, like Herdr,
                             // until the session runs Herdr, so the row never shifts.
-                            NeedsYouKey(
-                                waiting = needsYou,
-                                onClick = { jumpToNeedsYou() },
-                                onLongClick = { openInboxOrBoard() },
-                                enabled = herdrSession && bridge.herd != null,
-                                modifier = Modifier.weight(2f),
-                            )
+                            if (!coreView) {
+                                NeedsYouKey(
+                                    waiting = needsYou,
+                                    onClick = { jumpToNeedsYou() },
+                                    onLongClick = { openInboxOrBoard() },
+                                    enabled = herdrSession && bridge.herd != null,
+                                    modifier = Modifier.weight(2f),
+                                )
+                            }
                         }
                     }
                 }

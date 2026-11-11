@@ -35,6 +35,7 @@ import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.DiagnosticsReporter
+import org.connectbot.service.DisconnectReason
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.terminal.ProgressState
@@ -83,6 +84,10 @@ class ConsoleViewModel @Inject constructor(
     private val watchRequested: CoreWatchTarget? = savedStateHandle.get<String>(NavArgs.WATCH)
         ?.takeIf(CoreWatch::isSafe)
         ?.let { CoreWatchTarget(it, savedStateHandle.get<String>(NavArgs.WATCH_SPACE).orEmpty(), savedStateHandle.get<String>(NavArgs.WATCH_TAB).orEmpty()) }
+
+    init {
+        watchRequested?.let { CoreView.viewerJoined(hostId, it) }
+    }
 
     // Whether the requested console was selected once it appeared; later changes keep the user's pick.
     private var requestedShown = false
@@ -211,7 +216,7 @@ class ConsoleViewModel @Inject constructor(
                 // Check if we already have a bridge for this host (and, when one was asked, that console of it)
                 val existingBridge = allBridges.find { bridge ->
                     bridge.host.id == hostId && (requested == null || bridge.console?.shows(requested) == true) &&
-                        (if (watchRequested != null) bridge.watch?.address == watchRequested.address else bridge.watch == null)
+                        (if (watchRequested != null) bridge.watch?.address == watchRequested.address && !bridge.isDisconnected else bridge.watch == null)
                 }
 
                 // If no bridge exists, create one using the service method
@@ -256,8 +261,11 @@ class ConsoleViewModel @Inject constructor(
     }
 
     private fun updateBridges(allBridges: List<TerminalBridge>) {
+        // A screen opened for a core terminal shows that console alone, and none while it is not up yet.
         // If hostId is provided, try to find the bridge for this specific host
-        val filteredBridges = if (hostId != -1L) {
+        val filteredBridges = if (watchRequested != null) {
+            CoreView.consolesOf(allBridges, hostId, watchRequested)
+        } else if (hostId != -1L) {
             allBridges.filter { bridge ->
                 bridge.host.id == hostId
             }
@@ -288,7 +296,7 @@ class ConsoleViewModel @Inject constructor(
         val shown = request?.first
 
         _uiState.update {
-            val newBridges = filteredBridges.ifEmpty { allBridges }
+            val newBridges = if (watchRequested != null) filteredBridges else filteredBridges.ifEmpty { allBridges }
             val newIndex = shown ?: asked ?: watched ?: if (it.currentBridgeIndex >= newBridges.size) {
                 // Adjust index if it's now out of range
                 (newBridges.size - 1).coerceAtLeast(0)
@@ -339,6 +347,15 @@ class ConsoleViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Leaving a core terminal's screen ends its watch: the session closes (the drawer's close, which
+        // also stops AutoReconnect) and herdr-core stops counting the phone as a viewer.
+        watchRequested?.let { watch ->
+            // Another screen for the same terminal (a quick second tap) still shows it: that one closes it.
+            if (!CoreView.viewerLeft(hostId, watch)) return@let
+            terminalManager?.bridgesFlow?.value
+                ?.let { CoreView.consolesOf(it, hostId, watch) }
+                ?.forEach { it.dispatchDisconnect(DisconnectReason.USER_REQUESTED) }
+        }
         // Console left the screen — nothing is visible now.
         terminalManager?.setVisibleHost(null)
     }
