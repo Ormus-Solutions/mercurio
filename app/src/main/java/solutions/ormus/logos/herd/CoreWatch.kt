@@ -30,8 +30,9 @@ data class CoreWatchTarget(val address: String, val space: String, val tab: Stri
 }
 
 /**
- * Opening a herdr-core terminal in a console, as the Herdr app opens one: the console's shell types
- * `exec hc attach <t>` once. A plain attach makes the phone the active viewer, so the program is
+ * Opening a herdr-core terminal in a console, as the Herdr app opens one: the console's SSH session
+ * runs `exec hc attach <t>` in place of a shell ([sessionCommand]); a console with no SSH session types
+ * it into its shell instead ([attachCommand]). A plain attach makes the phone the active viewer, so the program is
  * reflowed to the phone's grid at the console's own font (the Herdr app's kit: "Opens a terminal and
  * makes the phone the active viewer"). The size goes back to the desktop viewer when the phone leaves,
  * or when the desktop is typed in or focused again (herdr-core: the most recently active typing viewer
@@ -51,4 +52,11 @@ object CoreWatch {
 
     /** What the console's shell is given to open [address]; null for an address that is not a plain word. */
     fun attachCommand(address: String): String? = address.takeIf { SAFE.matches(it) }?.let { "exec hc attach '$it'\n" }
+
+    /**
+     * What the console's SSH session runs in place of a shell to open [address], through the login
+     * shell so `hc` is on the PATH; null for an address that is not a plain word. No prompt and no
+     * typed line show before the terminal paints, and keys typed early reach the attach, never a shell.
+     */
+    fun sessionCommand(address: String): String? = address.takeIf { SAFE.matches(it) }?.let { HerdrApi.loginShell("exec hc attach '$it'") }
 }

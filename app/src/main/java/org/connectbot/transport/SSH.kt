@@ -231,6 +231,13 @@ class SSH :
         this.connection = connection
     }
 
+    internal fun setSessionForTesting(session: Session) {
+        this.session = session
+        stdin = session.stdin
+        stdout = session.stdout
+        stderr = session.stderr
+    }
+
     private fun registerUserAuthBanner(connection: Connection, sourceName: String) {
         val callback = UserAuthBannerCallback { banner, languageTag ->
             handleAuthBanner(sourceName, banner, languageTag)
@@ -781,7 +788,7 @@ class SSH :
             }
 
             session?.requestPTY(getEmulation(), columns, rows, width, height, null)
-            session?.startShell()
+            session?.let { startSession(it, bridge?.sessionCommand) }
 
             stdin = session?.stdin
             stdout = session?.stdout
@@ -1148,6 +1155,9 @@ class SSH :
         }
 
         if ((newConditions and ChannelCondition.EOF) != 0) {
+            // Bytes that came with the end are the program's last words (a finished attach, an error):
+            // hand them on first. The next read sees the end again, with nothing left, and closes.
+            if (bytesRead > 0) return bytesRead
             // Dispatch REMOTE_EOF before close(): connection.close() fires
             // connectionLost() synchronously, which would otherwise race in
             // with IO_ERROR and trigger the reconnect overlay.
@@ -1584,6 +1594,14 @@ class SSH :
                 HostConstants.IPVERSION_IPV6_ONLY -> IpVersion.IPV6_ONLY
                 else -> IpVersion.IPV4_AND_IPV6
             }
+        }
+
+        /**
+         * Start [session]'s program on its PTY: [command] in place of the shell when the console has one
+         * (a herdr-core terminal, [TerminalBridge.sessionCommand]), else the login shell as always.
+         */
+        internal fun startSession(session: Session, command: String?) {
+            if (command != null) session.execCommand(command) else session.startShell()
         }
 
         /**

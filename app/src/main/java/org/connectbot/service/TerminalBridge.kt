@@ -347,6 +347,9 @@ class TerminalBridge {
      */
     val watch: CoreWatchTarget?
 
+    /** What this console's SSH session runs in place of a shell: the attach of [watch]; null runs the shell. */
+    val sessionCommand: String? get() = watch?.let { CoreWatch.sessionCommand(it.address) }
+
     /** This console's id, unique while the app runs: two consoles of one host share the host's id. */
     val consoleId: Long = nextConsoleId.incrementAndGet()
 
@@ -888,10 +891,11 @@ class TerminalBridge {
      * included, sends it at once as before.
      */
     private fun sendPostLogin() {
-        // A console that shows a core terminal types its attach, also after a reconnect.
+        // A console that shows a core terminal: its SSH session already runs the attach (SSH.startSession),
+        // also after a reconnect; any other transport types it into its shell.
         watch?.let { target ->
-            injectString(CoreWatch.attachCommand(target.address))
-            attachTypedAt = SystemClock.elapsedRealtime()
+            if (transport !is SSH) injectString(CoreWatch.attachCommand(target.address))
+            attachStartedAt = SystemClock.elapsedRealtime()
             return
         }
         // An automatic reconnect attaches the Herdr session the terminal had, with no picker.
@@ -961,14 +965,14 @@ class TerminalBridge {
     private val coreCompose by lazy {
         CoreCompose(
             exec = { command -> execForWatch(command, CoreSend.SEND_TIMEOUT_MS) },
-            settle = { delay(CoreSend.attachWaitLeft(attachTypedAt, SystemClock.elapsedRealtime())) },
+            settle = { delay(CoreSend.attachWaitLeft(attachStartedAt, SystemClock.elapsedRealtime())) },
             write = ::injectString,
         )
     }
 
-    // When the attach line was last typed (elapsed realtime), for a paste that follows it closely.
+    // When the attach last started (elapsed realtime), for a paste that follows it closely.
     @Volatile
-    private var attachTypedAt = 0L
+    private var attachStartedAt = 0L
 
     // A timeout or a dropped link is no answer (null), not a crash.
     private suspend fun execForWatch(command: String, timeoutMs: Long): CommandOutput? = withContext(dispatchers.io) {

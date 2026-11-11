@@ -47,6 +47,14 @@ class CoreWatchTest {
         assertFalse(CoreWatch.attachCommand("t7")!!.contains("--observe"))
     }
 
+    @Test fun `the session runs the attach through the login shell, in place of a shell`() {
+        // No prompt and no typed line before the terminal paints; `exec` leaves no bash behind the attach.
+        assertEquals(HerdrApi.loginShell("exec hc attach 't7'"), CoreWatch.sessionCommand("t7"))
+        assertEquals("bash -lc 'exec hc attach '\\''box/t12'\\'''", CoreWatch.sessionCommand("box/t12"))
+        assertNull(CoreWatch.sessionCommand("t7'; id"))
+        assertNull(CoreWatch.sessionCommand("1/core/t7"))
+    }
+
     @Test fun `an Inbox row of a core agent attaches the terminal as hc ls named it`() {
         val row = Inbox.row(1, "box", agent())
         assertEquals("t7", CoreWatch.target(row.agent)?.address)
