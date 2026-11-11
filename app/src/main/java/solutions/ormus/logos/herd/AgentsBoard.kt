@@ -39,7 +39,19 @@ data class BoardCard(
     /** Herdr's `state_change_seq` for the agent: an answer goes out only while it holds. */
     val seq: Long = 0,
 ) {
-    val column: BoardColumn get() = AgentsBoard.column(state)
+    val column: BoardColumn get() = AgentState.of(state).column
+
+    /** The card as the engine-neutral [Agent]; only what the TUI knows is filled. */
+    fun toAgent(): Agent = Agent(
+        address = key,
+        engine = AgentEngine.TUI,
+        space = workspaceLabel,
+        tab = tabLabel,
+        title = title,
+        kind = agent,
+        state = AgentState.of(state),
+        since = since,
+    )
 
     /** Approve and Deny reach this agent: blocked, of a kind whose prompt Enter and Esc answer. */
     val answerable: Boolean get() = state == HerdrAgentStatus.BLOCKED && agent in HerdApproval.PROVEN_KINDS
@@ -75,12 +87,7 @@ data class ContextUse(val percent: Int, val detail: String?)
  */
 object AgentsBoard {
     /** Herdr's state as a board section; an unknown state sits with the idle ones. */
-    fun column(state: HerdrAgentStatus): BoardColumn = when (state) {
-        HerdrAgentStatus.BLOCKED -> BoardColumn.NEEDS_YOU
-        HerdrAgentStatus.WORKING -> BoardColumn.WORKING
-        HerdrAgentStatus.DONE -> BoardColumn.DONE
-        HerdrAgentStatus.IDLE, HerdrAgentStatus.UNKNOWN -> BoardColumn.IDLE
-    }
+    fun column(state: HerdrAgentStatus): BoardColumn = AgentState.of(state).column
 
     /**
      * Every agent in [snapshots] (by session name), the default session first, then by

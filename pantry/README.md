@@ -31,5 +31,5 @@ There is no people mine: the repo is private and has no outside users, so `TEMPL
 
 - Competitor map: [2026-10-12](2026-10-12-competitor-map.md)
 - X mine: [2026-10-12](2026-10-12-x-mine.md)
-- Pantry queue: [2026-10-12](2026-10-12-pantry-queue.md)
+- Pantry queue: [2026-11-10](2026-11-10-pantry-queue.md) (the herdr-core program and the bubbles design; carries the two open atoms of [2026-10-12](2026-10-12-pantry-queue.md))
 - Menu: [MENU.md](MENU.md)
