@@ -78,7 +78,7 @@ class CoreSource {
             val version = run(HerdrApi.loginShell(VERSION_CMD))
                 ?: return Result.Unavailable("could not reach the host")
             if (version.exitCode != 0 || version.stdout.isBlank()) {
-                return Result.Unavailable("herdr-core is not installed on this host")
+                return Result.Unavailable(NOT_INSTALLED)
             }
             installed = true
         }
@@ -244,6 +244,9 @@ class CoreSource {
 
     companion object {
         const val VERSION_CMD = "herdr-core --version"
+
+        /** The reason of [Result.Unavailable] for a host whose `--version` did not answer. */
+        const val NOT_INSTALLED = "herdr-core is not installed on this host"
         const val LIST_CMD = "hc ls --json"
 
         /** The terminals carrying `herdr.pinned=1`; `hc ls` does not print labels, but it can filter on them. */

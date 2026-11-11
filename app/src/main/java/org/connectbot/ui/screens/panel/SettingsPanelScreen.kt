@@ -73,6 +73,7 @@ import org.connectbot.ui.theme.rememberPlanet
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.home.HomeStart
 
 /**
  * The settings panel, opened from the gear on the console's top bar: the theme (one per
@@ -89,8 +90,8 @@ fun SettingsPanelScreen(
     val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
     val usage = LocalUsageLog.current
     var enterNewLine by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false)) }
-    var inbox by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.INBOX, false)) }
-    var core by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.HERDR_CORE, false)) }
+    var inbox by remember { mutableStateOf(HomeStart.inboxOn(prefs)) }
+    var core by remember { mutableStateOf(HomeStart.coreOn(prefs)) }
     val planet = rememberPlanet()
 
     SettingsPanelContent(

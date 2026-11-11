@@ -38,6 +38,7 @@ import solutions.ormus.logos.herd.CoreSource
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
 import solutions.ormus.logos.herd.RowAction
+import solutions.ormus.logos.home.HomeStart
 import javax.inject.Inject
 
 /**
@@ -64,6 +65,9 @@ class InboxViewModel @Inject constructor(
     // What each host's last herdr-core read gave, and the hosts being read now. Main thread only.
     private val coreRows = HashMap<Long, Inbox.CoreRows>()
     private val reading = HashSet<Long>()
+
+    // What each host's last herdr-core read said of the probe, for the start destination. Main thread only.
+    private val probes = HashMap<Long, CoreSource.Result>()
     private var herdrRows: List<InboxRow> = emptyList()
 
     fun setTerminalManager(value: TerminalManager) {
@@ -88,7 +92,7 @@ class InboxViewModel @Inject constructor(
      */
     internal suspend fun refresh() {
         val bridges = manager?.bridgesFlow?.value ?: return
-        val core = prefs.getBoolean(PreferenceConstants.HERDR_CORE, false)
+        val core = HomeStart.coreOn(prefs)
         herdrRows = bridges.flatMap { bridge ->
             val herd = bridge.herd ?: return@flatMap emptyList()
             val host = bridge.host
@@ -97,6 +101,7 @@ class InboxViewModel @Inject constructor(
         val ids = bridges.map { it.host.id }.toSet()
         cores.keys.retainAll(ids)
         coreRows.keys.retainAll(ids)
+        probes.keys.retainAll(ids)
         if (!core) coreRows.clear()
         publish()
         if (!core) return
@@ -108,7 +113,10 @@ class InboxViewModel @Inject constructor(
             viewModelScope.launch {
                 try {
                     val result = try {
-                        Inbox.fromCore(host.id, host.nickname, withContext(dispatchers.io) { source.read(true, host.nickname, System.currentTimeMillis(), herd::exec) })
+                        val read = withContext(dispatchers.io) { source.read(true, host.nickname, System.currentTimeMillis(), herd::exec) }
+                        probes[host.id] = read
+                        HomeStart.noteProbes(prefs, probes.values)
+                        Inbox.fromCore(host.id, host.nickname, read)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {

@@ -63,6 +63,7 @@ import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.ui.components.DisconnectAllDialog
 import org.connectbot.ui.navigation.NavDestinations
+import org.connectbot.ui.navigation.openConsoleRoute
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.usage.UsageActions
 import org.connectbot.usage.UsageTracker
@@ -502,10 +503,7 @@ class MainActivity : AppCompatActivity() {
                 // left), and the request names the console, with the chat or the Agents board to open over it
                 // once Herdr answers, for the screen that shows it.
                 manager.requestShow(bridge, herd?.view)
-                controller.navigate(NavDestinations.console(bridge.host.id, bridge.console, bridge.watch)) {
-                    popUpTo(NavDestinations.HOST_LIST)
-                    launchSingleTop = true
-                }
+                controller.openConsoleRoute(NavDestinations.console(bridge.host.id, bridge.console, bridge.watch))
             } catch (e: Exception) {
                 Timber.e(e, "Error handling connection URI: $uri")
             }

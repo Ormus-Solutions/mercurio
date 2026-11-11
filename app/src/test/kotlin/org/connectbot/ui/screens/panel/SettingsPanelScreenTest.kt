@@ -147,18 +147,27 @@ class SettingsPanelScreenTest {
     }
 
     @Test
-    fun theInboxAndCoreSwitches_areOffByDefault_andEachIsSaved() {
+    fun theInboxAndCoreSwitches_areOnByDefault_andEachIsSaved() {
         setPanel()
-        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOff()
-        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOff()
-        assertFalse(prefs.getBoolean(PreferenceConstants.INBOX, false))
+        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOn()
+        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOn()
+        assertFalse(prefs.contains(PreferenceConstants.INBOX))
 
         composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).performClick()
         composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).performClick()
 
-        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOn()
-        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOn()
-        assertTrue(prefs.getBoolean(PreferenceConstants.INBOX, false))
-        assertTrue(prefs.getBoolean(PreferenceConstants.HERDR_CORE, false))
+        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOff()
+        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOff()
+        assertTrue(prefs.contains(PreferenceConstants.INBOX))
+        assertFalse(prefs.getBoolean(PreferenceConstants.INBOX, true))
+        assertFalse(prefs.getBoolean(PreferenceConstants.HERDR_CORE, true))
+    }
+
+    @Test
+    fun aSavedOff_showsOff() {
+        prefs.edit().putBoolean(PreferenceConstants.INBOX, false).putBoolean(PreferenceConstants.HERDR_CORE, false).commit()
+        setPanel()
+        composeTestRule.onNodeWithTag(INBOX_SWITCH_TAG).assertIsOff()
+        composeTestRule.onNodeWithTag(CORE_SWITCH_TAG).assertIsOff()
     }
 }

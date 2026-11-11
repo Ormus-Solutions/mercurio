@@ -47,6 +47,9 @@ object NavDestinations {
     /** The Inbox: every agent of every connected host, sorted by what it needs. */
     const val INBOX = "inbox"
 
+    /** The Spaces list: the herdr-core spaces of every connected host, a box per tab. */
+    const val SPACES = "spaces"
+
     /**
      * The route that shows [hostId]'s console, or [console] opened on that host (a Workspaces
      * key): the console connects the host when nothing of it is open.

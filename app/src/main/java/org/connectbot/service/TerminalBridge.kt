@@ -90,6 +90,7 @@ import solutions.ormus.logos.herd.SendResult
 import solutions.ormus.logos.herd.WatchInput
 import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
+import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.terminal.BracketedPaste
 import solutions.ormus.logos.terminal.TerminalArrow
 import solutions.ormus.logos.terminal.TerminalMouse
@@ -1167,7 +1168,7 @@ class TerminalBridge {
         io = dispatchers.io,
         isOnScreen = { manager.isOnScreen(this) },
         onNotices = { manager.onHerdNotices(this, it) },
-        coreEnabled = { manager.prefs.getBoolean(PreferenceConstants.HERDR_CORE, false) },
+        coreEnabled = { HomeStart.coreOn(manager.prefs) },
         // Through the emulator: libvterm sends ESC O A rather than ESC [ A while the host has
         // DECCKM on. Its output is posted, so it lands after anything injected before it.
         sendKey = { terminalEmulator.dispatchKey(0, it.vtermKey) },

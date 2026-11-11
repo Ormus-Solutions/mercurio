@@ -47,6 +47,7 @@ import org.connectbot.ui.screens.profiles.ProfileListScreen
 import org.connectbot.ui.screens.pubkeyeditor.PubkeyEditorScreen
 import org.connectbot.ui.screens.pubkeylist.PubkeyListScreen
 import org.connectbot.ui.screens.settings.SettingsScreen
+import org.connectbot.ui.screens.spaces.SpacesScreen
 import org.connectbot.util.IconStyle
 import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.CoreWatch
@@ -153,7 +154,8 @@ fun ConnectBotNavHost(
                     }
                 },
                 onNavigateToHostList = {
-                    navController.popBackStack(NavDestinations.HOST_LIST, inclusive = false)
+                    // The hosts home is not on the stack when the app opened on the Inbox.
+                    if (!navController.popBackStack(NavDestinations.HOST_LIST, inclusive = false)) navController.selectPlace(HomePlace.HOSTS)
                 },
                 onNavigateToRoute = { route -> navController.navigateSafely(route) },
             )
@@ -179,11 +181,20 @@ fun ConnectBotNavHost(
                 onOpen = { row ->
                     // The Inbox leaves the back stack: Back from the console returns to where the Inbox was opened.
                     navController.navigate(NavDestinations.console(row.hostId, row.console, CoreWatch.target(row.agent)?.takeIf { row.agent.engine == AgentEngine.CORE })) {
-                        popUpTo(NavDestinations.INBOX) { inclusive = true }
+                        // Opened first, the Inbox is the bottom of the stack: it stays, so Back returns to it.
+                        if (navController.previousBackStackEntry != null) popUpTo(NavDestinations.INBOX) { inclusive = true }
                         launchSingleTop = true
                     }
                 },
-                onNavigateBack = { navController.safePopBackStack() },
+                onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() },
+            )
+        }
+
+        composable(NavDestinations.SPACES) {
+            SpacesScreen(
+                // A tab opens its first terminal through the watch view; Spaces stays below it.
+                onOpenTab = { hostId, target -> navController.navigate(NavDestinations.console(hostId, watch = target)) { launchSingleTop = true } },
+                onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() },
             )
         }
 

@@ -105,9 +105,16 @@ object PreferenceConstants {
     /** The URL of the sessions feed the home reads its workboards from; absent when none is set. */
     const val HOME_FEED_URL: String = "homeFeedUrl"
 
-    /** Read herdr-core agents on a host (boolean, off by default); the Inbox adds them to its rows, and the notices read it (Needs you, Finished, Approve and Deny). */
+    /** Read herdr-core agents on a host (boolean, on unless saved off); the Inbox adds them to its rows, and the notices read it (Needs you, Finished, Approve and Deny). */
     const val HERDR_CORE: String = "herdrCore"
 
-    /** The Inbox: one list of every agent, from the home and the Needs you key's long press (boolean, off by default). */
+    /** The Inbox: one list of every agent, from the home and the Needs you key's long press (boolean, on unless saved off). */
     const val INBOX: String = "inbox"
+
+    /** What [INBOX] and [HERDR_CORE] read when nothing is saved: a fresh install and an install that never touched them (a saved value, off included, wins). */
+    const val INBOX_DEFAULT: Boolean = true
+    const val HERDR_CORE_DEFAULT: Boolean = true
+
+    /** A host answered `herdr-core --version` on an earlier visit (boolean, absent until one did): the next launch opens the Inbox first. */
+    const val HERDR_CORE_SEEN: String = "herdrCoreSeen"
 }

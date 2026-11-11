@@ -59,6 +59,7 @@ class InboxViewModelTest {
     private val unconfined = UnconfinedTestDispatcher()
     private val release = CountDownLatch(1)
     private val blocked = AtomicInteger(0)
+    private val seen = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /** A command that never answers until the test ends. */
     private fun hang(): CommandOutput? {
@@ -92,7 +93,14 @@ class InboxViewModelTest {
 
     private fun prefs(core: Boolean): SharedPreferences {
         val p = mock(SharedPreferences::class.java)
-        `when`(p.getBoolean(PreferenceConstants.HERDR_CORE, false)).thenReturn(core)
+        `when`(p.getBoolean(PreferenceConstants.HERDR_CORE, PreferenceConstants.HERDR_CORE_DEFAULT)).thenReturn(core)
+        `when`(p.getBoolean(PreferenceConstants.HERDR_CORE_SEEN, false)).thenReturn(seen.get())
+        val editor = mock(SharedPreferences.Editor::class.java)
+        `when`(p.edit()).thenReturn(editor)
+        `when`(editor.putBoolean(org.mockito.kotlin.any(), org.mockito.kotlin.any())).thenAnswer {
+            if (it.getArgument<String>(0) == PreferenceConstants.HERDR_CORE_SEEN) seen.set(it.getArgument(1))
+            editor
+        }
         return p
     }
 
@@ -145,6 +153,17 @@ class InboxViewModelTest {
         vm.refresh()
         assertEquals(1, vm.state.value.rows.size)
         verify(herd, never()).exec(org.mockito.kotlin.any())
+    }
+
+    @Test
+    fun aHostThatAnswersTheProbe_isRememberedSoTheNextLaunchOpensTheInbox() = runTest {
+        val (b, _) = bridge(1L, "one") { answers(it) }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE } }
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (!seen.get() && System.nanoTime() < end) Thread.sleep(5)
+        assertTrue(seen.get())
     }
 
     @Test

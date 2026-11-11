@@ -22,18 +22,22 @@ package org.connectbot.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
+import androidx.preference.PreferenceManager
 import org.connectbot.data.entity.Host
 import org.connectbot.service.TerminalManager
 import org.connectbot.ui.navigation.ConnectBotNavHost
-import org.connectbot.ui.navigation.NavDestinations
+import org.connectbot.ui.navigation.HomePlacesFrame
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.NoUsageLog
 import org.connectbot.usage.UsageLog
 import org.connectbot.util.IconStyle
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.home.HomeStart
 
 val LocalTerminalManager = compositionLocalOf<TerminalManager?> {
     null
@@ -88,21 +92,26 @@ fun ConnectBotApp(
                         modifier = modifier,
                     )
                 } else {
+                    // Read once: the Inbox first once a host has answered herdr-core, else the hosts home.
+                    val context = LocalContext.current
+                    val startDestination = remember { HomeStart.destination(PreferenceManager.getDefaultSharedPreferences(context), makingShortcut) }
                     CompositionLocalProvider(
                         LocalTerminalManager provides appUiState.terminalManager,
                         LocalUsageLog provides usageLog,
                     ) {
-                        ConnectBotNavHost(
-                            navController = navController,
-                            startDestination = NavDestinations.HOST_LIST,
-                            makingShortcut = makingShortcut,
-                            onSelectShortcut = onSelectShortcut,
-                            onNavigateToConsole = onNavigateToConsole,
-                            shouldShowNotificationWarning = shouldShowNotificationWarning,
-                            onNotificationSnackbarFinish = onNotificationSnackbarFinish,
-                            onOpenWorkspace = onOpenWorkspace,
-                            modifier = modifier,
-                        )
+                        HomePlacesFrame(navController = navController, makingShortcut = makingShortcut, modifier = modifier) { navModifier ->
+                            ConnectBotNavHost(
+                                navController = navController,
+                                startDestination = startDestination,
+                                makingShortcut = makingShortcut,
+                                onSelectShortcut = onSelectShortcut,
+                                onNavigateToConsole = onNavigateToConsole,
+                                shouldShowNotificationWarning = shouldShowNotificationWarning,
+                                onNotificationSnackbarFinish = onNotificationSnackbarFinish,
+                                onOpenWorkspace = onOpenWorkspace,
+                                modifier = navModifier,
+                            )
+                        }
                     }
                 }
             }

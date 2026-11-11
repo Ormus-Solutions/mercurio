@@ -74,6 +74,7 @@ import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusTokens
 import solutions.ormus.logos.herd.CoreSpaces
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.SpaceColors
 
 /** Test tag on every space's row. */
@@ -99,12 +100,11 @@ private val ACCENTS = listOf(
 
 /**
  * The Spaces list, read from the open connections while the herdr-core setting is on. A tap on a
- * tab calls [onOpenTab] with the machine and the core's id of the tab's first terminal; the route
- * decides how to open it.
+ * tab calls [onOpenTab] with the host and the tab's first terminal, as the target a console watches.
  */
 @Composable
 fun SpacesScreen(
-    onOpenTab: (machine: String, terminal: String) -> Unit,
+    onOpenTab: (hostId: Long, target: CoreWatchTarget) -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SpacesViewModel = hiltViewModel(),
@@ -124,7 +124,7 @@ fun SpacesScreen(
 @Composable
 fun SpacesContent(
     sections: List<SpacesSection>,
-    onOpenTab: (machine: String, terminal: String) -> Unit,
+    onOpenTab: (hostId: Long, target: CoreWatchTarget) -> Unit,
     modifier: Modifier = Modifier,
     onNavigateBack: (() -> Unit)? = null,
 ) {
@@ -156,13 +156,13 @@ fun SpacesContent(
 }
 
 @Composable
-private fun MachineSpaces(section: SpacesSection, onOpenTab: (String, String) -> Unit) {
+private fun MachineSpaces(section: SpacesSection, onOpenTab: (Long, CoreWatchTarget) -> Unit) {
     OrmusGroup(label = section.machine) {
         when (val result = section.result) {
             is CoreSpaces.Result.Spaces -> if (result.spaces.isEmpty()) {
                 row { Note(stringResource(R.string.spaces_none)) }
             } else {
-                result.spaces.forEach { space -> row(key = space.id) { SpaceRow(section.machine, space, onOpenTab) } }
+                result.spaces.forEach { space -> row(key = space.id) { SpaceRow(section.hostId, space, onOpenTab) } }
             }
 
             is CoreSpaces.Result.Unavailable -> row { Note(result.reason) }
@@ -184,7 +184,7 @@ private fun Note(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SpaceRow(machine: String, space: CoreSpaces.CoreSpace, onOpenTab: (String, String) -> Unit) {
+private fun SpaceRow(hostId: Long, space: CoreSpaces.CoreSpace, onOpenTab: (Long, CoreWatchTarget) -> Unit) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.md),
         modifier = Modifier
@@ -210,7 +210,7 @@ private fun SpaceRow(machine: String, space: CoreSpaces.CoreSpace, onOpenTab: (S
                 overflow = TextOverflow.Ellipsis,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.sm), verticalArrangement = Arrangement.spacedBy(Ormus.spacing.sm)) {
-                space.tabs.forEach { tab -> TabBox(machine, space, tab, onOpenTab) }
+                space.tabs.forEach { tab -> TabBox(hostId, space, tab, onOpenTab) }
             }
         }
     }
@@ -221,7 +221,7 @@ private fun SpaceRow(machine: String, space: CoreSpaces.CoreSpace, onOpenTab: (S
  * alone: no terminal text is read for it.
  */
 @Composable
-private fun TabBox(machine: String, space: CoreSpaces.CoreSpace, tab: CoreSpaces.CoreTab, onOpenTab: (String, String) -> Unit) {
+private fun TabBox(hostId: Long, space: CoreSpaces.CoreSpace, tab: CoreSpaces.CoreTab, onOpenTab: (Long, CoreWatchTarget) -> Unit) {
     val first = CoreSpaces.firstTerminal(tab)
     val label = stringResource(R.string.spaces_open_tab, tab.name.ifBlank { tab.id }, space.name)
     val line = MaterialTheme.colorScheme.outline
@@ -232,7 +232,7 @@ private fun TabBox(machine: String, space: CoreSpaces.CoreSpace, tab: CoreSpaces
             .size(BOX_WIDTH, BOX_HEIGHT)
             .testTag(TAB_BOX_TAG)
             .clip(shape)
-            .then(if (first != null) Modifier.clickable(role = Role.Button) { onOpenTab(machine, first) } else Modifier)
+            .then(if (first != null) Modifier.clickable(role = Role.Button) { onOpenTab(hostId, CoreWatchTarget(first, space.name, tab.name)) } else Modifier)
             .semantics { contentDescription = label },
     ) {
         val inset = 1.dp.toPx()

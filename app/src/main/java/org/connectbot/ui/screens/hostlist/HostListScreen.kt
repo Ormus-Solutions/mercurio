@@ -135,6 +135,7 @@ import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.home.HomeHosts
+import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.home.HomeWorkboards
 import solutions.ormus.logos.home.HostPlace
 
@@ -170,7 +171,7 @@ fun HostListScreen(
     val context = LocalContext.current
     val terminalManager = LocalTerminalManager.current
     val workspaces by workspacesViewModel.workspaces.collectAsState()
-    val inboxOn = remember(context) { PreferenceManager.getDefaultSharedPreferences(context).getBoolean(PreferenceConstants.INBOX, false) }
+    val inboxOn = remember(context) { HomeStart.inboxOn(PreferenceManager.getDefaultSharedPreferences(context)) }
 
     LaunchedEffect(terminalManager) {
         terminalManager?.let { viewModel.setTerminalManager(it) }

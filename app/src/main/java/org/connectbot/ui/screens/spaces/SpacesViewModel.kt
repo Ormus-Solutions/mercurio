@@ -32,6 +32,7 @@ import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalManager
 import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.CoreSpaces
+import solutions.ormus.logos.home.HomeStart
 import javax.inject.Inject
 
 /** One machine's spaces ([hostId] tells two hosts of one nickname apart), or why they could not be read; what [SpacesContent] draws under the machine's header. */
@@ -69,7 +70,7 @@ class SpacesViewModel @Inject constructor(
 
     internal fun refresh() {
         val bridges = manager?.bridgesFlow?.value ?: return
-        val enabled = prefs.getBoolean(PreferenceConstants.HERDR_CORE, false)
+        val enabled = HomeStart.coreOn(prefs)
         read.keys.retainAll(bridges.map { it.host.id }.toSet())
         if (!enabled) read.clear()
         _sections.value = read.values.toList()

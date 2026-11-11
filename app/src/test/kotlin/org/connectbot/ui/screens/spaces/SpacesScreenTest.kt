@@ -33,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import solutions.ormus.logos.herd.CoreSpaces
 import solutions.ormus.logos.herd.CoreSpaces.PaneBox
+import solutions.ormus.logos.herd.CoreWatchTarget
 
 /** The Spaces list on synthetic spaces: a header per machine, a row per space, a box per tab. */
 @RunWith(AndroidJUnit4::class)
@@ -40,7 +41,7 @@ class SpacesScreenTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val opened = mutableListOf<Pair<String, String>>()
+    private val opened = mutableListOf<Pair<Long, CoreWatchTarget>>()
 
     private fun pane(terminal: String?) = PaneBox.Pane(terminal, 1f)
 
@@ -51,7 +52,7 @@ class SpacesScreenTest {
     private fun show(vararg sections: SpacesSection) {
         composeTestRule.setContent {
             ConnectBotTheme {
-                SpacesContent(sections = sections.toList(), onOpenTab = { machine, terminal -> opened += machine to terminal })
+                SpacesContent(sections = sections.toList(), onOpenTab = { hostId, target -> opened += hostId to target })
             }
         }
     }
@@ -92,7 +93,7 @@ class SpacesScreenTest {
 
         composeTestRule.onAllNodesWithTag(TAB_BOX_TAG)[1].performClick()
 
-        assertEquals(listOf("box" to "t8"), opened)
+        assertEquals(listOf(1L to CoreWatchTarget("t8", "alpha · ONE", "work")), opened)
     }
 
     @Test
@@ -101,7 +102,7 @@ class SpacesScreenTest {
 
         composeTestRule.onAllNodesWithTag(TAB_BOX_TAG)[0].performClick()
 
-        assertEquals(emptyList<Pair<String, String>>(), opened)
+        assertEquals(emptyList<Pair<Long, CoreWatchTarget>>(), opened)
     }
 
     @Test
