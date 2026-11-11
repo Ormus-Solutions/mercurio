@@ -133,6 +133,7 @@ import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdrKey
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSessionSnapshot
+import solutions.ormus.logos.herd.SendResult
 import solutions.ormus.logos.terminal.BracketedPaste
 
 // Control bytes built from code points so no raw control chars live in the source.
@@ -292,19 +293,30 @@ private fun RepeatingControlKey(
 private fun EnterKey(
     sendsText: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val description = stringResource(if (sendsText) R.string.button_send else R.string.compose_bar_enter)
-    Button(
-        onClick = onClick,
+    // A Button takes no long press, so the key is drawn the same way by hand (as IconKey does).
+    val colors = keyColors(KeyTone.ACCENT)
+    Surface(
         modifier = modifier
             .height(KEY_HEIGHT)
+            .clip(KEY_SHAPE)
+            .combinedClickable(
+                role = Role.Button,
+                onLongClickLabel = stringResource(R.string.compose_bar_type_no_enter),
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
             .semantics { contentDescription = description },
         shape = KEY_SHAPE,
-        colors = keyColors(KeyTone.ACCENT),
+        color = colors.containerColor,
+        contentColor = colors.contentColor,
         border = keyBorder(KeyTone.ACCENT),
-        contentPadding = KEY_PADDING,
-    ) { KeyLabel("⏎", 24.sp) }
+    ) {
+        Box(modifier = Modifier.padding(KEY_PADDING), contentAlignment = Alignment.Center) { KeyLabel("⏎", 24.sp) }
+    }
 }
 
 internal const val KEY_BAR_TEST_TAG = "key_bar"
@@ -644,10 +656,39 @@ fun TerminalComposeBar(
         }
     }
 
+    var coreSending by remember(bridge) { mutableStateOf(false) }
+
     fun send(actionId: String = UsageActions.SEND) {
         if (draft.text.isEmpty()) return
         usage.log(actionId)
         val payload = draft.text
+        // A core terminal: the watch is taken over and hc sends the text; the draft stays when it does not go.
+        if (bridge.watch != null) {
+            // hc send may wait up to 60 s for a person's draft: one send at a time, so a second tap does not paste twice.
+            if (coreSending) return
+            coreSending = true
+            scope.launch {
+                val result = try {
+                    bridge.composeSend(payload) ?: SendResult.Failed("no connection")
+                } finally {
+                    coreSending = false
+                }
+                when (result) {
+                    SendResult.Sent -> {
+                        // Words typed while it waited stay.
+                        if (draft.text == payload) draft.value = TextFieldValue()
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                        onSend()
+                    }
+
+                    is SendResult.Refused -> Toast.makeText(context, context.getString(R.string.compose_bar_core_not_sent, result.reason), Toast.LENGTH_LONG).show()
+
+                    is SendResult.Failed -> Toast.makeText(context, context.getString(R.string.compose_bar_core_not_sent, result.reason), Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
         draft.value = TextFieldValue()
         bridge.herd?.cancelPrefix()
         // Line breaks go as one paste, so a multi-line draft is one message, not one per line.
@@ -662,6 +703,19 @@ fun TerminalComposeBar(
         // Dictation-first: once the command is sent the user is reading agent
         // output, not typing. Drop focus and collapse the soft keyboard so the
         // terminal reclaims the full viewport until the field is tapped again.
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        onSend()
+    }
+
+    // A long press on Send: the text is typed without Enter, to finish or edit in the terminal.
+    fun typeWithoutEnter() {
+        if (draft.text.isEmpty()) return
+        usage.log(UsageActions.SEND_NO_ENTER)
+        val payload = draft.text
+        draft.value = TextFieldValue()
+        bridge.herd?.cancelPrefix()
+        bridge.pasteText(payload)
         focusManager.clearFocus()
         keyboardController?.hide()
         onSend()
@@ -1145,6 +1199,7 @@ fun TerminalComposeBar(
                         EnterKey(
                             sendsText = draft.text.isNotEmpty(),
                             onClick = { enter() },
+                            onLongClick = { typeWithoutEnter() },
                             modifier = Modifier.width(ENTER_KEY_WIDTH),
                         )
                     }

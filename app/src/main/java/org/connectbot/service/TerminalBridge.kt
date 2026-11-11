@@ -65,6 +65,8 @@ import org.connectbot.usage.UsageActions
 import org.connectbot.util.HostConstants
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.TerminalText
+import solutions.ormus.logos.herd.CoreCompose
+import solutions.ormus.logos.herd.CoreSend
 import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.CoreWatchState
 import solutions.ormus.logos.herd.CoreWatchTarget
@@ -84,9 +86,11 @@ import solutions.ormus.logos.herd.HerdrSessions
 import solutions.ormus.logos.herd.HerdrTermKey
 import solutions.ormus.logos.herd.HerdrWorkspacePicker
 import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.SendResult
 import solutions.ormus.logos.herd.WatchInput
 import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
+import solutions.ormus.logos.terminal.BracketedPaste
 import solutions.ormus.logos.terminal.TerminalArrow
 import solutions.ormus.logos.terminal.TerminalMouse
 import timber.log.Timber
@@ -1010,8 +1014,72 @@ class TerminalBridge {
         scope.launch {
             delay(CoreWatch.DETACH_WAIT_MS)
             injectString(CoreWatch.takeOverCommand(target.address))
+            takeOverDoneAt = SystemClock.elapsedRealtime()
             watchState.takeOverDone()
         }
+    }
+
+    // The compose bar's actions on a watching console ([CoreCompose]).
+    private val coreCompose by lazy {
+        CoreCompose(
+            state = watchState,
+            takeOver = ::takeOverWatch,
+            exec = { command -> execForWatch(command, CoreSend.SEND_TIMEOUT_MS) },
+            settle = {
+                withTimeoutOrNull(CoreSend.ATTACH_WAIT_MS * 4) { while (watchState.isTakingOver) delay(50) }
+                val wait = takeOverDoneAt + CoreSend.ATTACH_WAIT_MS - SystemClock.elapsedRealtime()
+                if (wait > 0) delay(wait)
+            },
+            write = ::injectString,
+        )
+    }
+
+    // When the last takeover typed its attach line (elapsed realtime), for a paste or send that follows it closely.
+    @Volatile
+    private var takeOverDoneAt = 0L
+
+    // A timeout or a dropped link is no answer (null), not a crash.
+    private suspend fun execForWatch(command: String, timeoutMs: Long): CommandOutput? = withContext(dispatchers.io) {
+        try {
+            (transport as? SSH)?.takeIf { it.isConnected() }?.execDetailed(command, timeoutMs)
+        } catch (_: IOException) {
+            null
+        }
+    }
+
+    /**
+     * The compose bar's Send on a core watch console: take the watch over, then `hc send` pastes
+     * [text] and presses Enter (it waits for a person's draft and refuses a blocked program).
+     * Null on any other console: the caller types into the shell as before.
+     */
+    suspend fun composeSend(text: String): SendResult? {
+        val target = watch ?: return null
+        if (transport !is SSH) return null
+        return coreCompose.send(target.address, text)
+    }
+
+    /**
+     * Type [text] into the terminal as a paste, with no Enter (the clipboard, a long press on Send).
+     * A watching console takes the watch over first, as a typed key does.
+     */
+    fun pasteText(text: String) {
+        if (watch == null || transport !is SSH) {
+            injectString(BracketedPaste.wrap(text, bracketedPaste))
+            return
+        }
+        scope.launch { coreCompose.type(text, bracketedPaste) }
+    }
+
+    /**
+     * A photo for a watching console, already uploaded to [remote] on the connected machine: `hc put`
+     * copies it beside the terminal on its machine and gives that path. Without a watch, a file over
+     * 8 MB, or when `hc put` fails, [remote] stays the path.
+     */
+    suspend fun pathForWatch(remote: String, bytes: Long): String {
+        val target = watch ?: return remote
+        if (!CoreSend.fitsPut(bytes)) return remote
+        val command = CoreSend.putCommand(target.address, remote) ?: return remote
+        return CoreSend.landedPath(execForWatch(command, CoreSend.PUT_TIMEOUT_MS)) ?: remote
     }
 
     // One command over an exec channel of [ssh] while it is connected, as [HerdrConsoles.land] runs them.

@@ -136,6 +136,9 @@ class CoreWatchState {
     @Volatile
     private var takingOver = false
 
+    /** Whether a takeover is under way: the detach was typed and the attach line was not yet. */
+    val isTakingOver: Boolean get() = takingOver
+
     /** Take [bytes] the emulator wrote: pass them on, hold them, or start the takeover with them. */
     @Synchronized
     fun onInput(bytes: ByteArray): WatchInput {

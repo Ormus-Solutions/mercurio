@@ -1122,6 +1122,8 @@
 	<string name="compose_bar_no_reply">No reply to copy yet</string>
 	<!-- Compose bar: content description of the ⏎ key when the field is empty, so a tap sends a bare Enter to the terminal (with text in the field it reads as Send) -->
 	<string name="compose_bar_enter">Enter</string>
+	<string name="compose_bar_type_no_enter">Type without Enter</string>
+	<string name="compose_bar_core_not_sent">Not sent: %1$s</string>
 	<!-- Compose bar tray: description of the ↑ arrow key, which moves up in a menu -->
 	<string name="compose_bar_up">Up</string>
 	<!-- Compose bar tray: description of the ↓ arrow key, which moves down in a menu -->

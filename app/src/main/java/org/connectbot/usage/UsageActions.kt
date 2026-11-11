@@ -54,6 +54,7 @@ object UsageActions {
     const val DICTATION_MIC = "dictation:mic"
     const val SEND = "send"
     const val SEND_IME = "send:ime"
+    const val SEND_NO_ENTER = "send:no-enter"
     const val DRAFT_SEND = "draft:send"
     const val PASTE_SCREENSHOT = "paste-screenshot"
 

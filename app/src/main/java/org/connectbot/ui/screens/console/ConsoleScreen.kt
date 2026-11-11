@@ -211,7 +211,6 @@ import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrConsoles
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSwipe
-import solutions.ormus.logos.terminal.BracketedPaste
 import timber.log.Timber
 
 /**
@@ -727,7 +726,7 @@ fun ConsoleScreen(
                 ?.toString()
 
             if (!clip.isNullOrBlank()) {
-                bridge.injectString(BracketedPaste.wrap(clip, bridge.bracketedPaste))
+                bridge.pasteText(clip)
             }
         }
     }
@@ -1211,7 +1210,8 @@ fun ConsoleScreen(
                                                         if (ssh != null &&
                                                             runCatching { ssh.uploadFile(remote, shot) }.isSuccess
                                                         ) {
-                                                            remote
+                                                            // A core terminal gets the file beside it (hc put).
+                                                            bridge.pathForWatch(remote, shot.size.toLong())
                                                         } else {
                                                             null
                                                         }
