@@ -19,6 +19,7 @@ package org.connectbot
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -171,8 +172,9 @@ class SettingsScreenTest {
         composeTestRule
             .onNodeWithText(scrollback)
             .performClick()
+        // The row now shows "140" at its right, so the dialog's field is found by its action.
         composeTestRule
-            .onNodeWithText("140")
+            .onNode(hasSetTextAction())
             .performTextReplacement("200")
         composeTestRule
             .onNodeWithText(composeTestRule.activity.getString(android.R.string.ok))
