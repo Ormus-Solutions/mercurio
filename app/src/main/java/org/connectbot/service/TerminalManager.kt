@@ -424,6 +424,8 @@ class TerminalManager :
         val shown = _bridges.firstOrNull { it.host.id == host.id }
         val bridge = TerminalBridge(this, host, dispatchers, watch = watch)
         shown?.let(bridge::sizeLike)
+        // A core terminal has no Herdr TUI: no Herdr key is typed into it, whatever asks.
+        bridge.herd?.keysOff = true
         // Never the host's bridge: a tap on the host in the list opens its own shell, not this watch.
         startBridge(bridge, first = false)
     }

@@ -209,6 +209,8 @@ internal const val HERDR_NOT_ON_SCREEN = "herdr-not-on-screen"
  * can send); null otherwise.
  */
 internal fun runHerdrSwipe(bridge: TerminalBridge, swipe: HerdrSwipe): String? {
+    // A core terminal's console has no Herdr TUI: a swipe would type its prefix into the program.
+    if (bridge.watch != null) return null
     val herd = bridge.herd
     if (herd != null && usesSwitcher(bridge, swipe)) {
         if (!bridge.herdrOnScreen) return HERDR_NOT_ON_SCREEN

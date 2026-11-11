@@ -209,6 +209,7 @@ import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdResult
+import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
@@ -883,9 +884,9 @@ fun ConsoleScreen(
                 PaletteScreen.HERD ->
                     herdScreenBridge = allBridges
                         .sortedByDescending { it === bridge }
-                        .firstOrNull { it.runsHerdr }
+                        .firstOrNull { it.runsHerdr && it.watch == null }
 
-                PaletteScreen.HERDR_SHEET -> herdrPanelBridge = bridge?.takeIf { it.runsHerdr }
+                PaletteScreen.HERDR_SHEET -> herdrPanelBridge = bridge?.takeIf { it.runsHerdr && it.watch == null }
 
                 PaletteScreen.SLASH_MENU -> slashBridge = bridge
 
@@ -938,7 +939,7 @@ fun ConsoleScreen(
                 // The Herd lists the agents of a session that runs Herdr, this one first.
                 onOpenHerd = allBridges
                     .sortedByDescending { it === currentBridge }
-                    .firstOrNull { it.runsHerdr }
+                    .firstOrNull { it.runsHerdr && it.watch == null }
                     ?.let { herdBridge ->
                         {
                             coroutineScope.launch { drawerState.close() }
@@ -1104,7 +1105,7 @@ fun ConsoleScreen(
                                         bottom = with(density) { composeBarHeightPx.toDp() },
                                     )
                                     .herdrSwipes(
-                                        enabled = { swipeBridge.runsHerdr && selectionController?.isSelectionActive != true },
+                                        enabled = { swipeBridge.runsHerdr && swipeBridge.watch == null && selectionController?.isSelectionActive != true },
                                         wheel = wheel,
                                     ) { swipe, fingers ->
                                         haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -1396,7 +1397,12 @@ fun ConsoleScreen(
                         onJump = { card ->
                             boardBridge = null
                             if (bridge !== currentBridge) onSelectSession(bridge)
-                            bridge.jumpToHerdrTab(card.jumpTarget(), card.paneId)?.let { why -> Toast.makeText(context, why, Toast.LENGTH_LONG).show() }
+                            // The jump types Herdr's detach key; a core terminal's console has no Herdr TUI to take it.
+                            if (bridge.watch != null) {
+                                Toast.makeText(context, HerdSession.KEYS_OFF_REASON, Toast.LENGTH_LONG).show()
+                            } else {
+                                bridge.jumpToHerdrTab(card.jumpTarget(), card.paneId)?.let { why -> Toast.makeText(context, why, Toast.LENGTH_LONG).show() }
+                            }
                         },
                         onDismiss = { boardBridge = null },
                     )
@@ -1465,6 +1471,7 @@ fun ConsoleScreen(
                         herdrReady = currentBridge?.let { it.runsHerdr && it.herd != null } == true,
                         snapshot = snapshot,
                         herdrKeys = herdrKeys,
+                        coreView = currentBridge?.watch != null,
                         disconnected = disconnected,
                         canForwardPorts = canForwardPorts,
                         sessions = allBridges.filter { it !== currentBridge }.map {

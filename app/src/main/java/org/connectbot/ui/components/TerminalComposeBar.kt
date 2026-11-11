@@ -132,6 +132,7 @@ import org.connectbot.usage.UsageActions
 import org.connectbot.util.LatestUrl
 import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.Herd
+import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrKey
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSessionSnapshot
@@ -826,6 +827,7 @@ fun TerminalComposeBar(
             return
         }
         usage.log(UsageActions.NEEDS_YOU_JUMP)
+        if (bridge.watch != null) return Toast.makeText(context, HerdSession.KEYS_OFF_REASON, Toast.LENGTH_LONG).show()
         bridge.jumpToHerdrTab(target.jumpTarget(), target.paneId)?.let { why -> Toast.makeText(context, why, Toast.LENGTH_LONG).show() }
     }
 
@@ -1151,6 +1153,8 @@ fun TerminalComposeBar(
                     val core = item.core
                     when {
                         // The row's pane too, when an agent runs in it (Herdr focuses agents by pane id).
+                        target != null && bridge.watch != null -> Toast.makeText(context, HerdSession.KEYS_OFF_REASON, Toast.LENGTH_LONG).show()
+
                         target != null -> bridge.jumpToHerdrTab(target, target.paneId?.takeIf { target.agent != null })?.let { why -> Toast.makeText(context, why, Toast.LENGTH_LONG).show() }
 
                         core != null -> onJumpCore?.invoke(core)

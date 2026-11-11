@@ -58,6 +58,8 @@ data class PaletteContext(
     val sessions: List<PaletteSession> = emptyList(),
     val hosts: List<Host> = emptyList(),
     val machines: List<TailscaleDevice> = emptyList(),
+    /** The session is a core terminal's console: nothing that types the Herdr TUI's keys is offered. */
+    val coreView: Boolean = false,
 )
 
 /** The Herdr sheet actions the palette offers, besides tab and workspace jumps. */
@@ -123,7 +125,7 @@ fun buildPaletteEntries(
         key("tab", R.string.palette_key_tab, TerminalKeys.TAB, UsageActions.KEY_TAB, "complete")
         key("y", R.string.palette_key_yes, "y", UsageActions.KEY_Y, "yes")
         key("n", R.string.palette_key_no, "n", UsageActions.KEY_N, "no")
-        if (context.runsHerdr) {
+        if (context.runsHerdr && !context.coreView) {
             // As the host binds them; a key it binds to nothing Mercurio can send is left out.
             fun herdrKey(id: String, title: Int, action: HerdrKey, usageId: String, keywords: String) {
                 context.herdrKeys.bytes(action)?.let { key(id, title, it, usageId, keywords) }
@@ -171,19 +173,23 @@ fun buildPaletteEntries(
 
     // Herdr: the sheet, every sheet action, and jumps to tabs and workspaces.
     if (context.herdrReady) {
-        add(
-            PaletteEntry(
-                "open:herdr-sheet",
-                s(R.string.herdr_key_commands),
-                PaletteGroup.HERDR,
-                PaletteAction.Open(PaletteScreen.HERDR_SHEET),
-                usageId = UsageActions.HERDR_SHEET_OPEN,
-                keywords = "commands sheet",
-            ),
-        )
+        if (!context.coreView) {
+            add(
+                PaletteEntry(
+                    "open:herdr-sheet",
+                    s(R.string.herdr_key_commands),
+                    PaletteGroup.HERDR,
+                    PaletteAction.Open(PaletteScreen.HERDR_SHEET),
+                    usageId = UsageActions.HERDR_SHEET_OPEN,
+                    keywords = "commands sheet",
+                ),
+            )
+        }
         PALETTE_HERDR_ACTIONS.forEach { action ->
             val label = herdrLabels[action] ?: return@forEach
             if (action is HerdrAction.BoundKey && context.herdrKeys.bytes(action.key) == null) return@forEach
+            // Keystrokes into the Herdr TUI: none on a core terminal's console.
+            if (context.coreView && (action is HerdrAction.BoundKey || action is HerdrAction.ClientKey)) return@forEach
             add(PaletteEntry("herdr:$action", label, PaletteGroup.HERDR, PaletteAction.Herdr(action), s(R.string.palette_group_herdr), herdrSheetUsageId(action)))
         }
         val snapshot = context.snapshot

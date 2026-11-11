@@ -395,6 +395,10 @@ class HerdSession(
         _keys.value = HerdrKeys.fromRead(out)
     }
 
+    /** Set on the session of a core terminal's console: no Herdr TUI there to type its keys into. */
+    @Volatile
+    var keysOff: Boolean = false
+
     // Whether Herdr's prefix ([keys]) went ahead of the next keystroke: the Herdr key
     // sends it as the panel opens. Herdr stays in prefix mode until a key arrives
     // (measured on Sun, herdr 0.9.0), so it is either used by the next Herdr keystroke
@@ -403,7 +407,7 @@ class HerdSession(
 
     /** Send Herdr's prefix now, so the next Herdr keystroke needs only its key. */
     fun armPrefix() {
-        if (prefixArmed) return
+        if (prefixArmed || keysOff) return
         prefixArmed = true
         sendKeys(_keys.value.prefix.bytes)
     }
@@ -438,6 +442,7 @@ class HerdSession(
      * key to nothing Mercurio can send.
      */
     fun switchWorkspace(down: Boolean): String? {
+        if (keysOff) return KEYS_OFF_REASON
         val keys = _keys.value
         val strokes = keys.switchWorkspace(down) ?: return keys.switchProblem(down)
         sendStrokes(strokes)
@@ -447,6 +452,7 @@ class HerdSession(
 
     /** Type [strokes] into the attached client, in order and together (see [switchWorkspace]). */
     fun sendStrokes(strokes: List<HerdrStroke>) {
+        if (keysOff) return
         strokes.forEach { stroke ->
             when (stroke) {
                 is HerdrStroke.Bytes -> sendKeys(keystroke(stroke.bytes))
@@ -470,7 +476,9 @@ class HerdSession(
         when (val invocation = builder.build(action, snapshotOf(session), text, _keys.value)) {
             null -> _result.value = HerdResult.Unavailable(action)
 
-            is HerdrInvocation.Keys -> {
+            is HerdrInvocation.Keys -> if (keysOff) {
+                _result.value = HerdResult.Unavailable(action)
+            } else {
                 sendKeys(keystroke(invocation.sequence))
                 _result.value = HerdResult.Succeeded(action)
             }
@@ -578,6 +586,9 @@ class HerdSession(
     private fun oneLine(message: String): String = message.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(MAX_ERROR_CHARS) ?: message
 
     companion object {
+        /** Why a Herdr key is not sent on a core terminal's console. */
+        const val KEYS_OFF_REASON = "Herdr keys are not sent to a core terminal"
+
         const val POLL_INTERVAL_MS = 4_000L
 
         /** How often the open Agents board reads the sessions the monitor does not poll. */
