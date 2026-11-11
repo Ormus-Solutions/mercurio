@@ -139,6 +139,7 @@ import solutions.ormus.logos.herd.JumpRecents
 import solutions.ormus.logos.herd.SendResult
 import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.terminal.BracketedPaste
+import solutions.ormus.logos.voice.VoiceSettings
 
 // Control bytes built from code points so no raw control chars live in the source.
 private val ESC: String = 27.toChar().toString() // 0x1b
@@ -642,6 +643,8 @@ fun TerminalComposeBar(
     onJumpCore: ((InboxRow) -> Unit)? = null,
     /** His own paged keys, shown above the default rows; null (the setting is off) leaves the bar as it was. */
     keyBar: KeyBarLayout? = null,
+    /** The voice key's settings when the switch is on: a mic key in the compose box, its words into the field. Null (off) leaves the box as it was. */
+    voice: VoiceSettings? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -661,6 +664,8 @@ fun TerminalComposeBar(
             keyboardController?.show()
         }
     }
+
+    val voiceKey = voice?.let { rememberVoiceKey(it, bridge.host.hostname, bridge.host.id) { text -> draft.insertAtCursor(text) } }
 
     var coreSending by remember(bridge) { mutableStateOf(false) }
 
@@ -1160,6 +1165,8 @@ fun TerminalComposeBar(
                     .padding(horizontal = Ormus.spacing.sm, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(GROUP_GAP),
             ) {
+                // What happened to the last voice take, when the voice key is on and there is something to say.
+                if (voiceKey != null) VoiceNoteLine(voiceKey)
                 // The compose box: the field with Esc, Tab and ⏎, in one container.
                 Surface(
                     modifier = Modifier.fillMaxWidth().testTag(COMPOSE_BOX_TEST_TAG),
@@ -1199,6 +1206,8 @@ fun TerminalComposeBar(
                                 .weight(1f)
                                 .focusRequester(dictationFocus),
                         )
+
+                        if (voiceKey != null) VoiceKeyButton(voiceKey)
 
                         EnterKey(
                             sendsText = draft.text.isNotEmpty(),

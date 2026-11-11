@@ -213,6 +213,7 @@ import solutions.ormus.logos.herd.HerdrConsoles
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSwipe
 import solutions.ormus.logos.home.HomeStart
+import solutions.ormus.logos.voice.VoiceSettings
 import timber.log.Timber
 
 /**
@@ -343,6 +344,7 @@ fun ConsoleScreen(
     val enterNewLine = remember { prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false) }
     val inboxOn = HomeStart.inboxOn(prefs)
     val keyBar = remember { KeyBarStore(prefs).takeIf { it.enabled }?.layout }
+    val voice = remember { VoiceSettings(prefs).takeIf { it.enabled } }
     val volumeKeysChangeFontSize = remember { prefs.getBoolean(PreferenceConstants.VOLUME_FONT, true) }
     val keepScreenAwake = remember { prefs.getBoolean(PreferenceConstants.KEEP_ALIVE, true) }
 
@@ -1267,6 +1269,7 @@ fun ConsoleScreen(
                                         draft = dictationDraft,
                                         enterNewLine = enterNewLine,
                                         keyBar = keyBar,
+                                        voice = voice,
                                         modifier = barModifier,
                                     )
                                 },

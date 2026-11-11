@@ -73,6 +73,13 @@ import org.connectbot.ui.common.getLocalizedFontDisplayName
 import org.connectbot.ui.components.KeyBarSettingsSection
 import org.connectbot.ui.components.KeyBarStore
 import org.connectbot.ui.components.OrmusGroup
+import org.connectbot.ui.components.VOICE_SERVER_TAG
+import org.connectbot.ui.components.VOICE_STYLE_TAG
+import org.connectbot.ui.components.VOICE_SWITCH_TAG
+import org.connectbot.ui.components.VoiceRows
+import org.connectbot.ui.components.VoiceServerDialog
+import org.connectbot.ui.components.VoiceStyleDialog
+import org.connectbot.ui.components.voiceStyleLabel
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.Planet
@@ -81,6 +88,7 @@ import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.home.HomeStart
+import solutions.ormus.logos.voice.VoiceSettings
 
 /**
  * The settings panel, opened from the gear on the console's top bar: the theme (one per
@@ -100,6 +108,10 @@ fun SettingsPanelScreen(
     var inbox by remember { mutableStateOf(HomeStart.inboxOn(prefs)) }
     var core by remember { mutableStateOf(HomeStart.coreOn(prefs)) }
     val planet = rememberPlanet()
+    val voiceSettings = remember(prefs) { VoiceSettings(prefs) }
+    var voiceOn by remember { mutableStateOf(voiceSettings.enabled) }
+    var voiceServer by remember { mutableStateOf(voiceSettings.server) }
+    var voiceStyle by remember { mutableStateOf(voiceSettings.style) }
     var keyBarKeys by remember { mutableStateOf(keyBarCount(prefs)) }
     DisposableEffect(prefs) {
         // The key bar section in this panel saves to the same prefs; the value follows it.
@@ -145,6 +157,23 @@ fun SettingsPanelScreen(
             onNavigateToAllSettings()
         },
         keyBar = { KeyBarSettingsSection(remember(prefs) { KeyBarStore(prefs) }) },
+        voice = VoiceRows(
+            enabled = voiceOn,
+            server = voiceServer,
+            style = voiceStyle,
+            onEnabled = { on ->
+                voiceOn = on
+                voiceSettings.enabled = on
+            },
+            onServer = { text ->
+                voiceSettings.server = text
+                voiceServer = voiceSettings.server
+            },
+            onStyle = { picked ->
+                voiceStyle = picked
+                voiceSettings.style = picked
+            },
+        ),
         modifier = modifier,
     )
 }
@@ -166,11 +195,25 @@ fun SettingsPanelContent(
     fontName: String = "",
     keyBarKeys: Int? = null,
     onSendFeedback: () -> Unit = {},
+    voice: VoiceRows? = null,
     inbox: Boolean = false,
     onInboxChange: ((Boolean) -> Unit)? = null,
     core: Boolean = false,
     onCoreChange: ((Boolean) -> Unit)? = null,
 ) {
+    var voiceDialog by remember { mutableStateOf(VoiceDialog.NONE) }
+    if (voice != null && voiceDialog == VoiceDialog.SERVER) {
+        VoiceServerDialog(current = voice.server, onSave = {
+            voice.onServer(it)
+            voiceDialog = VoiceDialog.NONE
+        }, onDismiss = { voiceDialog = VoiceDialog.NONE })
+    }
+    if (voice != null && voiceDialog == VoiceDialog.STYLE) {
+        VoiceStyleDialog(current = voice.style, onPick = {
+            voice.onStyle(it)
+            voiceDialog = VoiceDialog.NONE
+        }, onDismiss = { voiceDialog = VoiceDialog.NONE })
+    }
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -224,6 +267,15 @@ fun SettingsPanelContent(
                     )
                 }
                 row { keyBar() }
+            }
+            if (voice != null) {
+                OrmusGroup(label = stringResource(R.string.voice_settings_group), modifier = Modifier.testTag(VOICE_GROUP_TAG)) {
+                    row { SwitchRow(R.string.voice_settings_switch, R.string.voice_settings_on, R.string.voice_settings_off, voice.enabled, VOICE_SWITCH_TAG, voice.onEnabled) }
+                    if (voice.enabled) {
+                        row { ValueRow(R.string.voice_settings_server, voice.server.ifBlank { stringResource(R.string.voice_settings_server_session) }, VOICE_SERVER_TAG, onClick = { voiceDialog = VoiceDialog.SERVER }) }
+                        row { ValueRow(R.string.voice_settings_style, stringResource(voiceStyleLabel(voice.style)), VOICE_STYLE_TAG, onClick = { voiceDialog = VoiceDialog.STYLE }) }
+                    }
+                }
             }
             if (onInboxChange != null && onCoreChange != null) {
                 OrmusGroup(label = stringResource(R.string.settings_panel_inbox), modifier = Modifier.testTag(INBOX_GROUP_TAG)) {
@@ -323,6 +375,9 @@ private val PLANET_TILE = 76.dp
 
 internal fun planetTag(planet: Planet) = "panel_planet_${planet.key}"
 
+private enum class VoiceDialog { NONE, SERVER, STYLE }
+
+internal const val VOICE_GROUP_TAG = "panel_voice_group"
 internal const val ENTER_NEW_LINE_TAG = "panel_enter_new_line"
 internal const val INBOX_SWITCH_TAG = "panel_inbox_switch"
 internal const val CORE_SWITCH_TAG = "panel_core_switch"

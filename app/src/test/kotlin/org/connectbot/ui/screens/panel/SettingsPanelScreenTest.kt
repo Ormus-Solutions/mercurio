@@ -33,6 +33,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -92,6 +93,36 @@ class SettingsPanelScreenTest {
 
         composeTestRule.onNodeWithTag(ENTER_NEW_LINE_TAG).performClick()
         assertFalse(prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, true))
+    }
+
+    @Test
+    fun voiceKey_isOff_withNoServerRows_untilTheSwitchIsOn_thenShowsServerAndStyleAsValues() {
+        setPanel()
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SWITCH_TAG).assertIsOff()
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SERVER_TAG).assertDoesNotExist()
+        assertFalse(prefs.getBoolean(PreferenceConstants.VOICE_KEY, false))
+
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SWITCH_TAG).performClick()
+
+        assertTrue(prefs.getBoolean(PreferenceConstants.VOICE_KEY, false))
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SERVER_TAG).assertTextContains("This session's host", substring = true)
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_STYLE_TAG).assertTextContains("Server's own", substring = true)
+    }
+
+    @Test
+    fun voiceServerAndStyle_areEditedFromTheirRows_andSaved() {
+        prefs.edit().putBoolean(PreferenceConstants.VOICE_KEY, true).commit()
+        setPanel()
+
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SERVER_TAG).performClick()
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SERVER_FIELD_TAG).performTextInput("box.example")
+        composeTestRule.onNodeWithText("OK").performClick()
+        assertEquals("box.example", prefs.getString(PreferenceConstants.VOICE_SERVER, null))
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_SERVER_TAG).assertTextContains("box.example", substring = true)
+
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.VOICE_STYLE_TAG).performClick()
+        composeTestRule.onNodeWithText("Formal").performClick()
+        assertEquals("formal", prefs.getString(PreferenceConstants.VOICE_STYLE, null))
     }
 
     @Test

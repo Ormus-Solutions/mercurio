@@ -96,6 +96,11 @@ object PreferenceConstants {
     const val KEY_BAR_CUSTOM: String = "keyBarCustom"
     const val KEY_BAR_LAYOUT: String = "keyBarLayout"
 
+    /* Voice key: off keeps the compose bar as it is; on shows a mic key that sends a take to his voice server. */
+    const val VOICE_KEY: String = "voiceKey"
+    const val VOICE_SERVER: String = "voiceServer"
+    const val VOICE_STYLE: String = "voiceStyle"
+
     /* Theme: the planet picked in the settings panel (Planet.key); none means Sun. */
     const val PLANET: String = "planet"
 

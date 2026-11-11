@@ -65,4 +65,24 @@ class DictationDraft {
         value = TextFieldValue(text, TextRange(text.length))
         focusRequests++
     }
+
+    /**
+     * Put dictated [text] at the cursor (in place of a selection), with one space where it would
+     * otherwise touch a word, and leave the cursor after it. The keyboard is not raised and nothing is sent.
+     */
+    fun insertAtCursor(text: String) {
+        val dictated = text.trim()
+        if (dictated.isEmpty()) return
+        val current = value.text
+        val start = value.selection.min.coerceIn(0, current.length)
+        val end = value.selection.max.coerceIn(start, current.length)
+        val before = current.substring(0, start)
+        val after = current.substring(end)
+        val lead = if (before.isNotEmpty() && !before.last().isWhitespace()) " " else ""
+        val trail = if (after.isNotEmpty() && !after.first().isWhitespace()) " " else ""
+        val inserted = lead + dictated + trail
+        // The cursor goes after the words, before the space that keeps them off the next word.
+        val cursor = before.length + lead.length + dictated.length
+        value = TextFieldValue(before + inserted + after, TextRange(cursor))
+    }
 }

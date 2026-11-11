@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Voice key: a mic key in the compose box that sends a take to his own voice server. -->
+<resources>
+	<string name="voice_key_idle">Dictate with your voice</string>
+	<string name="voice_key_listening">Listening. Tap to stop and send</string>
+	<string name="voice_key_thinking">Turning your voice into text</string>
+	<string name="voice_note_no_server">No voice server. Set one in the settings panel</string>
+	<string name="voice_note_mic_denied">The microphone is not allowed. Tap the mic to ask again</string>
+	<string name="voice_note_record_failed">The microphone would not start</string>
+	<string name="voice_note_junk">Nothing heard, nothing added</string>
+	<string name="voice_note_rewrite_failed">The clean-up failed: this is the raw text</string>
+	<!-- %1$s is the reason, one of the voice_why strings -->
+	<string name="voice_note_failed">Voice: %1$s</string>
+	<string name="voice_why_unreachable">the server could not be reached</string>
+	<string name="voice_why_busy">the server is busy</string>
+	<string name="voice_why_no_engine">the server has no speech engine running</string>
+	<string name="voice_why_bad_audio">the server could not read the recording</string>
+	<string name="voice_why_too_large">the recording is too long for the server</string>
+	<string name="voice_why_bad_request">the server did not accept the style</string>
+	<string name="voice_why_bad_reply">the server\'s answer could not be read</string>
+	<string name="voice_why_server">the server failed</string>
+	<string name="voice_retry">Send again</string>
+	<string name="voice_note_dismiss">Dismiss</string>
+
+	<!-- Settings panel -->
+	<string name="voice_settings_group">Voice key</string>
+	<string name="voice_settings_switch">Voice key</string>
+	<string name="voice_settings_on">A mic key sits in the compose box. The words go into the box, never to the terminal</string>
+	<string name="voice_settings_off">Off: the compose box stays as it is</string>
+	<string name="voice_settings_server">Voice server</string>
+	<string name="voice_settings_server_session">This session\'s host</string>
+	<string name="voice_settings_server_hint">Host, host:port or https URL. Empty uses the host of the session</string>
+	<string name="voice_settings_style">Style</string>
+	<string name="voice_style_server">Server\'s own</string>
+	<string name="voice_style_prompt">Prompt</string>
+	<string name="voice_style_formal">Formal</string>
+	<string name="voice_style_casual">Casual</string>
+	<string name="voice_style_verbatim">Verbatim</string>
+</resources>
