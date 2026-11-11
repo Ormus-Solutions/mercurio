@@ -606,7 +606,6 @@
 	<string name="settings_panel_core_switch">Incluir agentes de herdr-core</string>
 	<string name="settings_panel_core_on">La bandeja lee herdr-core en cada host conectado.</string>
 	<string name="settings_panel_core_off">La bandeja lista solo agentes de Herdr.</string>
-||||||| parent of 08d08869 (feat(spaces): Spaces screen with a box per tab, behind the herdr-core setting)
 	<!-- Spaces: the herdr-core spaces of a host, a box per tab -->
 	<!-- Title of the Spaces screen -->
 	<string name="spaces_title">Espacios</string>

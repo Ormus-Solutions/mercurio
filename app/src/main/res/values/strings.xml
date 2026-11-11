@@ -2174,7 +2174,6 @@
 	<string name="settings_panel_core_switch">Include herdr-core agents</string>
 	<string name="settings_panel_core_on">The Inbox reads herdr-core on each connected host.</string>
 	<string name="settings_panel_core_off">The Inbox lists Herdr agents only.</string>
-||||||| parent of 08d08869 (feat(spaces): Spaces screen with a box per tab, behind the herdr-core setting)
 	<!-- Spaces: the herdr-core spaces of a host, a box per tab -->
 	<!-- Title of the Spaces screen -->
 	<string name="spaces_title">Spaces</string>
