@@ -66,6 +66,7 @@ import org.connectbot.usage.UsageActions
 import org.connectbot.util.HostConstants
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.TerminalText
+import solutions.ormus.logos.herd.ConnectText
 import solutions.ormus.logos.herd.CoreCompose
 import solutions.ormus.logos.herd.CoreSeen
 import solutions.ormus.logos.herd.CoreSend
@@ -350,6 +351,9 @@ class TerminalBridge {
     /** What this console's SSH session runs in place of a shell: the attach of [watch]; null runs the shell. */
     val sessionCommand: String? get() = watch?.let { CoreWatch.sessionCommand(it.address) }
 
+    // A core console shows no sign-in lines unless a prompt or a failure needs them (ConnectText).
+    private val connectText by lazy { ConnectText(quiet = watch != null) }
+
     /** This console's id, unique while the app runs: two consoles of one host share the host's id. */
     val consoleId: Long = nextConsoleId.incrementAndGet()
 
@@ -400,6 +404,11 @@ class TerminalBridge {
         defaultPaint.isFakeBoldText = true // more readable?
 
         localOutput = mutableListOf()
+
+        // A prompt during the login (a new host key, a passphrase) needs the lines that explain it.
+        if (watch != null) {
+            scope.launch { promptManager.promptState.collect { if (it != null) revealConnectText() } }
+        }
 
         fontSizeChangedListeners = mutableListOf()
 
@@ -645,6 +654,7 @@ class TerminalBridge {
         }
         connecting = true
         connectionLog.clear()
+        connectText.restart()
         lastFailure = null
         manager.onSessionConnecting(this)
 
@@ -664,6 +674,8 @@ class TerminalBridge {
         }
         newTransport.setEmulation(emulation)
 
+        // A core console says only what it opens; `hc attach` clears the screen when it paints (measured).
+        watch?.let { target -> synchronized(localOutput) { writeLine(manager.res.getString(R.string.terminal_core_opening, target.label, host.nickname)) } }
         outputLine(manager.res.getString(R.string.terminal_connecting, host.hostname, host.port, host.protocol))
 
         scope.launch(dispatchers.io) {
@@ -685,6 +697,9 @@ class TerminalBridge {
                 }
                 Timber.i("Starting connection to ${host.nickname}")
                 newTransport.connect()
+                // A login that gave up with the link still open (every try refused) ends here with no
+                // disconnect: its lines say why. After a login that worked nothing is held.
+                revealConnectText()
             } catch (e: Exception) {
                 Timber.e(e, "Connection failed for ${host.nickname}")
                 recordFailure(e)
@@ -740,14 +755,21 @@ class TerminalBridge {
                     processedLine = processedLine.substring(0, processedLine.length - 1)
                 }
 
-                val s = processedLine + "\r\n"
-
-                localOutput.add(s)
+                localOutput.add(processedLine + "\r\n")
                 connectionLog.append(processedLine + "\n")
 
-                terminalEmulator.writeInput(s.encodeToByteArray())
+                connectText.line(processedLine).forEach(::writeLine)
             }
         }
+    }
+
+    /** Show the sign-in lines a core console held: a prompt asks something, or the login failed. */
+    private fun revealConnectText() {
+        synchronized(localOutput) { connectText.reveal().forEach(::writeLine) }
+    }
+
+    private fun writeLine(line: String) {
+        terminalEmulator.writeInput((line + "\r\n").encodeToByteArray())
     }
 
     /**
@@ -840,6 +862,7 @@ class TerminalBridge {
 
         // We no longer need our local output.
         localOutput.clear()
+        connectText.opened()
 
         // A new connection starts with no program asking for the mouse.
         mouse.reset()
@@ -1177,7 +1200,7 @@ class TerminalBridge {
             }
         }
         manager.onSessionClosed(this, reason)
-        if (reason == DisconnectReason.USER_REQUESTED) autoReconnect.cancel()
+        if (reason == DisconnectReason.USER_REQUESTED) autoReconnect.cancel() else revealConnectText()
 
         // Cancel any pending prompts
         promptManager.cancelPrompt()

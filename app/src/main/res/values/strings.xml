@@ -688,6 +688,8 @@
 	<!-- Displayed in terminal when attempting to connect to a host. The first two
 	     variables are host:port and the third is the protocol (e.g., SSH) -->
 	<string name="terminal_connecting" tools:ignore="PluralsCandidate">"Connecting to %1$s:%2$d via %3$s"</string>
+	<!-- The one line a console shows while it opens a herdr-core terminal: the terminal's space and tab, then the host. -->
+	<string name="terminal_core_opening">"Opening %1$s on %2$s"</string>
 
 	<!-- Displays the host key to the user in the terminal -->
 	<string name="terminal_sucess">"Verified host '%1$s' key: %2$s"</string>
