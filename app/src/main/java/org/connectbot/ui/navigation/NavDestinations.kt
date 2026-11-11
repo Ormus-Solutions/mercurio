@@ -18,6 +18,7 @@
 package org.connectbot.ui.navigation
 
 import android.net.Uri
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdrConsole
 
 object NavDestinations {
@@ -25,7 +26,7 @@ object NavDestinations {
     const val CONSOLE = "console"
 
     /** The console route: the host, then the Herdr console to open on it (none: the host's own console). */
-    const val CONSOLE_ROUTE = "$CONSOLE/{${NavArgs.HOST_ID}}?${NavArgs.SESSION}={${NavArgs.SESSION}}&${NavArgs.LABEL}={${NavArgs.LABEL}}"
+    const val CONSOLE_ROUTE = "$CONSOLE/{${NavArgs.HOST_ID}}?${NavArgs.SESSION}={${NavArgs.SESSION}}&${NavArgs.LABEL}={${NavArgs.LABEL}}&${NavArgs.WATCH}={${NavArgs.WATCH}}&${NavArgs.WATCH_SPACE}={${NavArgs.WATCH_SPACE}}&${NavArgs.WATCH_TAB}={${NavArgs.WATCH_TAB}}"
     const val HOST_EDITOR = "host_editor"
     const val PUBKEY_LIST = "pubkey_list"
     const val GENERATE_PUBKEY = "generate_pubkey"
@@ -50,9 +51,13 @@ object NavDestinations {
      * The route that shows [hostId]'s console, or [console] opened on that host (a Workspaces
      * key): the console connects the host when nothing of it is open.
      */
-    fun console(hostId: Long, console: HerdrConsole? = null): String = buildString {
+    fun console(hostId: Long, console: HerdrConsole? = null, watch: CoreWatchTarget? = null): String = buildString {
         append(CONSOLE).append('/').append(hostId)
-        if (console != null) {
+        if (watch != null) {
+            append('?').append(NavArgs.WATCH).append('=').append(Uri.encode(watch.address))
+            append('&').append(NavArgs.WATCH_SPACE).append('=').append(Uri.encode(watch.space))
+            append('&').append(NavArgs.WATCH_TAB).append('=').append(Uri.encode(watch.tab))
+        } else if (console != null) {
             append('?').append(NavArgs.SESSION).append('=').append(Uri.encode(console.session))
             console.workspaceLabel?.let { append('&').append(NavArgs.LABEL).append('=').append(Uri.encode(it)) }
         }
@@ -63,6 +68,9 @@ object NavArgs {
     const val HOST_ID = "hostId"
     const val SESSION = "session"
     const val LABEL = "label"
+    const val WATCH = "watch"
+    const val WATCH_SPACE = "watchSpace"
+    const val WATCH_TAB = "watchTab"
     const val BRIDGE_NAME = "bridgeName"
     const val PUBKEY_ID = "pubkeyId"
     const val SCHEME_ID = "schemeId"

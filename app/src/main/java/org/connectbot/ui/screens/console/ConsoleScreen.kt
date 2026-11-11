@@ -1443,7 +1443,7 @@ fun ConsoleScreen(
                         disconnected = disconnected,
                         canForwardPorts = canForwardPorts,
                         sessions = allBridges.filter { it !== currentBridge }.map {
-                            PaletteSession(it.consoleId, HerdrConsoles.label(it.host.nickname, it.herd?.attached?.value ?: HerdrCommands.DEFAULT_SESSION, it.console))
+                            PaletteSession(it.consoleId, it.watch?.label ?: HerdrConsoles.label(it.host.nickname, it.herd?.attached?.value ?: HerdrCommands.DEFAULT_SESSION, it.console))
                         },
                         machines = machines.devices,
                     ),
@@ -1530,7 +1530,7 @@ fun ConsoleScreen(
                         ) {
                             val attached = currentBridge?.herd?.attached?.collectAsState()?.value ?: HerdrCommands.DEFAULT_SESSION
                             Text(
-                                currentBridge?.host?.nickname?.let { HerdrConsoles.label(it, attached, currentBridge.console) }
+                                currentBridge?.host?.nickname?.let { currentBridge.watch?.label ?: HerdrConsoles.label(it, attached, currentBridge.console) }
                                     ?: stringResource(R.string.console_default_title),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

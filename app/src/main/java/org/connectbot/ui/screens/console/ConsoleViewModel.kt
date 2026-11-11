@@ -41,6 +41,8 @@ import org.connectbot.terminal.ProgressState
 import org.connectbot.ui.navigation.NavArgs
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.CoreWatch
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrSessions
@@ -76,6 +78,11 @@ class ConsoleViewModel @Inject constructor(
     private val requested: HerdrConsole? = savedStateHandle.get<String>(NavArgs.SESSION)
         ?.takeIf(HerdrSessions::isName)
         ?.let { HerdrConsole(it, workspaceLabel = savedStateHandle.get<String>(NavArgs.LABEL)) }
+
+    // The core terminal this screen was asked to watch (the Inbox); null for any other console.
+    private val watchRequested: CoreWatchTarget? = savedStateHandle.get<String>(NavArgs.WATCH)
+        ?.takeIf(CoreWatch::isSafe)
+        ?.let { CoreWatchTarget(it, savedStateHandle.get<String>(NavArgs.WATCH_SPACE).orEmpty(), savedStateHandle.get<String>(NavArgs.WATCH_TAB).orEmpty()) }
 
     // Whether the requested console was selected once it appeared; later changes keep the user's pick.
     private var requestedShown = false
@@ -203,7 +210,8 @@ class ConsoleViewModel @Inject constructor(
 
                 // Check if we already have a bridge for this host (and, when one was asked, that console of it)
                 val existingBridge = allBridges.find { bridge ->
-                    bridge.host.id == hostId && (requested == null || bridge.console?.shows(requested) == true)
+                    bridge.host.id == hostId && (requested == null || bridge.console?.shows(requested) == true) &&
+                        (if (watchRequested != null) bridge.watch?.address == watchRequested.address else bridge.watch == null)
                 }
 
                 // If no bridge exists, create one using the service method
@@ -219,7 +227,9 @@ class ConsoleViewModel @Inject constructor(
                     } else {
                         // Permanent host - create from database; a requested console opens as its own
                         // bridge, beside the host's others or as its first.
-                        val bridge = if (requested != null) {
+                        val bridge = if (watchRequested != null) {
+                            terminalManager?.openCoreWatchForHostId(hostId, watchRequested)
+                        } else if (requested != null) {
                             terminalManager?.openHerdrConsoleForHostId(hostId, requested)
                         } else {
                             terminalManager?.openConnectionForHostId(hostId)
@@ -260,7 +270,10 @@ class ConsoleViewModel @Inject constructor(
         val asked = requested?.takeIf { !requestedShown }?.let { console ->
             filteredBridges.indexOfFirst { it.console?.shows(console) == true }.takeIf { it >= 0 }
         }
-        if (asked != null) requestedShown = true
+        val watched = watchRequested?.takeIf { !requestedShown }?.let { target ->
+            filteredBridges.indexOfFirst { it.watch?.address == target.address }.takeIf { it >= 0 }
+        }
+        if (asked != null || watched != null) requestedShown = true
         // A console a tap asked for (TerminalManager.showConsole), once it is in this host's list: shown, and the
         // view the tap asked for over it goes to this screen through the state, so that only the screen that shows
         // the console opens it (a view asked of the session itself could be taken by a console screen on its way out).
@@ -276,7 +289,7 @@ class ConsoleViewModel @Inject constructor(
 
         _uiState.update {
             val newBridges = filteredBridges.ifEmpty { allBridges }
-            val newIndex = shown ?: asked ?: if (it.currentBridgeIndex >= newBridges.size) {
+            val newIndex = shown ?: asked ?: watched ?: if (it.currentBridgeIndex >= newBridges.size) {
                 // Adjust index if it's now out of range
                 (newBridges.size - 1).coerceAtLeast(0)
             } else {

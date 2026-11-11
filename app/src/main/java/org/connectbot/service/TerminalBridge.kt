@@ -65,6 +65,9 @@ import org.connectbot.usage.UsageActions
 import org.connectbot.util.HostConstants
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.TerminalText
+import solutions.ormus.logos.herd.CoreWatch
+import solutions.ormus.logos.herd.CoreWatchState
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAction
@@ -81,6 +84,7 @@ import solutions.ormus.logos.herd.HerdrSessions
 import solutions.ormus.logos.herd.HerdrTermKey
 import solutions.ormus.logos.herd.HerdrWorkspacePicker
 import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.WatchInput
 import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
 import solutions.ormus.logos.terminal.TerminalArrow
@@ -332,6 +336,22 @@ class TerminalBridge {
      */
     val console: HerdrConsole?
 
+    /**
+     * Set on a console that watches a herdr-core terminal ([TerminalManager.openCoreWatch]): it only
+     * watches until the first key typed, which takes the terminal over ([watchState]).
+     */
+    val watch: CoreWatchTarget?
+
+    private val watchState = CoreWatchState()
+
+    // The font to give back when the watch ends: the profile's, before any fit shrank it.
+    @Volatile
+    private var watchNormalSp: Float = 0f
+
+    // The columns the screen holds at that font, measured once: after a fit the view holds more.
+    @Volatile
+    private var watchPhoneCols: Int = 0
+
     /** This console's id, unique while the app runs: two consoles of one host share the host's id. */
     val consoleId: Long = nextConsoleId.incrementAndGet()
 
@@ -354,11 +374,12 @@ class TerminalBridge {
      * launch thread to start SSH connection and handle any hostkey verification
      * and password authentication.
      */
-    constructor(manager: TerminalManager, host: Host, dispatchers: CoroutineDispatchers, console: HerdrConsole? = null) {
+    constructor(manager: TerminalManager, host: Host, dispatchers: CoroutineDispatchers, console: HerdrConsole? = null, watch: CoreWatchTarget? = null) {
         this.manager = manager
         this.host = host
         this.dispatchers = dispatchers
         this.console = console
+        this.watch = watch
         autoReconnect = AutoReconnect(scope, dispatchers, SystemClock::elapsedRealtime) {
             // A tap on Reconnect in the meantime already started one.
             if (disconnected && !connecting) {
@@ -429,7 +450,14 @@ class TerminalBridge {
             defaultForeground = Color(defaultFgColor),
             defaultBackground = Color(defaultBgColor),
             onKeyboardInput = { data ->
-                transportOperations.trySend(TransportOperation.WriteData(data))
+                // The first key typed on a watching console takes the terminal over; that key is not sent
+                // (an observer takes no input), the watch ends and the terminal is attached again.
+                val toWatch = if (watch != null && isSessionOpen) watchState.onInput(data) else WatchInput.PASS
+                when (toWatch) {
+                    WatchInput.TAKE_OVER -> takeOverWatch()
+                    WatchInput.HOLD -> Unit
+                    WatchInput.PASS -> transportOperations.trySend(TransportOperation.WriteData(data))
+                }
             },
             onBell = {
                 scope.launch {
@@ -585,7 +613,8 @@ class TerminalBridge {
     private fun applyProfileSettings(profile: org.connectbot.data.entity.Profile) {
         // Apply font size
         val newFontSize = if (profile.fontSize > 0) profile.fontSize else DEFAULT_FONT_SIZE_SP
-        if (newFontSize.toFloat() != fontSizeSp) {
+        // A watching console keeps the font its fit chose.
+        if (newFontSize.toFloat() != fontSizeSp && !(watch != null && watchState.watching)) {
             setFontSize(newFontSize.toFloat())
         }
 
@@ -872,6 +901,14 @@ class TerminalBridge {
      * included, sends it at once as before.
      */
     private fun sendPostLogin() {
+        // A console that watches a core terminal types its attach: the observer first, the plain attach
+        // once the terminal was taken over (also after a reconnect).
+        watch?.let { target ->
+            val command = if (watchState.watching) CoreWatch.observeCommand(target.address) else CoreWatch.takeOverCommand(target.address)
+            injectString(command)
+            if (watchState.watching) (transport as? SSH)?.let { fitWatchFont(it, target) }
+            return
+        }
         // An automatic reconnect attaches the Herdr session the terminal had, with no picker.
         if (autoReconnect.reconnecting) {
             injectString(AutoReconnect.postLogin(host.postLogin, herd?.attached?.value))
@@ -932,6 +969,48 @@ class TerminalBridge {
                     alsoOpen.forEach { manager.openHerdrConsole(host, HerdrConsole(it.session, it.workspaceId, it.label)) }
                 }
             }
+        }
+    }
+
+    /**
+     * Shrink the font so the watched terminal's columns fit the screen: read its columns
+     * (`hc get`), wait for the view to size the terminal, then scale the font by the ratio
+     * ([CoreWatch.fitFont]). Pinch zoom works from there. A read that fails leaves the font alone.
+     */
+    private fun fitWatchFont(ssh: SSH, target: CoreWatchTarget) {
+        val command = CoreWatch.getCommand(target.address) ?: return
+        scope.launch {
+            val cols = withContext(dispatchers.io) {
+                ssh.takeIf { it.isConnected() }?.execDetailed(command, WATCH_READ_TIMEOUT_MS)
+            }?.takeIf { it.exitCode == 0 }?.let { CoreWatch.colsOf(it.stdout) } ?: return@launch
+            if (watchPhoneCols <= 0) {
+                watchPhoneCols = withTimeoutOrNull(WATCH_SIZE_WAIT_MS) {
+                    while (terminalEmulator.dimensions.columns <= 0) delay(ON_SCREEN_POLL_MS)
+                    terminalEmulator.dimensions.columns
+                } ?: return@launch
+                watchNormalSp = fontSizeSp
+            }
+            // One lock with the takeover's font restore: a fit never lands after it.
+            synchronized(watchState) {
+                if (watchState.watching) setFontSize(CoreWatch.fitFont(watchNormalSp, watchPhoneCols, cols), false)
+            }
+        }
+    }
+
+    /**
+     * The first key typed on a watching console: back to the normal font (so the terminal is sized for
+     * the phone), detach the observer (ctrl+\) and attach the terminal for real. The desktop resizes then.
+     */
+    private fun takeOverWatch() {
+        val target = watch ?: return
+        synchronized(watchState) {
+            if (watchNormalSp > 0f) setFontSize(watchNormalSp, false)
+        }
+        sendByte(CoreWatch.DETACH)
+        scope.launch {
+            delay(CoreWatch.DETACH_WAIT_MS)
+            injectString(CoreWatch.takeOverCommand(target.address))
+            watchState.takeOverDone()
         }
     }
 
@@ -1626,6 +1705,9 @@ class TerminalBridge {
 
         /** How long a jump waits for the detached Herdr client to leave before it gives up. */
         private const val HERDR_DETACH_WAIT_MS = 3_000L
+
+        private const val WATCH_READ_TIMEOUT_MS = 5_000L
+        private const val WATCH_SIZE_WAIT_MS = 10_000L
 
         /** How often an extra console looks for Herdr's client on its terminal before it lands. */
         private const val ON_SCREEN_POLL_MS = 100L

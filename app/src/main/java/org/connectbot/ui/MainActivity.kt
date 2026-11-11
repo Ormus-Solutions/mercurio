@@ -502,7 +502,7 @@ class MainActivity : AppCompatActivity() {
                 // left), and the request names the console, with the chat or the Agents board to open over it
                 // once Herdr answers, for the screen that shows it.
                 manager.requestShow(bridge, herd?.view)
-                controller.navigate(NavDestinations.console(bridge.host.id, bridge.console)) {
+                controller.navigate(NavDestinations.console(bridge.host.id, bridge.console, bridge.watch)) {
                     popUpTo(NavDestinations.HOST_LIST)
                     launchSingleTop = true
                 }

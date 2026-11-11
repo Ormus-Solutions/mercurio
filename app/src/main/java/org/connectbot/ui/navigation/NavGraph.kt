@@ -48,6 +48,8 @@ import org.connectbot.ui.screens.pubkeyeditor.PubkeyEditorScreen
 import org.connectbot.ui.screens.pubkeylist.PubkeyListScreen
 import org.connectbot.ui.screens.settings.SettingsScreen
 import org.connectbot.util.IconStyle
+import solutions.ormus.logos.herd.AgentEngine
+import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.HerdrConsole
 import timber.log.Timber
 
@@ -117,6 +119,18 @@ fun ConnectBotNavHost(
                     type = NavType.StringType
                     nullable = true
                 },
+                navArgument(NavArgs.WATCH) {
+                    type = NavType.StringType
+                    nullable = true
+                },
+                navArgument(NavArgs.WATCH_SPACE) {
+                    type = NavType.StringType
+                    nullable = true
+                },
+                navArgument(NavArgs.WATCH_TAB) {
+                    type = NavType.StringType
+                    nullable = true
+                },
             ),
         ) {
             ConsoleScreen(
@@ -161,10 +175,10 @@ fun ConnectBotNavHost(
 
         composable(NavDestinations.INBOX) {
             InboxScreen(
-                // A TUI agent opens its Herdr console, a core agent its host's own console.
+                // A TUI agent opens its Herdr console, a core agent a console that watches its terminal.
                 onOpen = { row ->
                     // The Inbox leaves the back stack: Back from the console returns to where the Inbox was opened.
-                    navController.navigate(NavDestinations.console(row.hostId, row.console)) {
+                    navController.navigate(NavDestinations.console(row.hostId, row.console, CoreWatch.target(row.agent)?.takeIf { row.agent.engine == AgentEngine.CORE })) {
                         popUpTo(NavDestinations.INBOX) { inclusive = true }
                         launchSingleTop = true
                     }

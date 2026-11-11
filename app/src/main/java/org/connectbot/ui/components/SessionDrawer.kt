@@ -104,7 +104,7 @@ fun SessionDrawer(
             items(bridges, key = { it.consoleId }) { bridge ->
                 val host = bridge.host
                 val attached = bridge.herd?.attached?.collectAsState()?.value ?: HerdrCommands.DEFAULT_SESSION
-                val label = HerdrConsoles.label(host.nickname.ifBlank { host.hostname }, attached, bridge.console)
+                val label = bridge.watch?.label ?: HerdrConsoles.label(host.nickname.ifBlank { host.hostname }, attached, bridge.console)
                 val endpoint = buildString {
                     if (host.username.isNotBlank()) append("${host.username}@")
                     append(host.hostname)

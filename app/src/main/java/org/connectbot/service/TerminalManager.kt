@@ -74,6 +74,7 @@ import org.connectbot.util.ProviderLoader
 import org.connectbot.util.ProviderLoaderListener
 import org.connectbot.util.PubkeyUtils
 import solutions.ormus.logos.herd.CoreNotices
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdAttention
@@ -411,6 +412,19 @@ class TerminalManager :
         startBridge(bridge, first = shown == null)
     }
 
+    /**
+     * One more console on [host] that watches the herdr-core terminal [watch] ([TerminalBridge.watch]);
+     * the one already watching it when there is one. Built as [openHerdrConsole] builds its console.
+     */
+    fun openCoreWatch(host: Host, watch: CoreWatchTarget): TerminalBridge = synchronized(_bridges) {
+        _bridges.firstOrNull { it.host.id == host.id && it.watch?.address == watch.address }?.let { return it }
+        val shown = _bridges.firstOrNull { it.host.id == host.id }
+        val bridge = TerminalBridge(this, host, dispatchers, watch = watch)
+        shown?.let(bridge::sizeLike)
+        // Never the host's bridge: a tap on the host in the list opens its own shell, not this watch.
+        startBridge(bridge, first = false)
+    }
+
     /** Whether [bridge] is what the per-host maps find for its host: its first console, or a console opened with nothing else of the host up. */
     private fun isHostBridge(bridge: TerminalBridge): Boolean = synchronized(_bridges) { hostBridgeMap[bridge.host]?.get() === bridge }
 
@@ -450,6 +464,12 @@ class TerminalManager :
     /** The console screen shows the console [consoleId]: the request is taken. */
     fun consoleShown(consoleId: Long) {
         _showConsole.value?.takeIf { it.consoleId == consoleId }?.let { _showConsole.compareAndSet(it, null) }
+    }
+
+    /** Watch [watch] on the saved host [hostId] ([openCoreWatch]); null when no such host. */
+    suspend fun openCoreWatchForHostId(hostId: Long, watch: CoreWatchTarget): TerminalBridge? {
+        val host = hostRepository.findHostById(hostId) ?: return null
+        return openCoreWatch(host, watch)
     }
 
     /** Open [console] on the saved host [hostId] ([openHerdrConsole]); null when no such host. */
