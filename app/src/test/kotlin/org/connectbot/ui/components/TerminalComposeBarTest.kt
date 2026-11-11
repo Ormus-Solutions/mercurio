@@ -353,15 +353,15 @@ class TerminalComposeBarTest {
     }
 
     @Test
-    fun herdrHost_row2_escTabFieldEnter_needsYouSitsAboveEnter() {
+    fun herdrHost_row2_escTabFieldEnter_needsYouSitsBelowEnter() {
         setBar(bridgeWithPostLogin("herdr\n"), onSlashMenu = {})
 
         assertRowOrder("Esc", "Tab", ENTER)
         assertFieldBetween("Tab", ENTER)
         val needsYou = key(NEEDS_YOU).fetchSemanticsNode().boundsInRoot
         val enter = key(ENTER).fetchSemanticsNode().boundsInRoot
-        assertTrue("Needs you is above ⏎", needsYou.bottom <= enter.top + 0.5f)
-        assertTrue("Needs you lines up over ⏎", needsYou.right > enter.left && needsYou.left < enter.right)
+        assertTrue("Needs you is below ⏎ (the compose box sits above the key group)", enter.bottom <= needsYou.top + 0.5f)
+        assertTrue("Needs you lines up under ⏎", needsYou.right > enter.left && needsYou.left < enter.right)
     }
 
     @Test
@@ -1019,8 +1019,8 @@ class TerminalComposeBarTest {
 
         val box = bounds(COMPOSE_BOX_TEST_TAG)
         val keys = bounds(KEY_GROUP_TEST_TAG)
-        val gap = (box.top - keys.bottom) / composeTestRule.density.density
-        assertTrue("the key group is $gap dp clear of the compose box, needs 10", gap >= 10f)
+        val gap = (keys.top - box.bottom) / composeTestRule.density.density
+        assertTrue("the key group is $gap dp clear under the compose box, needs 10", gap >= 10f)
     }
 
     @Test
@@ -1054,7 +1054,7 @@ class TerminalComposeBarTest {
         val row = bounds(KEY_BAR_TEST_TAG)
         val box = bounds(COMPOSE_BOX_TEST_TAG)
         assertTrue("the editable row is inside the key group", row.top >= keys.top - 0.5f && row.bottom <= keys.bottom + 0.5f)
-        assertTrue("the compose box does not overlap the key group", keys.bottom <= box.top)
+        assertTrue("the compose box sits above the key group without overlap", box.bottom <= keys.top)
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteractionCollection.assertCountEquals0() {

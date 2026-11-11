@@ -456,12 +456,13 @@ private fun ReadKey(
  * The same layout on every host. The Herdr keys show dimmed until the session runs
  * Herdr: its post-login command launches it, or a Herdr snapshot answers on the host.
  *
- * Two rows, always visible:
- * 1. ↑ and ↓, which page (Page Up and Page Down, hold to repeat), Herdr, ⋯, Chat, then Needs you
- *    above ⏎: a tap jumps to the next agent waiting for the user, in any Herdr session on
+ * Two rows, always visible. The compose box is drawn first, directly under the terminal; the
+ * key row is under it, at the bottom:
+ * 1. (key row) ↑ and ↓, which page (Page Up and Page Down, hold to repeat), Herdr, ⋯, Chat, then Needs you
+ *    under ⏎: a tap jumps to the next agent waiting for the user, in any Herdr session on
  *    the host, cycling; with none waiting, or on a long press, it opens the Agents board
  *    ([onBoard]). Gold while an agent waits.
- * 2. Esc, Tab, the dictation field and ⏎. The field takes whatever width is left. ⏎
+ * 2. (compose box, above the key row) Esc, Tab, the dictation field and ⏎. The field takes whatever width is left. ⏎
  *    is Send and Enter in one key: it sends the field's text, then Enter, or a bare
  *    Enter when the field is empty. Dictation comes from the phone's own overlay
  *    (Wispr), so the bar has no mic.
@@ -969,15 +970,63 @@ fun TerminalComposeBar(
                     .padding(horizontal = Ormus.spacing.sm, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(GROUP_GAP),
             ) {
+                // The compose box: the field with Esc, Tab and ⏎, in one container.
+                Surface(
+                    modifier = Modifier.fillMaxWidth().testTag(COMPOSE_BOX_TEST_TAG),
+                    shape = OrmusContainerShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    border = BorderStroke(1.dp, Ormus.extras.hairline),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(COMPOSE_BOX_PADDING),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                    ) {
+                        ControlKey("Esc", ESC, sendKey, Modifier.width(ROW2_KEY_WIDTH))
+                        ControlKey("Tab", TAB, sendKey, Modifier.width(ROW2_KEY_WIDTH))
+                        TextField(
+                            value = draft.value,
+                            onValueChange = { onTextChange(it) },
+                            placeholder = {
+                                Text(stringResource(R.string.terminal_text_input_dialog_label), maxLines = 1)
+                            },
+                            maxLines = 4,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                // Default on a multi-line field is a new line; Send turns Enter into ⏎.
+                                imeAction = if (enterNewLine) ImeAction.Default else ImeAction.Send,
+                            ),
+                            keyboardActions = KeyboardActions(onSend = { send(UsageActions.SEND_IME) }),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            shape = OrmusCornerShape,
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(dictationFocus),
+                        )
+
+                        EnterKey(
+                            sendsText = draft.text.isNotEmpty(),
+                            onClick = { enter() },
+                            modifier = Modifier.width(ENTER_KEY_WIDTH),
+                        )
+                    }
+                }
+
                 // The key bar: its own pill row (two with his editable row on), apart from the
-                // compose box below it.
+                // compose box above it, bottom-most.
                 Column(
                     modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG),
                     verticalArrangement = Arrangement.spacedBy(KEY_PILL_GAP),
                 ) {
                     if (keyBar != null) KeyPill { PagedKeyRow(keyBar, sendKey) }
                     KeyPill {
-                        // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you above ⏎.
+                        // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎.
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
@@ -1045,60 +1094,12 @@ fun TerminalComposeBar(
                         }
                     }
                 }
-
-                // The compose box: the field with Esc, Tab and ⏎, in one container.
-                Surface(
-                    modifier = Modifier.fillMaxWidth().testTag(COMPOSE_BOX_TEST_TAG),
-                    shape = OrmusContainerShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    border = BorderStroke(1.dp, Ormus.extras.hairline),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(COMPOSE_BOX_PADDING),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
-                    ) {
-                        ControlKey("Esc", ESC, sendKey, Modifier.width(ROW2_KEY_WIDTH))
-                        ControlKey("Tab", TAB, sendKey, Modifier.width(ROW2_KEY_WIDTH))
-                        TextField(
-                            value = draft.value,
-                            onValueChange = { onTextChange(it) },
-                            placeholder = {
-                                Text(stringResource(R.string.terminal_text_input_dialog_label), maxLines = 1)
-                            },
-                            maxLines = 4,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Text,
-                                // Default on a multi-line field is a new line; Send turns Enter into ⏎.
-                                imeAction = if (enterNewLine) ImeAction.Default else ImeAction.Send,
-                            ),
-                            keyboardActions = KeyboardActions(onSend = { send(UsageActions.SEND_IME) }),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
-                            shape = OrmusCornerShape,
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(dictationFocus),
-                        )
-
-                        EnterKey(
-                            sendsText = draft.text.isNotEmpty(),
-                            onClick = { enter() },
-                            modifier = Modifier.width(ENTER_KEY_WIDTH),
-                        )
-                    }
-                }
             }
         }
     }
 }
 
-/** Clear space between the key bar and the compose box. */
+/** Clear space between the compose box and the key bar. */
 private val GROUP_GAP = 10.dp
 private val KEY_PILL_GAP = 4.dp
 private val COMPOSE_BOX_PADDING = 6.dp
