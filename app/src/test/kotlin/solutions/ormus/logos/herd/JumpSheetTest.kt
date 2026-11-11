@@ -151,10 +151,10 @@ class JumpSheetTest {
     }
 
     @Test
-    fun coreItem_watchesTheTerminalAsHcLsNamedIt() {
+    fun coreItem_opensTheTerminalAsHcLsNamedIt() {
         val core = Inbox.fromCore(7, "box", CoreSource.Result.Agents(listOf(Agent(address = "t9", engine = AgentEngine.CORE, space = "gamma", tab = "logs", state = AgentState.Idle)))).rows
         val row = JumpSheet.items(emptyList(), "box", core).single().core!!
-        assertEquals("hc attach --observe 't9'\n", CoreWatch.target(row.agent)?.let { CoreWatch.observeCommand(it.address) })
+        assertEquals("exec hc attach 't9'\n", CoreWatch.target(row.agent)?.let { CoreWatch.attachCommand(it.address) })
     }
 
     @Test

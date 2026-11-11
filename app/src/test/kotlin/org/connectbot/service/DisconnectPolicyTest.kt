@@ -161,4 +161,31 @@ class DisconnectPolicyTest {
         // quickDisconnect wins over AUTH_FAIL special case
         assertTrue(decide(DisconnectReason.AUTH_FAIL, quickDisconnect = true, stayConnected = true) is DisconnectAction.CloseImmediately)
     }
+
+    // A core console's session ends with its attach (`exec hc attach`): the end is the program's, not the link's.
+
+    private fun decideCore(reason: DisconnectReason, quickDisconnect: Boolean = false, stayConnected: Boolean = false) = DisconnectPolicy.decide(reason, quickDisconnect, stayConnected, endsWithItsProgram = true)
+
+    @Test
+    fun coreConsole_remoteEof_stayConnected_showsTheEndInsteadOfAttachingAgainInALoop() {
+        assertTrue(decideCore(DisconnectReason.REMOTE_EOF, stayConnected = true) is DisconnectAction.ShowReconnectOverlay)
+    }
+
+    @Test
+    fun coreConsole_remoteEof_quickDisconnect_keepsTheLastWordsOnScreen() {
+        assertTrue(decideCore(DisconnectReason.REMOTE_EOF, quickDisconnect = true) is DisconnectAction.ShowReconnectOverlay)
+        assertTrue(decideCore(DisconnectReason.REMOTE_EOF, quickDisconnect = true, stayConnected = true) is DisconnectAction.ShowReconnectOverlay)
+    }
+
+    @Test
+    fun coreConsole_droppedLink_followsTheHostFlagsAsBefore() {
+        assertTrue(decideCore(DisconnectReason.IO_ERROR, stayConnected = true) is DisconnectAction.AutoReconnect)
+        assertTrue(decideCore(DisconnectReason.NETWORK_LOST, quickDisconnect = true) is DisconnectAction.CloseImmediately)
+        assertTrue(decideCore(DisconnectReason.IO_ERROR) is DisconnectAction.ShowReconnectOverlay)
+    }
+
+    @Test
+    fun coreConsole_userRequested_closesImmediately() {
+        assertTrue(decideCore(DisconnectReason.USER_REQUESTED, stayConnected = true) is DisconnectAction.CloseImmediately)
+    }
 }

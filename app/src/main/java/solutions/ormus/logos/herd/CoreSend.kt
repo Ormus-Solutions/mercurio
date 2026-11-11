@@ -17,6 +17,8 @@
 
 package solutions.ormus.logos.herd
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -58,8 +60,8 @@ object CoreSend {
     /** How long a paste waits after the attach line was typed, for `hc attach` to be reading (inferred). */
     const val ATTACH_WAIT_MS = 700L
 
-    /** One typed key as the watch state sees it: how a compose action takes a watch over. */
-    val TYPED_KEY: ByteArray = byteArrayOf(0x0d)
+    /** How much of [ATTACH_WAIT_MS] is left at [now] for an attach that started at [startedAt]; never below 0. */
+    fun attachWaitLeft(startedAt: Long, now: Long): Long = (startedAt + ATTACH_WAIT_MS - now).coerceAtLeast(0L)
 
     /** The exec command that pastes [text] into [address] and presses Enter; null for nothing to send or an address that is no plain word. */
     fun sendCommand(address: String, text: String): String? {
@@ -123,29 +125,18 @@ object CoreSend {
 }
 
 /**
- * The compose bar's actions on a watching console. Every one takes the watch over first, as a typed
- * key does ([CoreWatchState]); [takeOver] starts that (detach, then the plain attach).
- *
- * [exec] runs one command over an exec channel of the console's host; [write] types into the
- * console's shell; [settle] waits until the attach line has been typed and `hc attach` is reading, and returns at once when it is.
+ * The compose bar's actions on a core console. [exec] runs one command over an exec channel of the
+ * console's host; [write] types into the console, which `hc attach` reads; [settle] waits until the
+ * attach line has been typed and `hc attach` is reading, and returns at once when it is.
  */
 class CoreCompose(
-    private val state: CoreWatchState,
-    private val takeOver: () -> Unit,
     private val exec: suspend (String) -> CommandOutput?,
     private val settle: suspend () -> Unit,
     private val write: (String) -> Unit,
 ) {
-    private suspend fun takeOverFirst() {
-        if (state.onInput(CoreSend.TYPED_KEY) == WatchInput.TAKE_OVER) takeOver()
-        // Under way or just done: wait until `hc attach` is reading ([settle] returns at once when it is).
-        settle()
-    }
-
-    /** Take the watch over, then `hc send` [text] to [address]: one paste, then Enter. */
+    /** `hc send` [text] to [address]: one paste, then Enter. It goes through `hc`, not the attach, so it runs at once. */
     suspend fun send(address: String, text: String): SendResult {
         val command = CoreSend.sendCommand(address, text) ?: return SendResult.Failed("nothing to send to this terminal")
-        takeOverFirst()
         val output = try {
             exec(command)
         } catch (_: IOException) {
@@ -154,9 +145,17 @@ class CoreCompose(
         return CoreSend.resultOf(output)
     }
 
-    /** Take the watch over, then type [text] into the terminal with no Enter (a paste, or a long press on Send). */
-    suspend fun type(text: String, bracketed: Boolean) {
-        takeOverFirst()
-        write(BracketedPaste.wrap(text, bracketed))
+    // One paste at a time, so pastes land in the order they were made.
+    private val typing = Mutex()
+
+    /**
+     * Type [text] into the terminal with no Enter (a paste, or a long press on Send), once the attach
+     * reads. [bracketed] is read then: before, the mode is the shell's, not the program's.
+     */
+    suspend fun type(text: String, bracketed: () -> Boolean) {
+        typing.withLock {
+            settle()
+            write(BracketedPaste.wrap(text, bracketed()))
+        }
     }
 }

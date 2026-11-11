@@ -18,12 +18,20 @@
 package org.connectbot.service
 
 object DisconnectPolicy {
+    /**
+     * What a console does when its session ends for [reason]. [endsWithItsProgram] is a console whose
+     * session runs one program and ends with it (a herdr-core attach, `exec hc attach`): a clean end
+     * there is the program's own, so it keeps the program's last words on screen and never attaches
+     * again by itself, which would loop on a terminal that is gone.
+     */
     fun decide(
         reason: DisconnectReason,
         quickDisconnect: Boolean,
         stayConnected: Boolean,
+        endsWithItsProgram: Boolean = false,
     ): DisconnectAction {
         if (reason == DisconnectReason.USER_REQUESTED) return DisconnectAction.CloseImmediately
+        if (endsWithItsProgram && reason == DisconnectReason.REMOTE_EOF) return DisconnectAction.ShowReconnectOverlay
         if (quickDisconnect) return DisconnectAction.CloseImmediately
         // Never auto-reconnect on auth failures — looping would lock accounts
         if (reason == DisconnectReason.AUTH_FAIL) return DisconnectAction.ShowReconnectOverlay

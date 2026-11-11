@@ -70,7 +70,6 @@ import solutions.ormus.logos.herd.CoreCompose
 import solutions.ormus.logos.herd.CoreSeen
 import solutions.ormus.logos.herd.CoreSend
 import solutions.ormus.logos.herd.CoreWatch
-import solutions.ormus.logos.herd.CoreWatchState
 import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.Herd
 import solutions.ormus.logos.herd.HerdSession
@@ -89,7 +88,6 @@ import solutions.ormus.logos.herd.HerdrTermKey
 import solutions.ormus.logos.herd.HerdrWorkspacePicker
 import solutions.ormus.logos.herd.JumpTarget
 import solutions.ormus.logos.herd.SendResult
-import solutions.ormus.logos.herd.WatchInput
 import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
 import solutions.ormus.logos.home.HomeStart
@@ -344,20 +342,10 @@ class TerminalBridge {
     val console: HerdrConsole?
 
     /**
-     * Set on a console that watches a herdr-core terminal ([TerminalManager.openCoreWatch]): it only
-     * watches until the first key typed, which takes the terminal over ([watchState]).
+     * Set on a console that shows a herdr-core terminal ([TerminalManager.openCoreWatch]): it attaches
+     * the terminal as the phone's own view, at the console's font ([CoreWatch.attachCommand]).
      */
     val watch: CoreWatchTarget?
-
-    private val watchState = CoreWatchState()
-
-    // The font to give back when the watch ends: the profile's, before any fit shrank it.
-    @Volatile
-    private var watchNormalSp: Float = 0f
-
-    // The columns the screen holds at that font, measured once: after a fit the view holds more.
-    @Volatile
-    private var watchPhoneCols: Int = 0
 
     /** This console's id, unique while the app runs: two consoles of one host share the host's id. */
     val consoleId: Long = nextConsoleId.incrementAndGet()
@@ -457,14 +445,7 @@ class TerminalBridge {
             defaultForeground = Color(defaultFgColor),
             defaultBackground = Color(defaultBgColor),
             onKeyboardInput = { data ->
-                // The first key typed on a watching console takes the terminal over; that key is not sent
-                // (an observer takes no input), the watch ends and the terminal is attached again.
-                val toWatch = if (watch != null && isSessionOpen) watchState.onInput(data) else WatchInput.PASS
-                when (toWatch) {
-                    WatchInput.TAKE_OVER -> takeOverWatch()
-                    WatchInput.HOLD -> Unit
-                    WatchInput.PASS -> transportOperations.trySend(TransportOperation.WriteData(data))
-                }
+                transportOperations.trySend(TransportOperation.WriteData(data))
             },
             onBell = {
                 scope.launch {
@@ -620,8 +601,7 @@ class TerminalBridge {
     private fun applyProfileSettings(profile: org.connectbot.data.entity.Profile) {
         // Apply font size
         val newFontSize = if (profile.fontSize > 0) profile.fontSize else DEFAULT_FONT_SIZE_SP
-        // A watching console keeps the font its fit chose.
-        if (newFontSize.toFloat() != fontSizeSp && !(watch != null && watchState.watching)) {
+        if (newFontSize.toFloat() != fontSizeSp) {
             setFontSize(newFontSize.toFloat())
         }
 
@@ -908,12 +888,10 @@ class TerminalBridge {
      * included, sends it at once as before.
      */
     private fun sendPostLogin() {
-        // A console that watches a core terminal types its attach: the observer first, the plain attach
-        // once the terminal was taken over (also after a reconnect).
+        // A console that shows a core terminal types its attach, also after a reconnect.
         watch?.let { target ->
-            val command = if (watchState.watching) CoreWatch.observeCommand(target.address) else CoreWatch.takeOverCommand(target.address)
-            injectString(command)
-            if (watchState.watching) (transport as? SSH)?.let { fitWatchFont(it, target) }
+            injectString(CoreWatch.attachCommand(target.address))
+            attachTypedAt = SystemClock.elapsedRealtime()
             return
         }
         // An automatic reconnect attaches the Herdr session the terminal had, with no picker.
@@ -979,67 +957,18 @@ class TerminalBridge {
         }
     }
 
-    /**
-     * Shrink the font so the watched terminal's columns fit the screen: read its columns
-     * (`hc get`), wait for the view to size the terminal, then scale the font by the ratio
-     * ([CoreWatch.fitFont]). Pinch zoom works from there. A read that fails leaves the font alone.
-     */
-    private fun fitWatchFont(ssh: SSH, target: CoreWatchTarget) {
-        val command = CoreWatch.getCommand(target.address) ?: return
-        scope.launch {
-            val cols = withContext(dispatchers.io) {
-                ssh.takeIf { it.isConnected() }?.execDetailed(command, WATCH_READ_TIMEOUT_MS)
-            }?.takeIf { it.exitCode == 0 }?.let { CoreWatch.colsOf(it.stdout) } ?: return@launch
-            if (watchPhoneCols <= 0) {
-                watchPhoneCols = withTimeoutOrNull(WATCH_SIZE_WAIT_MS) {
-                    while (terminalEmulator.dimensions.columns <= 0) delay(ON_SCREEN_POLL_MS)
-                    terminalEmulator.dimensions.columns
-                } ?: return@launch
-                watchNormalSp = fontSizeSp
-            }
-            // One lock with the takeover's font restore: a fit never lands after it.
-            synchronized(watchState) {
-                if (watchState.watching) setFontSize(CoreWatch.fitFont(watchNormalSp, watchPhoneCols, cols), false)
-            }
-        }
-    }
-
-    /**
-     * The first key typed on a watching console: back to the normal font (so the terminal is sized for
-     * the phone), detach the observer (ctrl+\) and attach the terminal for real. The desktop resizes then.
-     */
-    private fun takeOverWatch() {
-        val target = watch ?: return
-        synchronized(watchState) {
-            if (watchNormalSp > 0f) setFontSize(watchNormalSp, false)
-        }
-        sendByte(CoreWatch.DETACH)
-        scope.launch {
-            delay(CoreWatch.DETACH_WAIT_MS)
-            injectString(CoreWatch.takeOverCommand(target.address))
-            takeOverDoneAt = SystemClock.elapsedRealtime()
-            watchState.takeOverDone()
-        }
-    }
-
-    // The compose bar's actions on a watching console ([CoreCompose]).
+    // The compose bar's actions on a core console ([CoreCompose]).
     private val coreCompose by lazy {
         CoreCompose(
-            state = watchState,
-            takeOver = ::takeOverWatch,
             exec = { command -> execForWatch(command, CoreSend.SEND_TIMEOUT_MS) },
-            settle = {
-                withTimeoutOrNull(CoreSend.ATTACH_WAIT_MS * 4) { while (watchState.isTakingOver) delay(50) }
-                val wait = takeOverDoneAt + CoreSend.ATTACH_WAIT_MS - SystemClock.elapsedRealtime()
-                if (wait > 0) delay(wait)
-            },
+            settle = { delay(CoreSend.attachWaitLeft(attachTypedAt, SystemClock.elapsedRealtime())) },
             write = ::injectString,
         )
     }
 
-    // When the last takeover typed its attach line (elapsed realtime), for a paste or send that follows it closely.
+    // When the attach line was last typed (elapsed realtime), for a paste that follows it closely.
     @Volatile
-    private var takeOverDoneAt = 0L
+    private var attachTypedAt = 0L
 
     // A timeout or a dropped link is no answer (null), not a crash.
     private suspend fun execForWatch(command: String, timeoutMs: Long): CommandOutput? = withContext(dispatchers.io) {
@@ -1078,9 +1007,9 @@ class TerminalBridge {
     }
 
     /**
-     * The compose bar's Send on a core watch console: take the watch over, then `hc send` pastes
-     * [text] and presses Enter (it waits for a person's draft and refuses a blocked program).
-     * Null on any other console: the caller types into the shell as before.
+     * The compose bar's Send on a core console: `hc send` pastes [text] and presses Enter (it waits
+     * for a person's draft and refuses a blocked program). Null on any other console: the caller
+     * types into the shell as before.
      */
     suspend fun composeSend(text: String): SendResult? {
         val target = watch ?: return null
@@ -1090,14 +1019,14 @@ class TerminalBridge {
 
     /**
      * Type [text] into the terminal as a paste, with no Enter (the clipboard, a long press on Send).
-     * A watching console takes the watch over first, as a typed key does.
+     * On a core console it waits until the attach reads, so the paste never lands in the shell.
      */
     fun pasteText(text: String) {
         if (watch == null || transport !is SSH) {
             injectString(BracketedPaste.wrap(text, bracketedPaste))
             return
         }
-        scope.launch { coreCompose.type(text, bracketedPaste) }
+        scope.launch { coreCompose.type(text) { bracketedPaste } }
     }
 
     /**
@@ -1260,7 +1189,7 @@ class TerminalBridge {
             }
         }
 
-        when (DisconnectPolicy.decide(reason, host.quickDisconnect, host.stayConnected)) {
+        when (DisconnectPolicy.decide(reason, host.quickDisconnect, host.stayConnected, endsWithItsProgram = watch != null)) {
             is DisconnectAction.CloseImmediately -> {
                 awaitingClose = true
                 triggerDisconnectListener()
@@ -1805,7 +1734,6 @@ class TerminalBridge {
         private const val HERDR_DETACH_WAIT_MS = 3_000L
 
         private const val WATCH_READ_TIMEOUT_MS = 5_000L
-        private const val WATCH_SIZE_WAIT_MS = 10_000L
 
         /** How often an extra console looks for Herdr's client on its terminal before it lands. */
         private const val ON_SCREEN_POLL_MS = 100L

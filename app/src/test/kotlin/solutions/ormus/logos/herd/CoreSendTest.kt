@@ -17,6 +17,9 @@
 
 package solutions.ormus.logos.herd
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.connectbot.transport.CommandOutput
 import org.junit.Assert.assertEquals
@@ -114,17 +117,12 @@ class CoreSendTest {
         assertFalse(CoreSend.fitsPut(8L * 1024 * 1024 + 1))
     }
 
-    // The sequence a compose Send on a watching console makes.
+    // The sequence the compose bar's actions make on a core console.
     private class Log {
         val events = mutableListOf<String>()
     }
 
-    private fun compose(log: Log, state: CoreWatchState = CoreWatchState(), result: CommandOutput? = out(), fail: Boolean = false) = CoreCompose(
-        state = state,
-        takeOver = {
-            log.events += "takeover"
-            state.takeOverDone()
-        },
+    private fun compose(log: Log, result: CommandOutput? = out(), fail: Boolean = false) = CoreCompose(
         exec = { cmd ->
             log.events += "exec:" + cmd
             if (fail) throw java.io.IOException("timeout")
@@ -134,80 +132,79 @@ class CoreSendTest {
         write = { log.events += "write:" + it },
     )
 
-    @Test fun `send takes the watch over before hc send runs`() = runTest {
+    @Test fun `send runs hc send at once, it does not go through the attach`() = runTest {
         val log = Log()
         val result = compose(log).send("t7", "hello")
         assertEquals(SendResult.Sent, result)
-        assertEquals(listOf("takeover", "settle", "exec:" + CoreSend.sendCommand("t7", "hello")), log.events)
+        assertEquals(listOf("exec:" + CoreSend.sendCommand("t7", "hello")), log.events)
     }
 
-    @Test fun `a second send does not take over again`() = runTest {
-        val log = Log()
-        val c = compose(log)
-        c.send("t7", "a")
-        c.send("t7", "b")
-        assertEquals(1, log.events.count { it == "takeover" })
-        assertEquals(2, log.events.count { it.startsWith("exec:") })
-    }
-
-    @Test fun `a refused send reports why and still ran no second command`() = runTest {
+    @Test fun `a refused send reports why and ran one command`() = runTest {
         val log = Log()
         val err = out(stderr = "{\"error\":{\"kind\":\"refused\",\"message\":\"t7 is blocked (permission)\"}}", exit = 3)
         val result = compose(log, result = err).send("t7", "hello")
         assertEquals(SendResult.Refused("t7 is blocked (permission)"), result)
-        assertEquals(3, log.events.size)
+        assertEquals(1, log.events.size)
     }
 
-    @Test fun `an address that cannot be sent to runs nothing and does not take over`() = runTest {
+    @Test fun `an address that cannot be sent to runs nothing`() = runTest {
         val log = Log()
         assertTrue(compose(log).send("t7; x", "hello") is SendResult.Failed)
         assertTrue(log.events.isEmpty())
     }
 
-    @Test fun `a paste takes the watch over, settles, then writes`() = runTest {
+    @Test fun `a paste waits until the attach reads, then writes into it`() = runTest {
         val log = Log()
-        compose(log).type("hello", bracketed = false)
-        assertEquals(listOf("takeover", "settle", "write:hello"), log.events)
+        compose(log).type("hello") { false }
+        assertEquals(listOf("settle", "write:hello"), log.events)
     }
 
-    @Test fun `a paste after the takeover writes at once`() = runTest {
+    @Test fun `a paste reads the bracketed paste mode once the attach reads, not before`() = runTest {
+        // The shell's mode is not the program's: the mode counts once `hc attach` has painted the program's.
+        var bracketed = false
         val log = Log()
-        val c = compose(log)
-        c.type("a", false)
-        log.events.clear()
-        c.type("b", false)
-        assertEquals(listOf("settle", "write:b"), log.events)
+        val c = CoreCompose(exec = { null }, settle = { bracketed = true }, write = { log.events += it })
+        // Two lines: only text with a line break is ever bracketed.
+        c.type("a\nb") { bracketed }
+        assertEquals(listOf(BracketedPaste.START + "a\nb" + BracketedPaste.END), log.events)
+    }
+
+    @Test fun `two pastes land in the order they were made`() = runTest {
+        val log = Log()
+        var first = true
+        val c = CoreCompose(
+            exec = { null },
+            settle = {
+                if (first) {
+                    first = false
+                    delay(100)
+                }
+            },
+            write = { log.events += it },
+        )
+        launch { c.type("a") { false } }
+        launch { c.type("b") { false } }
+        advanceUntilIdle()
+        assertEquals(listOf("a", "b"), log.events)
+    }
+
+    @Test fun `the wait is what is left of the attach time, never below zero`() {
+        assertEquals(CoreSend.ATTACH_WAIT_MS - 200, CoreSend.attachWaitLeft(startedAt = 1_000, now = 1_200))
+        assertEquals(0L, CoreSend.attachWaitLeft(startedAt = 1_000, now = 1_000 + CoreSend.ATTACH_WAIT_MS))
+        assertEquals(0L, CoreSend.attachWaitLeft(startedAt = 1_000, now = 99_000))
     }
 
     @Test fun `a long press Send types the text without Enter`() = runTest {
         val log = Log()
-        compose(log).type("hello world", bracketed = true)
+        compose(log).type("hello world") { true }
         val written = log.events.last { it.startsWith("write:") }
         assertEquals("write:" + BracketedPaste.wrap("hello world", true), written)
         assertFalse(written.contains("\r") || written.contains("\n"))
     }
 
-    @Test fun `a paste while the takeover runs waits for it`() = runTest {
-        val log = Log()
-        val state = CoreWatchState()
-        val c = compose(log, state)
-        state.onInput(byteArrayOf(0x61))
-        c.type("x", false)
-        assertEquals(listOf("settle", "write:x"), log.events)
-    }
-
     @Test fun `a send whose exec times out is a failure, not a crash`() = runTest {
         val result = compose(Log(), fail = true).send("t7", "hello")
         assertTrue(result is SendResult.Failed)
-    }
-
-    @Test fun `a send right after a takeover also waits for the attach`() = runTest {
-        val log = Log()
-        val c = compose(log)
-        c.send("t7", "a")
-        log.events.clear()
-        c.send("t7", "b")
-        assertEquals("settle", log.events.first())
     }
 
     @Test fun `a not found message that mentions blocked is still a failure`() {
