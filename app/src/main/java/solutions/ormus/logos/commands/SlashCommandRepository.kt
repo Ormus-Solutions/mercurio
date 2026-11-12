@@ -19,6 +19,7 @@ package solutions.ormus.logos.commands
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,7 +79,8 @@ class SlashCommandRepository(
     /**
      * Read the host's own commands again through [runner] (SSH execDetailed;
      * null when no session is up), with [cwd]'s project commands. Keeps the old
-     * list on failure. A second call while one runs does nothing.
+     * list on failure, cancel or an unexpected exception (logged, failed set, not
+     * thrown) and always frees the next call. A second call while one runs does nothing.
      */
     suspend fun refresh(hostId: Long, cwd: String?, runner: (String) -> CommandOutput?) {
         val flow = flowFor(hostId)
@@ -87,24 +89,39 @@ class SlashCommandRepository(
             if (current.refreshing) return
             if (flow.compareAndSet(current, current.copy(refreshing = true, failed = false))) break
         }
-        val output = withContext(dispatchers.io) {
-            try {
-                runner(OwnCommands.fetchCommand(cwd))?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout
-            } catch (e: IOException) {
-                Timber.w(e, "Reading own commands failed")
-                null
-            } catch (e: IllegalStateException) {
-                Timber.w(e, "Reading own commands failed")
-                null
+        // True once this call has handed back its claim on the flag; the finally must not clear a later caller's.
+        var released = false
+        try {
+            val output = withContext(dispatchers.io) {
+                try {
+                    runner(OwnCommands.fetchCommand(cwd))?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout
+                } catch (e: IOException) {
+                    Timber.w(e, "Reading own commands failed")
+                    null
+                } catch (e: IllegalStateException) {
+                    Timber.w(e, "Reading own commands failed")
+                    null
+                }
             }
+            if (output == null) {
+                released = true
+                flow.update { it.copy(refreshing = false, failed = true) }
+                return
+            }
+            val fresh = OwnCommandsState(OwnCommands.parse(output), clock(), cwd)
+            withContext(dispatchers.io) { writeCache(hostId, fresh, output) }
+            released = true
+            flow.value = fresh
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Callers launch this with no handler, so an unexpected failure is logged, not thrown.
+            Timber.w(e, "Own commands refresh failed")
+            flow.update { it.copy(failed = true) }
+        } finally {
+            // A cancel or an unexpected exception must not leave the flag set, or no later refresh runs.
+            if (!released) flow.update { it.copy(refreshing = false) }
         }
-        if (output == null) {
-            flow.update { it.copy(refreshing = false, failed = true) }
-            return
-        }
-        val fresh = OwnCommandsState(OwnCommands.parse(output), clock(), cwd)
-        withContext(dispatchers.io) { writeCache(hostId, fresh, output) }
-        flow.value = fresh
     }
 
     /** The agent last picked on [hostId], or null. */

@@ -354,7 +354,7 @@
   <string name="button_edit_palette" tools:machine_translated="true">Uredi paleto</string>
   <string name="button_export_scheme" tools:machine_translated="true">Izvozi barvno shemo.</string>
   <string name="button_import_scheme" tools:machine_translated="true">Uvozi barvno shemo</string>
-  <string name="message_export_success" tools:machine_translated="true">Shema je bila uspešno izvozena.</string>
+  <string name="message_export_success" tools:machine_translated="true">Shema %1$s je bila uspešno izvozena.</string>
   <string name="message_import_success" tools:machine_translated="true">Uvoz %1$s</string>
   <string name="error_export_failed" tools:machine_translated="true">Izvoz sheme je bil neuspešen: %1$s</string>
   <string name="error_import_failed" tools:machine_translated="true">Uvoz sheme je bil neuspešen: %1$s</string>

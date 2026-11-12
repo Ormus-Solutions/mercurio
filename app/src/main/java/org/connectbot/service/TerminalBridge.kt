@@ -88,6 +88,8 @@ import solutions.ormus.logos.herd.HerdrSessions
 import solutions.ormus.logos.herd.HerdrTermKey
 import solutions.ormus.logos.herd.HerdrWorkspacePicker
 import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.PasteOutcome
+import solutions.ormus.logos.herd.PasteUpload
 import solutions.ormus.logos.herd.SendResult
 import solutions.ormus.logos.herd.WorkspaceChoice
 import solutions.ormus.logos.herd.WorkspacePick
@@ -1059,15 +1061,40 @@ class TerminalBridge {
     }
 
     /**
-     * A photo for a watching console, already uploaded to [remote] on the connected machine: `hc put`
-     * copies it beside the terminal on its machine and gives that path. Without a watch, a file over
-     * 8 MB, or when `hc put` fails, [remote] stays the path.
+     * Put a photo ([bytes], named [name]) where the agent can read it, and give that path, or why not.
+     * It is staged in a private folder of the login user ([PasteUpload.dirScript]) over SFTP; a console
+     * watching a core terminal then gets it beside the terminal with `hc put` and its printed path. The
+     * staged file stays: nothing says when the agent is done reading it.
      */
-    suspend fun pathForWatch(remote: String, bytes: Long): String {
-        val target = watch ?: return remote
-        if (!CoreSend.fitsPut(bytes)) return remote
-        val command = CoreSend.putCommand(target.address, remote) ?: return remote
-        return CoreSend.landedPath(execForWatch(command, CoreSend.PUT_TIMEOUT_MS)) ?: remote
+    suspend fun sendPhoto(bytes: ByteArray, name: String): PasteOutcome = withContext(dispatchers.io) {
+        val ssh = (transport as? SSH)?.takeIf { it.isConnected() }
+            ?: return@withContext PasteOutcome.Failed("not connected; no photo was sent")
+        val dir = when (val made = PasteUpload.dirOf(execForWatch(PasteUpload.dirCommand(), PasteUpload.DIR_TIMEOUT_MS))) {
+            is PasteOutcome.Landed -> made.path
+            is PasteOutcome.Failed -> return@withContext made
+        }
+        val remote = "$dir/$name"
+        try {
+            ssh.uploadFile(remote, bytes)
+        } catch (e: IOException) {
+            return@withContext PasteOutcome.Failed("upload failed: ${e.message ?: "link dropped"}")
+        } catch (e: IllegalStateException) {
+            return@withContext PasteOutcome.Failed("upload failed: ${e.message ?: "not connected"}")
+        }
+        pathForWatch(remote, bytes.size.toLong())
+    }
+
+    /**
+     * The path to give for a photo already uploaded to [remote] on the connected machine. A watching
+     * console gets it from `hc put`, which copies it beside the terminal on its machine and prints the
+     * path; when that cannot be done (too large, no answer, an error) the result is a failure, never
+     * [remote], which could be on the wrong machine. Without a watch, [remote] is the path.
+     */
+    suspend fun pathForWatch(remote: String, bytes: Long): PasteOutcome {
+        val target = watch ?: return PasteOutcome.Landed(remote)
+        if (!CoreSend.fitsPut(bytes)) return PasteOutcome.Failed("photo is over ${CoreSend.MAX_PUT_BYTES / (1024 * 1024)} MB; hc put does not take it")
+        val command = CoreSend.putCommand(target.address, remote) ?: return PasteOutcome.Failed("no terminal to put the photo beside")
+        return PasteUpload.putOutcome(execForWatch(command, CoreSend.PUT_TIMEOUT_MS))
     }
 
     // One command over an exec channel of [ssh] while it is connected, as [HerdrConsoles.land] runs them.

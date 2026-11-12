@@ -61,6 +61,7 @@ import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
+import org.connectbot.transport.TransportFactory
 import org.connectbot.ui.components.DisconnectAllDialog
 import org.connectbot.ui.navigation.NavDestinations
 import org.connectbot.ui.navigation.openConsoleRoute
@@ -71,6 +72,9 @@ import org.connectbot.util.IconStyle
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.ShortcutIconGenerator
 import org.connectbot.util.isNotificationPermissionGranted
+import solutions.ormus.logos.herd.CoreNotices
+import solutions.ormus.logos.herd.CoreWatch
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdView
 import solutions.ormus.logos.herd.HerdrAction
 import solutions.ormus.logos.herd.HerdrCommands
@@ -110,7 +114,38 @@ class MainActivity : AppCompatActivity() {
          * opened whatever the phone calls it ([HerdrOpen]).
          */
         const val EXTRA_HERD_HOSTS = HerdrOpen.EXTRA_HERD_HOSTS
+
+        /** Extra on a core notice's tap: the herdr-core address of the terminal to watch (see [coreWatchFrom]). */
+        const val EXTRA_CORE_ADDRESS = "solutions.ormus.logos.extra.CORE_ADDRESS"
+
+        /** Extra beside [EXTRA_CORE_ADDRESS]: the saved host's id (a Long). */
+        const val EXTRA_CORE_HOST = "solutions.ormus.logos.extra.CORE_HOST"
+
+        /** Extra beside [EXTRA_CORE_ADDRESS]: the space the terminal sits in (the watch view's label). */
+        const val EXTRA_CORE_SPACE = "solutions.ormus.logos.extra.CORE_SPACE"
+
+        /** Extra beside [EXTRA_CORE_ADDRESS]: the tab the terminal sits in (the watch view's label). */
+        const val EXTRA_CORE_TAB = "solutions.ormus.logos.extra.CORE_TAB"
+
+        private const val MAX_LABEL = 80
+
+        /**
+         * The watch view a tapped core notice asks for: its terminal on its host, as an Inbox row opens it.
+         * Null (the host's console opens, as before) when the intent has no address or host, or the address
+         * is not one `hc` gives a terminal: the extras are data, checked before they reach a shell.
+         */
+        internal fun coreWatchFrom(intent: Intent?): CoreWatchRequest? {
+            val address = intent?.getStringExtra(EXTRA_CORE_ADDRESS) ?: return null
+            if (!CoreNotices.isAddress(address) || !CoreWatch.isSafe(address)) return null
+            val host = intent.getLongExtra(EXTRA_CORE_HOST, -1L).takeIf { it > 0L } ?: return null
+            // The labels are only shown: capped, so a forged intent cannot fill the screen or a route.
+            val target = CoreWatchTarget(address, intent.getStringExtra(EXTRA_CORE_SPACE).orEmpty().take(MAX_LABEL), intent.getStringExtra(EXTRA_CORE_TAB).orEmpty().take(MAX_LABEL))
+            return CoreWatchRequest(host, target)
+        }
     }
+
+    /** A core terminal to watch on the saved host [hostId]. */
+    internal data class CoreWatchRequest(val hostId: Long, val target: CoreWatchTarget)
 
     internal lateinit var appViewModel: AppViewModel
 
@@ -125,9 +160,10 @@ class MainActivity : AppCompatActivity() {
     /**
      * What a Herdr notification or a launcher's tap asked for beside the host URI: the [pane]
      * to focus, its [session], the [view] to open over the console (the terminal when null),
-     * and the machine's names ([hosts], a launcher's tap only: see [HerdrOpen]).
+     * and the machine's names ([hosts], a launcher's tap only: see [HerdrOpen]); [watch]: a core
+     * notice's terminal, which opens its watch view instead of the host's console.
      */
-    private data class HerdRequest(val pane: String?, val session: String, val view: HerdView?, val hosts: String?)
+    private data class HerdRequest(val pane: String?, val session: String, val view: HerdView?, val hosts: String?, val watch: CoreWatchRequest? = null)
 
     // The request beside requestedUri, taken whole when the URI is handled, so a second tap
     // while the first is in flight cannot mix the two.
@@ -137,12 +173,15 @@ class MainActivity : AppCompatActivity() {
     // no saved host must save one host, not two.
     private val openTapLock = Mutex()
 
+    // Taps on core notices of one host race otherwise: the last open to finish would be the one shown.
+    private val watchTapLock = Mutex()
+
     /** Remember a tapped Herdr notification's pane and log the tap (an id only). */
     private fun takeHerdNotification(intent: Intent?) {
         val pane = intent?.getStringExtra(EXTRA_HERD_PANE)
         val session = intent?.getStringExtra(EXTRA_HERD_SESSION) ?: HerdrCommands.DEFAULT_SESSION
         val view = HerdView.parse(intent?.getStringExtra(EXTRA_HERD_VIEW), pane, session)
-        requestedHerd = HerdRequest(pane, session, view, intent?.getStringExtra(EXTRA_HERD_HOSTS))
+        requestedHerd = HerdRequest(pane, session, view, intent?.getStringExtra(EXTRA_HERD_HOSTS), coreWatchFrom(intent))
         intent?.getStringExtra(EXTRA_HERD_NOTICE)?.let { usageTracker.log(it) }
         when (view) {
             is HerdView.Chat -> usageTracker.log(UsageActions.LAUNCH_CHAT)
@@ -461,6 +500,9 @@ class MainActivity : AppCompatActivity() {
         requestedHerd = null
 
         lifecycleScope.launch {
+            // Core watch taps run one at a time, from the open to the route, so the last tap is the one shown.
+            val watchLock = herd?.watch?.let { watchTapLock }
+            watchLock?.lock()
             try {
                 // A launcher's tap on an agent (it names the machine): the saved host that shows the
                 // agent's Herdr session there, whatever this phone calls it, before the URI's own name. When
@@ -468,7 +510,12 @@ class MainActivity : AppCompatActivity() {
                 // from the tap and a console for the session opens on it; every later tap resolves to it. The
                 // URI path below would make a temporary host: a new connection each tap, on no session. One
                 // tap at a time, so a second tap finds the first tap's host instead of saving its own.
-                var bridge = herd?.hosts?.let { hosts ->
+                // A core notice's tap: the watch view of its terminal, as the Inbox opens it. When that host is gone
+                // or the watch cannot open, the tap falls through to the host's console below.
+                // It opens only on the host the URI itself names ([CoreWatchOpen]).
+                var bridge = herd?.watch?.let { watch ->
+                    CoreWatchOpen.open(uri, watch, { TransportFactory.findHost(hostRepository, it) }) { id, target -> manager.openCoreWatchForHostId(id, target) }
+                } ?: herd?.hosts?.let { hosts ->
                     openTapLock.withLock {
                         val names = HerdrOpen.names(hosts, uri.host)
                         val saved = hostRepository.getHosts()
@@ -506,6 +553,8 @@ class MainActivity : AppCompatActivity() {
                 controller.openConsoleRoute(NavDestinations.console(bridge.host.id, bridge.console, bridge.watch))
             } catch (e: Exception) {
                 Timber.e(e, "Error handling connection URI: $uri")
+            } finally {
+                watchLock?.unlock()
             }
         }
     }

@@ -247,6 +247,34 @@ class HerdPushTailTest {
         verifyNoMoreInteractions(savedHosts)
     }
 
+    // Three options each wrapped to four lines, then "No": the last 12 lines hold no "1." and no question any more.
+    private fun wrapped(command: String) = buildString {
+        appendLine("Bash command")
+        appendLine("  $command")
+        appendLine("Do you want to proceed?")
+        appendLine("❯ 1. Yes")
+        repeat(3) { appendLine("    wrapped option one line $it") }
+        appendLine("  2. Yes, and always allow this command")
+        repeat(3) { appendLine("    wrapped option two line $it") }
+        appendLine("  3. Yes, and allow the whole project")
+        repeat(3) { appendLine("    wrapped option three line $it") }
+        appendLine("  4. No")
+        appendLine("Esc to cancel")
+        appendLine("Sonnet 5.5  ctx 4% (40k/1M)")
+    }
+
+    @Test
+    fun read_theHashIsOfTheWholeRead_soWrappedOptionsCannotPushThePromptOutOfIt() = runBlocking {
+        val full = wrapped("make")
+        val session = FakeSession(exec = { CommandOutput(full, "", 0) })
+
+        val read = reading(session).read(anyKey, notice, 1_000) as HerdPushTail.Read.Text
+
+        assertTrue("the 12-line tail alone shows no prompt", CoreNotices.fingerprint(read.text) == null)
+        assertEquals(CoreNotices.fingerprint(full), read.prompt)
+        assertTrue(read.prompt != null)
+    }
+
     private val coreAgent = HerdrAgentInfo(paneId = "t15", workspaceId = "alpha", tabId = "alpha / build", agent = "claude-code", agentStatus = HerdrAgentStatus.BLOCKED, core = CoreFacts(null, 4))
     private val coreNotice = HerdAttention.Notice.NeedsYou(coreAgent, null, null, session = CoreNotices.SESSION)
 

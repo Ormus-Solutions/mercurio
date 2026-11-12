@@ -35,6 +35,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentSession
@@ -64,6 +65,8 @@ class ChatViewModelTest {
         override val session: String = "default",
     ) : ChatHost {
         var agent: String? = "claude"
+        var seq = 7L
+        val answered = mutableListOf<Triple<String, String, Long>>()
         var focused = "w1:p1"
         var agentSession = "11111111-2222-3333-4444-555555555555"
         val commands = mutableListOf<String>()
@@ -75,8 +78,8 @@ class ChatViewModelTest {
                 HerdrPaneInfo(paneId = "w1:p2", agent = "claude", agentSession = HerdrAgentSession("claude", "id", "22222222-2222-3333-4444-555555555555")),
             ),
             agents = listOf(
-                HerdrAgentInfo(paneId = "w1:p1", agent = agent, agentStatus = status),
-                HerdrAgentInfo(paneId = "w1:p2", agent = "claude", agentStatus = status),
+                HerdrAgentInfo(paneId = "w1:p1", agent = agent, agentStatus = status, stateChangeSeq = seq),
+                HerdrAgentInfo(paneId = "w1:p2", agent = "claude", agentStatus = status, stateChangeSeq = seq + 100),
             ),
             focusedPaneId = focused,
         )
@@ -89,7 +92,10 @@ class ChatViewModelTest {
         val sends: List<String> get() = commands.filter { "send-text" in it }
         val reads: List<String> get() = commands.filter { "MERCURIO_CHAT" in it }
 
-        override suspend fun answer(paneId: String, keys: String) = HerdAnswerOutcome.NotBlocked
+        override suspend fun answer(paneId: String, keys: String, seq: Long): HerdAnswerOutcome {
+            answered += Triple(paneId, keys, seq)
+            return HerdAnswerOutcome.NotBlocked
+        }
 
         var screenText: String? = "Do you want to proceed?\n❯ 1. Yes\n  2. No"
         val screens = mutableListOf<String>()
@@ -131,6 +137,37 @@ class ChatViewModelTest {
         viewModel.load(host, fresh = true)
         assertEquals(ChatProblem.NotAgent, viewModel.uiState.value.problem)
         assertNull(viewModel.uiState.value.target)
+    }
+
+    @Test
+    fun answer_carriesTheSeqOfTheAgentTheChatDisplayed() = runTest(testDispatcher) {
+        val host = FakeHost(HerdrAgentStatus.BLOCKED)
+        val viewModel = ChatViewModel(dispatchers)
+        viewModel.open()
+        viewModel.load(host, fresh = true)
+
+        // The agent moves on and blocks again after the chat read it: the answer still names the seq it showed.
+        host.seq = 9
+        viewModel.answer(host, HerdAnswer.APPROVE)
+        runCurrent()
+
+        assertEquals(listOf(Triple("w1:p1", HerdAnswer.APPROVE.key, 7L)), host.answered)
+    }
+
+    @Test
+    fun answer_withNoSeqToHoldItTo_isRefused_notSentBlind() = runTest(testDispatcher) {
+        val host = FakeHost(HerdrAgentStatus.BLOCKED)
+        host.seq = 0
+        val viewModel = ChatViewModel(dispatchers)
+        viewModel.open()
+        viewModel.load(host, fresh = true)
+        assertNull(viewModel.uiState.value.target?.seq)
+
+        viewModel.answer(host, HerdAnswer.APPROVE)
+        runCurrent()
+
+        assertTrue(host.answered.isEmpty())
+        assertEquals(HerdAnswerOutcome.Unproven, viewModel.uiState.value.answer)
     }
 
     @Test

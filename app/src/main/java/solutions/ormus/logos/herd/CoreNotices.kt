@@ -94,24 +94,28 @@ object CoreNotices {
     }
 
     /**
-     * What identifies the prompt a notice showed: a hash of the end of the screen it carried. Whether `turn`
-     * changes on every block (two permission asks in one turn) is not measured, so the answer also checks the
-     * screen is still the one he saw.
+     * What identifies the prompt a notice showed: a hash of the permission prompt on its screen (the question,
+     * the command and the options, [HerdApproval.promptRegion]), not of the footer or status lines under it,
+     * which change while the prompt stays. Null when the screen shows no such prompt. Whether `turn` changes on
+     * every block (two permission asks in one turn) is not measured, so the answer also checks the screen still
+     * shows the prompt he saw. The same hash serves a plain Herdr notice.
      */
-    fun fingerprint(screen: String): Int? = HerdApproval.tail(screen)?.hashCode()
+    fun fingerprint(screen: String): Int? = HerdApproval.promptRegion(screen)?.hashCode()
 
     /**
      * Whether an answer to a notice raised at [turn] showing the prompt [prompt] may go out, judged on
      * [fresh], the terminal re-read just now, and its [screen]: null when it may, else why not. A different
-     * turn, or a different screen when the notice showed one, means the agent moved on and may be asking
-     * something else.
+     * turn, or a screen other than the one the notice showed, means the agent moved on and may be asking
+     * something else. A notice that carried no [prompt] cannot prove it, so its answer is refused as
+     * [HerdAnswerOutcome.Unproven] (it is not offered either, see `ConnectionNotifier`).
      */
     fun guard(fresh: Agent?, turn: Int?, screen: String?, prompt: Int?): HerdAnswerOutcome? {
         val state = fresh?.state
         return when {
             fresh == null || state !is AgentState.NeedsYou || state.kind != NeedsYouKind.PERMISSION || fresh.kind !in PROVEN_KINDS -> HerdAnswerOutcome.NotBlocked
             turn == null || fresh.turn != turn -> HerdAnswerOutcome.PromptChanged
-            prompt != null && (screen == null || fingerprint(screen) != prompt) -> HerdAnswerOutcome.PromptChanged
+            prompt == null -> HerdAnswerOutcome.Unproven
+            screen == null || fingerprint(screen) != prompt -> HerdAnswerOutcome.PromptChanged
             else -> null
         }
     }

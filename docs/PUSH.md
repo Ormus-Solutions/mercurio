@@ -34,8 +34,35 @@ host's clock may run a little ahead); a later `ts`, or none, is a new block.
 
 A pane that blocks again while its "Needs you" still shows gets the same notice back, quietly:
 the earlier prompt's text goes at once, then the new prompt is read. A read still running for the
-earlier block, or one that ends after the monitor posted a newer block, puts nothing in. Approve
-and Deny carry no prompt check, so the notice never shows one prompt while the pane asks another.
+earlier block, or one that ends after the monitor posted a newer block, puts nothing in.
+
+Approve and Deny answer only the prompt the notice showed. Each notice carries a mark of that prompt,
+and the answer reads the host again and is refused (nothing sent) when the mark differs:
+
+- Approve and Deny exist only when the pane shows a yes-or-no permission prompt (a highlighted "Yes"
+  first and a plain "No" last). A plan pick, a question or a notice whose pane was not read shows and
+  opens the app with no buttons.
+- The prompt hash covers that prompt only: the question and command above the options (up to 4 lines,
+  leaving out a running timer or token-count line) and the options through the last one. The footer
+  and any status line under the prompt (a model, context or cost line) change while the prompt stays,
+  so they are not hashed. The hash is taken from the whole pane read and carried on the notice, so
+  wrapped options cannot push the prompt out of the shown tail.
+- A notice raised by the live monitor carries the prompt hash and the agent's `state_change_seq`. The
+  answer is refused when either differs. A Herdr build that reports no
+  `state_change_seq` (or 0) gives no seq mark.
+- A push has no `state_change_seq` (the watcher's message does not carry one; adding it in `host/`
+  would be the fuller fix). A push-raised notice shows at once with no buttons; when the read of the
+  pane's end lands (see above), the notice is posted again with Approve and Deny, held to the prompt
+  hash. A push whose read missed, or whose pane shows no permission prompt, keeps no buttons and
+  still opens the app.
+- A herdr-core notice carries the agent's turn and the prompt hash; the answer is refused when either
+  changed. With no prompt hash it offers no buttons.
+- A notice raised by a build before these marks existed carries none. Its answer sends nothing and says
+  "Open Mercurio to answer."
+- The Inbox chat's Approve and Deny are held to the `state_change_seq` the chat last read for that
+  agent, and sent nothing ("Open Mercurio to answer.") when there is none. The Agents board shows
+  Approve and Deny only for a yes-or-no prompt and holds the answer to the card's `state_change_seq`
+  and that prompt's hash (an option pick, which names its own option, to the seq).
 
 ## Message
 

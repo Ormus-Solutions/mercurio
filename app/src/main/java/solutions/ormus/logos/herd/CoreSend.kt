@@ -103,6 +103,14 @@ object CoreSend {
         return output.stdout.lines().map { it.trim() }.lastOrNull { it.startsWith("/") }
     }
 
+    /** Why `hc put` gave no path: its own error text when it printed one, else what the exit says. */
+    fun putFailure(output: CommandOutput?): String {
+        val code = output?.exitCode ?: return "hc put did not answer"
+        if (code == 0) return "hc put printed no path"
+        val error = errorOf(output.stdout) ?: errorOf(output.stderr)
+        return error?.text ?: output.stderr.trim().ifEmpty { "hc put failed (exit $code)" }
+    }
+
     private class HcError(val kind: String, val text: String)
 
     // The kind, and `message. hint`, of an `{"error":{...}}` document in [text], or null when it holds none.

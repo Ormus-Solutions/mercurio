@@ -17,6 +17,7 @@
 
 package solutions.ormus.logos.voice
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -35,7 +36,7 @@ class HttpVoiceTransportTest {
     val tmp = TemporaryFolder()
 
     private lateinit var server: MockWebServer
-    private val transport = HttpVoiceTransport(connectTimeoutMs = 2_000, readTimeoutMs = 5_000)
+    private val transport = HttpVoiceTransport(Dispatchers.IO, connectTimeoutMs = 2_000, readTimeoutMs = 5_000)
 
     @Before
     fun up() {

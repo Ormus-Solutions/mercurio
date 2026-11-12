@@ -149,7 +149,7 @@ class HerdPushNotices internal constructor(
                     synchronized(blocks) {
                         val ours = blocks[paneKey(host, notice)] == posted.generation && notifier.herdNoticeShownAt(context, host, notice) == posted.shownAt
                         if (ours) {
-                            notifier.showHerdNotification(context, host, notice.copy(paneTail = read.text), quiet = true)
+                            notifier.showHerdNotification(context, host, notice.copy(paneTail = read.text, prompt = read.prompt), quiet = true)
                         }
                     }
                 }

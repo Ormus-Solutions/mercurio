@@ -45,6 +45,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.preference.PreferenceManager
 import org.connectbot.R
+import org.connectbot.usage.LocalUsageLog
+import org.connectbot.usage.UsageActions
 import solutions.ormus.logos.home.HomeStart
 
 /**
@@ -52,10 +54,10 @@ import solutions.ormus.logos.home.HomeStart
  * was here first (hosts, Workboards, Workspaces), kept one tap away as a third place because the
  * Herdr app keeps its machines behind a gear, and here that home is the launcher.
  */
-enum class HomePlace(val route: String, @StringRes val label: Int, val icon: ImageVector) {
-    INBOX(NavDestinations.INBOX, R.string.inbox_title, Icons.Filled.Inbox),
-    SPACES(NavDestinations.SPACES, R.string.spaces_title, Icons.Filled.GridView),
-    HOSTS(NavDestinations.HOST_LIST, R.string.host_list_section, Icons.Filled.Dns),
+enum class HomePlace(val route: String, @StringRes val label: Int, val icon: ImageVector, val usageId: String) {
+    INBOX(NavDestinations.INBOX, R.string.inbox_title, Icons.Filled.Inbox, UsageActions.PLACES_INBOX),
+    SPACES(NavDestinations.SPACES, R.string.spaces_title, Icons.Filled.GridView, UsageActions.PLACES_SPACES),
+    HOSTS(NavDestinations.HOST_LIST, R.string.host_list_section, Icons.Filled.Dns, UsageActions.PLACES_HOSTS),
     ;
 
     companion object {
@@ -93,12 +95,16 @@ fun homePlaceTag(place: HomePlace): String = "home_place_${place.name}"
 /** The bar: one item per place, [selected] marked. */
 @Composable
 fun HomeBar(places: List<HomePlace>, selected: HomePlace?, onSelect: (HomePlace) -> Unit, modifier: Modifier = Modifier) {
+    val usage = LocalUsageLog.current
     NavigationBar(modifier = modifier, windowInsets = WindowInsets.navigationBars) {
         places.forEach { place ->
             val label = stringResource(place.label)
             NavigationBarItem(
                 selected = place == selected,
-                onClick = { onSelect(place) },
+                onClick = {
+                    usage.log(place.usageId)
+                    onSelect(place)
+                },
                 icon = { Icon(place.icon, contentDescription = null) },
                 label = { Text(label) },
                 modifier = Modifier.testTag(homePlaceTag(place)),

@@ -143,4 +143,42 @@ class KeyBarModifiersTest {
         assertEquals("", armed(ctrl = true, alt = true).encode("b"))
         assertEquals("\u0002".length, 1)
     }
+
+    @Test
+    fun ctrlSpaceIsNul() {
+        assertEquals("\u0000", armed(ctrl = true).encode(" "))
+    }
+
+    @Test
+    fun aTextMacroLeavesAnArmedModifierArmed() {
+        val ctrl = armed(ctrl = true)
+        assertEquals(ctrl, ctrl.afterKey("/clear"))
+        assertEquals(armed(alt = true), armed(alt = true).afterKey("git status"))
+    }
+
+    @Test
+    fun anyOtherKeySpendsAnArmedModifierEvenWhenItsBytesDoNotChange() {
+        assertEquals(none, armed(ctrl = true).afterKey("\t"))
+        assertEquals(none, armed(ctrl = true).afterKey("1"))
+        assertEquals(none, armed(ctrl = true).afterKey("\r"))
+        assertEquals(none, armed(ctrl = true).afterKey("\u007f"))
+        assertEquals(none, armed(ctrl = true).afterKey("$esc[Z"))
+        assertEquals(none, armed(ctrl = true).afterKey("c"))
+        assertEquals(none, armed(alt = true).afterKey("/"))
+        assertEquals(none, armed(ctrl = true).afterKey("$esc[A"))
+        assertEquals(none, armed(ctrl = true).afterKey(" "))
+    }
+
+    @Test
+    fun altLeavesATextMacroUnchangedWithNoEscapePrefix() {
+        assertEquals("/clear", armed(alt = true).encode("/clear"))
+        assertEquals("/clear", armed(ctrl = true, alt = true).encode("/clear"))
+    }
+
+    @Test
+    fun aLockedModifierStaysLockedOnAnyKey() {
+        val locked = none.longPress(BarModifier.CTRL)
+        assertEquals(locked, locked.afterKey("c"))
+        assertEquals(locked, locked.afterKey("/clear"))
+    }
 }

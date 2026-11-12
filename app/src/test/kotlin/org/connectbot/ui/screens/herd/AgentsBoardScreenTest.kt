@@ -57,6 +57,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.BoardCard
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdrAgentStatus
@@ -93,6 +94,7 @@ class AgentsBoardScreenTest {
     private val jumps = mutableListOf<String>()
     private val answers = mutableListOf<String>()
     private val picks = mutableListOf<String>()
+    private val answerPrompts = mutableListOf<Int?>()
     private val replies = mutableListOf<String>()
     private val reads = mutableListOf<String>()
     private val logged = mutableListOf<String>()
@@ -117,7 +119,10 @@ class AgentsBoardScreenTest {
                     canChat = { it.agent == "claude" },
                     onChat = { chats += it.id() },
                     onJump = { jumps += it.id() },
-                    onAnswer = { card, reply -> answers += "${card.id()} $reply" },
+                    onAnswer = { card, reply, prompt ->
+                        answers += "${card.id()} $reply"
+                        answerPrompts += prompt
+                    },
                     onPick = { card, keys -> picks += "${card.id()} $keys" },
                     onReply = { card, text -> replies += "${card.id()} $text" },
                     readScreen = { card ->
@@ -249,6 +254,22 @@ class AgentsBoardScreenTest {
         assertEquals(emptyList<String>(), answers)
         assertEquals("a pick is not a tap on the card", emptyList<String>(), chats)
         composeTestRule.onAllNodesWithTag(BOARD_REPLY_TAG).assertCountEquals(1)
+    }
+
+    @Test
+    fun approve_carriesTheHashOfThePromptTheCardShowed() {
+        show(shown = withCodex(), screen = "Do you want to proceed?\n> 1. Yes\n  2. No\nEsc to cancel")
+        composeTestRule.onAllNodesWithText("Approve").assertCountEquals(1)
+        composeTestRule.onNodeWithText("Approve").performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(CoreNotices.fingerprint("Do you want to proceed?\n> 1. Yes\n  2. No")), answerPrompts)
+    }
+
+    @Test
+    fun aBlockedCardWhosePaneShowsNoYesNoPrompt_hasNoApproveOrDeny() {
+        show(screen = "Ready to code?\n> 1. Yes, clear context\n  2. Yes, and manually approve\n  3. Type here to tell Claude what to change")
+        composeTestRule.onAllNodesWithText("Approve").assertCountEquals(0)
+        composeTestRule.onAllNodesWithText("Deny").assertCountEquals(0)
     }
 
     @Test
@@ -400,7 +421,7 @@ class AgentsBoardScreenTest {
                 canChat = { true },
                 onChat = {},
                 onJump = {},
-                onAnswer = { _, _ -> },
+                onAnswer = { _, _, _ -> },
                 onPick = { _, _ -> },
                 onReply = { _, _ -> },
                 readScreen = { "Do you want to proceed?\n> 1. Yes\n  2. No" },

@@ -1069,6 +1069,12 @@
 	<string name="notification_herd_nothing_sent">Nothing was sent.</string>
 	<!-- Notification title when Approve or Deny could not reach the agent; %1$s is the agent, %2$s the host name -->
 	<string name="notification_herd_answer_failed">Could not answer %1$s on %2$s</string>
+	<!-- Why Approve or Deny sent nothing: the notification does not say which prompt it showed (an older one), so nothing proves a tap would answer the prompt now on screen -->
+	<string name="notification_herd_open_app">Open Mercurio to answer.</string>
+	<!-- Why Approve or Deny failed: the host the notification came from was deleted from the saved hosts -->
+	<string name="notification_herd_host_gone">That host is no longer saved.</string>
+	<!-- Stands for the host name in "Could not answer %1$s on %2$s" when the notification did not carry it and the host is no longer saved -->
+	<string name="notification_herd_host_unnamed">its host</string>
 	<!-- Why Approve or Deny failed with no live session: logging in would ask for a password, passphrase, fingerprint or key confirmation; %1$s is the host name -->
 	<string name="notification_herd_needs_app">Logging in to %1$s needs you. Open Mercurio to answer.</string>
 	<!-- Why Approve or Deny failed with no live session: the host's SSH key is not the saved one; %1$s is the host name -->
@@ -1087,10 +1093,14 @@
 	<string name="herdr_key_goto">Goto</string>
 	<!-- Herdr control row: key that enters Herdr copy mode so the terminal can scroll back through agent output -->
 	<string name="herdr_key_scroll">Scroll</string>
-	<!-- Compose bar row 1: description of the ↑ key, which scrolls one page up (keep very short) -->
+	<!-- Compose bar row 1: label of the key that scrolls one page up (keep very short; it must fit one key) -->
 	<string name="herdr_key_page_up">PgUp</string>
-	<!-- Compose bar row 1: description of the ↓ key, which scrolls one page down (keep very short) -->
+	<!-- Compose bar row 1: what a screen reader says for the PgUp key -->
+	<string name="herdr_key_page_up_description">Page up</string>
+	<!-- Compose bar row 1: label of the key that scrolls one page down (keep very short; it must fit one key) -->
 	<string name="herdr_key_page_down">PgDn</string>
+	<!-- Compose bar row 1: what a screen reader says for the PgDn key -->
+	<string name="herdr_key_page_down_description">Page down</string>
 
 	<!-- Herdr control row: key that opens the sheet with every Herdr command (keep very short; Herdr is a product name) -->
 	<string name="herdr_key_commands">Herdr</string>
@@ -1136,8 +1146,16 @@
 	<string name="compose_bar_right">Right</string>
 	<!-- Herdr panel: short tab label for the workspaces group, so all five group tabs fit a phone's width -->
 	<string name="herdr_section_workspaces">Spaces</string>
-	<!-- Compose bar tray: content description of the paste key; uploads the latest screenshot and adds its path to the field -->
-	<string name="compose_bar_paste_screenshot">Paste latest screenshot</string>
+	<!-- Compose bar tray: content description of the paste key; opens the photo picker, uploads the chosen photo and adds its path to the field -->
+	<string name="compose_bar_paste_screenshot">Paste a photo</string>
+	<!-- Compose bar photo paste: toast when the photo picker was closed with no photo chosen -->
+	<string name="compose_bar_photo_none">No photo picked</string>
+	<!-- Compose bar photo paste: toast when the chosen photo could not be read on the phone -->
+	<string name="compose_bar_photo_unreadable">Could not read that photo</string>
+	<!-- Compose bar photo paste: toast when this phone has no photo picker -->
+	<string name="compose_bar_photo_no_picker">No photo picker on this phone</string>
+	<!-- Compose bar photo paste: toast when the photo did not reach the host; %1$s is the reason -->
+	<string name="compose_bar_photo_failed">Photo not sent: %1$s</string>
 
 	<!-- Herd screen: title of the full-screen list of AI agents running in Herdr -->
 	<string name="herd_title">Herd</string>
@@ -2149,6 +2167,15 @@
 	<!-- Inbox: one list of every agent, sorted by what it needs -->
 	<!-- Title of the Inbox screen and of the key that opens it -->
 	<string name="inbox_title">Inbox</string>
+	<!-- Inbox row: how many helper terminals of this agent are folded under it -->
+	<plurals name="inbox_helpers">
+		<item quantity="one">%1$d helper</item>
+		<item quantity="other">%1$d helpers</item>
+	</plurals>
+	<!-- Spoken description of an Inbox row that has more to say: %1$s is "Open <space> on <host>", %2$s the helper count or the unread mark -->
+	<string name="inbox_open_with">%1$s, %2$s</string>
+	<!-- Inbox row: the helper count when one of the helpers needs the user, e.g. "2 helpers · needs you" -->
+	<string name="inbox_helpers_need_you">%1$s · needs you</string>
 	<!-- Hint of the search field at the top of the Inbox -->
 	<string name="inbox_search_hint">Jump to a terminal…</string>
 	<!-- Section labels of the Inbox, one per agent state -->
@@ -2161,6 +2188,8 @@
 	<string name="inbox_show_more">Show %1$d more</string>
 	<!-- Folds an opened section back to its first rows -->
 	<string name="inbox_show_fewer">Show fewer</string>
+	<!-- Shown in the Inbox before the first read of the hosts has finished -->
+	<string name="inbox_loading">Loading…</string>
 	<!-- Shown when no host has an agent -->
 	<string name="inbox_empty">No agents yet</string>
 	<!-- Shown when the search matches no row -->
@@ -2186,7 +2215,7 @@
 	<string name="settings_panel_inbox_on">The home has an Inbox key, and a long press on Needs you opens it.</string>
 	<string name="settings_panel_inbox_off">The Needs you key opens the Agents board on a long press.</string>
 	<string name="settings_panel_core_switch">Include herdr-core agents</string>
-	<string name="settings_panel_core_on">The Inbox reads herdr-core on each connected host.</string>
+	<string name="settings_panel_core_on">While the Inbox shows, Mercurio logs in in the background to the machine of each saved host and reads herdr-core there.</string>
 	<string name="settings_panel_core_off">The Inbox lists Herdr agents only.</string>
 	<!-- Spaces: the herdr-core spaces of a host, a box per tab -->
 	<!-- Title of the Spaces screen -->
@@ -2195,4 +2224,6 @@
 	<string name="spaces_none">No spaces</string>
 	<!-- Spoken name of a tab's box; %1$s is the tab, %2$s its space -->
 	<string name="spaces_open_tab">Open tab %1$s of %2$s</string>
+	<!-- Spoken description of a tab's tile in the Spaces list when an agent in it has a known state: tab name, space name, state (Needs you, Done, Working or Idle) -->
+	<string name="spaces_open_tab_state">Open tab %1$s of %2$s, %3$s</string>
 </resources>

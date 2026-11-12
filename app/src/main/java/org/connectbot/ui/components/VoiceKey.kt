@@ -67,7 +67,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
 import org.connectbot.R
+import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.ui.theme.Ormus
 import solutions.ormus.logos.voice.AudioRecordTakeRecorder
 import solutions.ormus.logos.voice.HttpVoiceTransport
@@ -80,12 +86,12 @@ import java.io.File
 
 /**
  * The voice key's controller, tied to this composition. The microphone is asked for on the first
- * tap, never before. [sessionHost] names the server when the setting is blank; [onText] gets the
+ * tap, never before. [io] is the dispatcher the voice server calls run on (the app's injected one). [sessionHost] names the server when the setting is blank; [onText] gets the
  * words (the compose bar puts them in its field). A take still being recorded when the bar leaves
  * the screen, or the app goes to the background, is dropped. [takeId] keeps one console's kept take apart from another's.
  */
 @Composable
-fun rememberVoiceKey(settings: VoiceSettings, sessionHost: String?, takeId: Long, onText: (String) -> Unit): VoiceKeyController {
+fun rememberVoiceKey(io: CoroutineDispatcher, settings: VoiceSettings, sessionHost: String?, takeId: Long, onText: (String) -> Unit): VoiceKeyController {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val host by rememberUpdatedState(sessionHost)
@@ -97,7 +103,7 @@ fun rememberVoiceKey(settings: VoiceSettings, sessionHost: String?, takeId: Long
         VoiceKeyController(
             scope = scope,
             recorder = recorder,
-            client = VoiceClient(HttpVoiceTransport()),
+            client = VoiceClient(HttpVoiceTransport(io)),
             takeFile = File(context.cacheDir, "voice-take-$takeId.wav"),
             micGranted = { ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED },
             askMic = { launcher.launch(Manifest.permission.RECORD_AUDIO) },

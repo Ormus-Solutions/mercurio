@@ -40,6 +40,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import solutions.ormus.logos.herd.AgentState
 import solutions.ormus.logos.herd.CoreLinks
 import solutions.ormus.logos.herd.CoreSpaces
 import java.util.concurrent.TimeUnit
@@ -67,7 +68,7 @@ class SpacesViewModelTest {
 
     private val doc = """{"id":1,"result":{"value":{"spaces":[{"id":"s1","name":"alpha · ONE","folder":"/w","tabs":[{"id":"t1","name":"main","root":{"id":"p","type":"block","content":{"terminal":"t7"}}}]}]}}}"""
 
-    private fun viewModel(saved: List<Host>, skip: String? = null): SpacesViewModel {
+    private fun viewModel(saved: List<Host>, skip: String? = null, exec: (String) -> CommandOutput = { CommandOutput(doc, "", 0) }): SpacesViewModel {
         val prefs = mock(SharedPreferences::class.java)
         `when`(prefs.getBoolean(PreferenceConstants.HERDR_CORE, PreferenceConstants.HERDR_CORE_DEFAULT)).thenReturn(true)
         val manager = mock(TerminalManager::class.java)
@@ -83,7 +84,7 @@ class SpacesViewModelTest {
                         object : HeadlessSession {
                             override fun login(keys: List<java.security.KeyPair>) = HeadlessSsh.Login.Ok
 
-                            override fun exec(command: String) = CommandOutput(doc, "", 0)
+                            override fun exec(command: String) = exec(command)
 
                             override fun close() = Unit
                         },
@@ -119,5 +120,61 @@ class SpacesViewModelTest {
         vm.refresh()
         await(vm) { it.size == 1 }
         assertEquals(CoreSpaces.Result.Unavailable("no key that opens without asking"), vm.sections.value.single().result)
+    }
+
+    private fun spacesOrList(list: CommandOutput): (String) -> CommandOutput = { command -> if (command.contains("hc ls")) list else CommandOutput(doc, "", 0) }
+
+    @Test
+    fun aRefreshFillsTheAgentStatesFromTheAgentList() = runTest {
+        val vm = viewModel(listOf(host(1, "one")), exec = spacesOrList(CommandOutput("""[{"address":"t7","status":"blocked"},{"address":"t8","status":"working"}]""", "", 0)))
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(mapOf("t7" to AgentState.NeedsYou(), "t8" to AgentState.Working), vm.sections.value.single().states)
+    }
+
+    @Test
+    fun anAgentListThatFailsLeavesTheStatesEmptyAndTheSpacesShown() = runTest {
+        val vm = viewModel(listOf(host(1, "one")), exec = spacesOrList(CommandOutput("", "hc: not found", 127)))
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(emptyMap<String, AgentState>(), vm.sections.value.single().states)
+    }
+
+    @Test
+    fun anAgentListThatThrowsLeavesTheStatesEmptyAndTheSpacesShown() = runTest {
+        val vm = viewModel(listOf(host(1, "one")), exec = { command -> if (command.contains("hc ls")) throw IllegalStateException("boom") else CommandOutput(doc, "", 0) })
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(emptyMap<String, AgentState>(), vm.sections.value.single().states)
+    }
+
+    @Test
+    fun aTransientAgentListFailureKeepsTheLastStatesForOneRefresh() = runTest {
+        val lists = AtomicInteger(0)
+        val failing = java.util.concurrent.atomic.AtomicBoolean(false)
+        val vm = viewModel(
+            listOf(host(1, "one")),
+            exec = { command ->
+                if (command.contains("hc ls")) {
+                    lists.incrementAndGet()
+                    if (failing.get()) CommandOutput("", "down", 1) else CommandOutput("""[{"address":"t7","status":"blocked"}]""", "", 0)
+                } else {
+                    CommandOutput(doc, "", 0)
+                }
+            },
+        )
+        val full = mapOf("t7" to AgentState.NeedsYou())
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().states == full }
+
+        failing.set(true)
+        vm.refresh()
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (lists.get() < 2 && System.nanoTime() < end) Thread.sleep(10)
+        Thread.sleep(300)
+        assertEquals(full, vm.sections.value.single().states)
+
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().states.isEmpty() }
     }
 }

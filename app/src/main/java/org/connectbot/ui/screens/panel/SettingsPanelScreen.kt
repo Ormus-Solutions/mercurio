@@ -59,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -102,6 +103,7 @@ fun SettingsPanelScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
     val usage = LocalUsageLog.current
     var enterNewLine by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false)) }
@@ -147,9 +149,9 @@ fun SettingsPanelScreen(
         onSendFeedback = {
             val body = FeedbackText.body(BuildConfig.VERSION_NAME, prefs.getString(PreferenceConstants.HERDR_CORE_VERSION, null))
             val mail = Intent(Intent.ACTION_SENDTO, "mailto:".toUri())
-                .putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.settings_panel_feedback_subject))
+                .putExtra(Intent.EXTRA_SUBJECT, resources.getString(R.string.settings_panel_feedback_subject))
                 .putExtra(Intent.EXTRA_TEXT, body)
-            context.startActivity(Intent.createChooser(mail, context.getString(R.string.settings_panel_feedback_chooser)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            context.startActivity(Intent.createChooser(mail, resources.getString(R.string.settings_panel_feedback_chooser)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         },
         onNavigateBack = onNavigateBack,
         onAllSettings = {

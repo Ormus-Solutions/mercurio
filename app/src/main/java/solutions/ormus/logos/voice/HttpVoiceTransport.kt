@@ -17,7 +17,7 @@
 
 package solutions.ormus.logos.voice
 
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -38,6 +38,7 @@ import java.net.URL
  * names: a tailnet, a LAN or loopback. A public name must use https.
  */
 class HttpVoiceTransport(
+    private val io: CoroutineDispatcher,
     private val connectTimeoutMs: Int = CONNECT_TIMEOUT_MS,
     private val readTimeoutMs: Int = READ_TIMEOUT_MS,
 ) : VoiceTransport {
@@ -45,7 +46,7 @@ class HttpVoiceTransport(
 
     override suspend fun post(request: VoiceRequest, body: File): HttpReply = exchange(request, body)
 
-    private suspend fun exchange(request: VoiceRequest, body: File?): HttpReply = withContext(Dispatchers.IO) {
+    private suspend fun exchange(request: VoiceRequest, body: File?): HttpReply = withContext(io) {
         val uri = try {
             URI(request.url)
         } catch (e: java.net.URISyntaxException) {

@@ -23,6 +23,11 @@
 	<!-- Key bar: Ctrl and Alt state; %1$s is the key -->
 	<string name="key_bar_modifier_armed">%1$s, armed for the next key</string>
 	<string name="key_bar_modifier_locked">%1$s, locked</string>
+	<!-- Key bar: the small Ctrl or Alt mark beside the page dots, read by TalkBack; %1$s is Ctrl or Alt -->
+	<string name="key_bar_modifier_mark_armed">%1$s armed</string>
+	<string name="key_bar_modifier_mark_locked">%1$s locked</string>
+	<!-- Key bar: the Ctrl or Alt mark is a button that clears them; %1$s is the state, like "Ctrl locked" -->
+	<string name="key_bar_modifier_mark_clear">%1$s, tap to clear</string>
 	<!-- Key bar: a dot that goes to a page; %1$d is the page, %2$d the number of pages -->
 	<string name="key_bar_page_dot">Page %1$d of %2$d</string>
 	<!-- Editor: a key that types text he writes -->

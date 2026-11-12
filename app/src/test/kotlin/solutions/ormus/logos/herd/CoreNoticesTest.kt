@@ -109,7 +109,8 @@ class CoreNoticesTest {
 
     @Test
     fun `an answer goes only while the turn is unchanged`() {
-        assertNull(CoreNotices.guard(agent(state = permission, turn = 4), turn = 4, screen = null, prompt = null))
+        val screen = "Run it?\n❯ 1. Yes\n2. No"
+        assertNull(CoreNotices.guard(agent(state = permission, turn = 4), turn = 4, screen = screen, prompt = CoreNotices.fingerprint(screen)))
         assertEquals(HerdAnswerOutcome.PromptChanged, CoreNotices.guard(agent(state = permission, turn = 5), turn = 4, screen = null, prompt = null))
         assertEquals(HerdAnswerOutcome.NotBlocked, CoreNotices.guard(agent(state = AgentState.Working, turn = 4), turn = 4, screen = null, prompt = null))
         assertEquals(HerdAnswerOutcome.NotBlocked, CoreNotices.guard(agent(state = AgentState.NeedsYou(NeedsYouKind.QUESTION)), turn = 4, screen = null, prompt = null))
@@ -118,14 +119,32 @@ class CoreNoticesTest {
 
     @Test
     fun `a second prompt in the same turn is not the one the notice showed`() {
-        val first = "Run tool A?\n1. Yes\n2. No"
-        val second = "Run tool B?\n1. Yes\n2. No"
+        val first = "Run tool A?\n❯ 1. Yes\n2. No"
+        val second = "Run tool B?\n❯ 1. Yes\n2. No"
         val seen = CoreNotices.fingerprint(first)
         val blocked = agent(state = permission, turn = 4)
         assertNull(CoreNotices.guard(blocked, turn = 4, screen = first, prompt = seen))
         assertEquals(HerdAnswerOutcome.PromptChanged, CoreNotices.guard(blocked, turn = 4, screen = second, prompt = seen))
         // A screen that cannot be read counts as changed when the notice showed one.
         assertEquals(HerdAnswerOutcome.PromptChanged, CoreNotices.guard(blocked, turn = 4, screen = null, prompt = seen))
+    }
+
+    @Test
+    fun `an answer with no fingerprint of the prompt is refused, even in the same turn`() = runTest {
+        val screen = "Run it?\n❯ 1. Yes\n2. No"
+        assertEquals(HerdAnswerOutcome.Unproven, CoreNotices.guard(agent(state = permission, turn = 4), turn = 4, screen = screen, prompt = null))
+        val core = Core("blocked", kind = "permission", turn = 4)
+        assertEquals(HerdAnswerOutcome.Unproven, session(core, enabled = true).answerCore("t1", HerdAnswer.APPROVE, turn = 4, prompt = null))
+        assertTrue(core.ran.none { "hc keys" in it }, core.ran.toString())
+    }
+
+    @Test
+    fun `a core answer goes through a changed status line under the prompt and not through another command`() {
+        fun screen(command: String, status: String) = "Bash command\n  $command\nDo you want to proceed?\n❯ 1. Yes\n  2. No\n\nEsc to cancel\n$status"
+        val shown = CoreNotices.fingerprint(screen("make", "ctx 0% (0k/1M)"))
+        val blocked = agent(state = permission, turn = 4)
+        assertNull(CoreNotices.guard(blocked, turn = 4, screen = screen("make", "ctx 9% (90k/1M)"), prompt = shown))
+        assertEquals(HerdAnswerOutcome.PromptChanged, CoreNotices.guard(blocked, turn = 4, screen = screen("make clean", "ctx 0% (0k/1M)"), prompt = shown))
     }
 
     @Test
@@ -158,7 +177,7 @@ class CoreNoticesTest {
 
     @Test
     fun `the screen is read from hc get`() {
-        assertEquals("Run it?\n1. Yes\n2. No", CoreNotices.screenOf("""{"address":"t1","screen":"Run it?\n1. Yes\n2. No"}"""))
+        assertEquals("Run it?\n❯ 1. Yes\n2. No", CoreNotices.screenOf("""{"address":"t1","screen":"Run it?\n❯ 1. Yes\n2. No"}"""))
         assertNull(CoreNotices.screenOf("not json"))
         assertNull(CoreNotices.screenOf("""{"address":"t1"}"""))
     }
@@ -205,7 +224,7 @@ class CoreNoticesTest {
                 )
 
                 "hc get" in command -> CommandOutput(
-                    """{"address":"t1","state":"live","status":{"app":"claude-code","state":"$state"$kindJson},"turn":$turn,"screen":"Run it?\n1. Yes\n2. No"}""",
+                    """{"address":"t1","state":"live","status":{"app":"claude-code","state":"$state"$kindJson},"turn":$turn,"screen":"Run it?\n❯ 1. Yes\n2. No"}""",
                     "",
                     0,
                 )
@@ -261,6 +280,25 @@ class CoreNoticesTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun `a host without herdr-core is probed once, and again after a restart of the session`() = runTest {
+        val ran = mutableListOf<String>()
+        val run = { cmd: String ->
+            ran += cmd
+            if ("--version" in cmd) CommandOutput("", "", 127) else CommandOutput("", "", 0)
+        }
+        val s = HerdSession("box", run, {}, backgroundScope, coroutineContext[CoroutineDispatcher]!!, pollIntervalMs = 2_500, clock = { clockMs }, coreEnabled = { true })
+        s.start()
+        advanceTimeBy(10_000)
+        s.stop()
+        assertEquals(1, ran.count { "--version" in it })
+        s.start()
+        advanceTimeBy(10_000)
+        s.stop()
+        assertEquals(2, ran.count { "--version" in it })
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun `setting on posts a Needs you with the screen in session core`() = runTest {
         val core = Core("working")
         val posted = mutableListOf<Notice>()
@@ -278,7 +316,7 @@ class CoreNoticesTest {
         assertEquals(CoreNotices.SESSION, notice.session)
         assertEquals("t1", notice.agent.paneId)
         assertEquals(4, notice.agent.core?.turn)
-        assertEquals("Run it?\n1. Yes\n2. No", notice.paneTail)
+        assertEquals("Run it?\n❯ 1. Yes\n2. No", notice.paneTail)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -286,11 +324,11 @@ class CoreNoticesTest {
     fun `answer sends the key while the turn holds and nothing when it moved`() = runTest {
         val core = Core("blocked", kind = "permission", turn = 4)
         val s = session(core, enabled = true)
-        assertEquals(HerdAnswerOutcome.Sent, s.answerCore("t1", HerdAnswer.APPROVE, turn = 4, prompt = null))
+        assertEquals(HerdAnswerOutcome.Sent, s.answerCore("t1", HerdAnswer.APPROVE, turn = 4, prompt = CoreNotices.fingerprint("Run it?\n❯ 1. Yes\n2. No")))
         assertTrue(core.ran.contains("bash -lc 'hc keys t1 enter'"), core.ran.toString())
         core.ran.clear()
         core.turn = 5
-        assertEquals(HerdAnswerOutcome.PromptChanged, s.answerCore("t1", HerdAnswer.DENY, turn = 4, prompt = null))
+        assertEquals(HerdAnswerOutcome.PromptChanged, s.answerCore("t1", HerdAnswer.DENY, turn = 4, prompt = CoreNotices.fingerprint("Run it?\n❯ 1. Yes\n2. No")))
         assertTrue(core.ran.none { "hc keys" in it }, core.ran.toString())
         // The check re-reads the terminal first.
         assertEquals("bash -lc 'hc get t1 --json'", core.ran.first())

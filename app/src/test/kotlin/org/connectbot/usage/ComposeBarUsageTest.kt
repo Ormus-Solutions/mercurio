@@ -85,8 +85,8 @@ class ComposeBarUsageTest {
                 TerminalComposeBar(bridge = bridge("herdr\n"), onRead = {})
             }
         }
-        composeTestRule.onNodeWithText("↑").performClick()
-        composeTestRule.onNodeWithText("↑").performClick()
+        composeTestRule.onNodeWithText("PgUp").performClick()
+        composeTestRule.onNodeWithText("PgUp").performClick()
         composeTestRule.onNodeWithText("Esc").performClick()
         composeTestRule.onNodeWithContentDescription(context.getString(R.string.compose_bar_more_keys)).performClick()
         composeTestRule.onNodeWithText("Mode").performClick()
@@ -101,7 +101,7 @@ class ComposeBarUsageTest {
 
         val actions = store.snapshot().events.map { it.action }
         assertThat(actions).containsExactly(
-            // Row 1's ↑ pages up.
+            // Row 1's PgUp pages up.
             UsageActions.HERDR_PGUP,
             UsageActions.HERDR_PGUP,
             UsageActions.KEY_ESC,

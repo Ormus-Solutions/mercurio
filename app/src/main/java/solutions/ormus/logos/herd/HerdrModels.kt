@@ -124,7 +124,13 @@ data class HerdrAgentInfo(
     val revision: Long = 0,
     /** Set only for a herdr-core terminal seen as an agent here ([CoreNotices]); never in the TUI's JSON. */
     @Transient val core: CoreFacts? = null,
-)
+) {
+    /**
+     * [stateChangeSeq] as a mark an answer can be held to: null when it is 0, which is also what a Herdr build
+     * without the field parses to, so an answer is never "checked" against a number that was never reported.
+     */
+    val seqMark: Long? get() = stateChangeSeq.takeIf { it > 0 }
+}
 
 /** What a herdr-core terminal says that the TUI's agent record has no field for: why it blocks, and its turn. */
 data class CoreFacts(val needs: NeedsYouKind?, val turn: Int?)

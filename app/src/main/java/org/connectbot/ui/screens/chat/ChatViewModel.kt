@@ -97,8 +97,11 @@ interface ChatHost {
     /** The last lines on [paneId]'s screen. Blocking; null when the read failed. */
     fun screen(paneId: String): String? = null
 
-    /** Answer the blocked agent in [paneId] with [keys]: Approve's or Deny's key, or a picked option's number. */
-    suspend fun answer(paneId: String, keys: String): HerdAnswerOutcome
+    /**
+     * Answer the blocked agent in [paneId] with [keys]: Approve's or Deny's key, or a picked option's number.
+     * [seq] is the agent's `state_change_seq` the chat showed.
+     */
+    suspend fun answer(paneId: String, keys: String, seq: Long): HerdAnswerOutcome
 
     /** The Herdr session the chat's pane is in; [snapshot] and [answer] are that session's. */
     val session: String get() = HerdrCommands.DEFAULT_SESSION
@@ -188,9 +191,11 @@ class ChatViewModel @Inject constructor(
 
     /** Answer the waiting agent with [keys] (Approve's, Deny's, or a picked option's), then read again. */
     fun answer(host: ChatHost, keys: String) {
-        val paneId = _uiState.value.target?.paneId ?: return
+        val target = _uiState.value.target ?: return
+        val paneId = target.paneId
         viewModelScope.launch {
-            val outcome = host.answer(paneId, keys)
+            // No seq read for this agent: nothing proves the prompt is the one on screen, so nothing is sent.
+            val outcome = target.seq?.let { host.answer(paneId, keys, it) } ?: HerdAnswerOutcome.Unproven
             _uiState.update { it.copy(answer = outcome.takeIf { o -> o !is HerdAnswerOutcome.Sent }) }
             wake.trySend(Unit)
         }
@@ -281,5 +286,5 @@ class BridgeChatHost(private val bridge: TerminalBridge, override val session: S
 
     override fun screen(paneId: String): String? = exec(AgentsBoard.readCommand(session, paneId))?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout
 
-    override suspend fun answer(paneId: String, keys: String): HerdAnswerOutcome = bridge.herd?.answer(paneId, keys, session) ?: HerdAnswerOutcome.Failed("Herdr is not up in this session")
+    override suspend fun answer(paneId: String, keys: String, seq: Long): HerdAnswerOutcome = bridge.herd?.answer(paneId, keys, session, seq) ?: HerdAnswerOutcome.Failed("Herdr is not up in this session")
 }

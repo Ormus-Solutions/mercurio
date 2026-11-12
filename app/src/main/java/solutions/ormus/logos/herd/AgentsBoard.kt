@@ -36,8 +36,8 @@ data class BoardCard(
     val workspaceNumber: Int,
     /** When Mercurio saw the agent enter [state] (see [AgentSince]); null when it cannot tell. */
     val since: Long? = null,
-    /** Herdr's `state_change_seq` for the agent: an answer goes out only while it holds. */
-    val seq: Long = 0,
+    /** Herdr's `state_change_seq` for the agent: an answer goes out only while it holds. Null when the snapshot had none. */
+    val seq: Long? = null,
 ) {
     val column: BoardColumn get() = AgentState.of(state).column
 
@@ -110,7 +110,7 @@ object AgentsBoard {
                 workspaceLabel = workspace?.label.orEmpty(),
                 workspaceNumber = workspace?.number ?: 0,
                 since = since(session, agent.paneId),
-                seq = agent.stateChangeSeq,
+                seq = agent.seqMark,
             )
         }
     }.sortedWith(ORDER)

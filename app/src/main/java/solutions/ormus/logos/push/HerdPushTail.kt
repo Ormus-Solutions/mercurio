@@ -76,8 +76,11 @@ class HerdPushTail internal constructor(
 
     /** What a read gave. */
     sealed interface Read {
-        /** The pane's last lines worth reading. Never logged, so not in [toString] either. */
-        data class Text(val text: String) : Read {
+        /**
+         * The pane's last lines worth reading, and [prompt]: [CoreNotices.fingerprint] of the whole read, not of
+         * these lines. Never logged, so not in [toString] either.
+         */
+        data class Text(val text: String, val prompt: Int? = null) : Read {
             override fun toString() = "Text(${text.length} chars)"
         }
 
@@ -113,14 +116,15 @@ class HerdPushTail internal constructor(
                 )
                 // No exit status means the channel closed early: the output may be cut. A core terminal
                 // answers `hc get --json`; its screen is what Herdr's `pane read` gives for a pane.
-                when {
+                val whole = when {
                     out.exitCode != 0 -> null
-                    core -> CoreNotices.screenOf(out.stdout)?.let { screen -> HerdApproval.tail(screen) }
-                    else -> HerdApproval.tail(out.stdout)
+                    core -> CoreNotices.screenOf(out.stdout)
+                    else -> out.stdout
                 }
+                whole?.let { screen -> HerdApproval.tail(screen)?.let { tail -> Read.Text(tail, CoreNotices.fingerprint(screen)) } }
             }
         }
-        return text?.let { Read.Text(it) } ?: Read.Missed
+        return text ?: Read.Missed
     }
 
     /**

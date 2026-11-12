@@ -56,7 +56,21 @@ class CoreSource {
     private val seen = HashMap<String, Seen>()
 
     // The --version probe answered once; it is not asked again until a read fails, so a poll is one command.
+    // A "not installed" answer is not asked again either, until RECHECK_MS passes or [recheck] is called.
     private var installed = false
+
+    // When `--version` last said "not installed", else null. Within RECHECK_MS the answer stands and nothing runs.
+    // Written by a read on io and cleared by recheck() from another coroutine: a recheck bumps the generation,
+    // and a read that started before it does not store its answer.
+    @Volatile private var missingAt: Long? = null
+
+    @Volatile private var generation = 0
+
+    /** Forget a "not installed" answer so the next read asks the host again: the Inbox calls it when it opens. */
+    fun recheck() {
+        generation++
+        missingAt = null
+    }
 
     /** What the last `--version` answer said, first line, or null before one did. */
     var version: String? = null
@@ -79,11 +93,18 @@ class CoreSource {
         if (!enabled) return Result.Off
 
         if (!installed) {
+            val missing = missingAt
+            if (missing != null && now - missing in 0 until RECHECK_MS) return Result.Unavailable(NOT_INSTALLED)
+            val asked = generation
             val answer = run(HerdrApi.loginShell(VERSION_CMD))
                 ?: return Result.Unavailable("could not reach the host")
+            // A channel closed with no exit status says nothing: it is asked again like an unreachable host.
+            if (answer.exitCode == null) return Result.Unavailable("could not reach the host")
             if (answer.exitCode != 0 || answer.stdout.isBlank()) {
+                if (generation == asked) missingAt = now
                 return Result.Unavailable(NOT_INSTALLED)
             }
+            missingAt = null
             version = answer.stdout.lineSequence().firstOrNull()?.trim()
             installed = true
         }
@@ -105,6 +126,13 @@ class CoreSource {
         return Result.Unavailable(reason)
     }
 
+    /** The terminals whose unread state needs `herdr.seen`: idle or done past turn 0. */
+    private fun seenCandidates(records: List<JsonObject>): List<String> = records.mapNotNull { r ->
+        val address = r.str("address")?.takeIf { TERMINAL.matches(it) } ?: return@mapNotNull null
+        val turn = (r["turn"] as? JsonPrimitive)?.intOrNull ?: return@mapNotNull null
+        address.takeIf { turn > 0 && stateOf(r["status"]).let { it == AgentState.Idle || it == AgentState.Done } }
+    }
+
     /** What the labels command gave: the pinned terminals, and the `herdr.seen` of the ones asked. */
     private class Labels(val pinned: Set<String>, val seen: Map<String, Int>)
 
@@ -114,11 +142,7 @@ class CoreSource {
      * Only an idle or done terminal past turn 0 can be unread, so only those are asked.
      */
     private fun readLabels(records: List<JsonObject>, run: (String) -> CommandOutput?): Labels? {
-        val asked = records.mapNotNull { r ->
-            val address = r.str("address")?.takeIf { TERMINAL.matches(it) } ?: return@mapNotNull null
-            val turn = (r["turn"] as? JsonPrimitive)?.intOrNull ?: return@mapNotNull null
-            address.takeIf { turn > 0 && stateOf(r["status"]).let { it == AgentState.Idle || it == AgentState.Done } }
-        }
+        val asked = seenCandidates(records)
         val out = try {
             run(HerdrApi.loginShell(labelsCmd(asked)))
         } catch (_: Exception) {
@@ -189,6 +213,20 @@ class CoreSource {
         )
     }
 
+    /**
+     * The state of each terminal by address, as the Inbox shows it: one `hc ls` command, plus the
+     * labels command only when a terminal is idle or done past turn 0 (an unread one is Done). No
+     * version probe. Null when the host did not answer or answered something unreadable; a missing
+     * exit code counts as success, as in [CoreSpaces.read].
+     */
+    fun states(run: (String) -> CommandOutput?): Map<String, AgentState>? {
+        val out = run(HerdrApi.loginShell(LIST_CMD)) ?: return null
+        if (out.exitCode != null && out.exitCode != 0) return null
+        val records = parse(out.stdout) ?: return null
+        val labels = if (seenCandidates(records).isEmpty()) null else readLabels(records, run)
+        return records.mapNotNull { toAgent(it, null, 0L, labels) }.associate { it.address to it.state }
+    }
+
     /** The one terminal in an `hc get <t> --json` answer, or null when the text is not that. */
     fun parseOne(text: String, machine: String?, now: Long): Agent? {
         val start = text.indexOf('{')
@@ -252,6 +290,9 @@ class CoreSource {
 
         /** The reason of [Result.Unavailable] for a host whose `--version` did not answer. */
         const val NOT_INSTALLED = "herdr-core is not installed on this host"
+
+        /** How long a "not installed" answer stands before the host is asked again, milliseconds. */
+        const val RECHECK_MS = 5 * 60 * 1000L
         const val LIST_CMD = "hc ls --json"
 
         /** The terminals carrying `herdr.pinned=1`; `hc ls` does not print labels, but it can filter on them. */

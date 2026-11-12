@@ -147,6 +147,14 @@ object CoreSpaces {
         is PaneBox.Split -> box.children.firstNotNullOfOrNull(::firstTerminal)
     }
 
+    /** Every terminal of [tab] in drawing order. */
+    fun terminals(tab: CoreTab): List<String> = tab.root?.let { terminals(it) }.orEmpty()
+
+    private fun terminals(box: PaneBox): List<String> = when (box) {
+        is PaneBox.Pane -> listOfNotNull(box.terminal)
+        is PaneBox.Split -> box.children.flatMap(::terminals)
+    }
+
     /** The panes of [tab] as rectangles that tile the unit square; a tab with none draws one box. */
     fun boxes(tab: CoreTab): List<BoxRect> {
         val out = ArrayList<BoxRect>()

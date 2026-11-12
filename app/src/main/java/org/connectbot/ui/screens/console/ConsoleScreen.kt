@@ -17,15 +17,14 @@
 
 package org.connectbot.ui.screens.console
 
-import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.AnimatedVisibility
@@ -124,6 +123,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
@@ -132,7 +132,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -141,6 +140,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -201,8 +201,8 @@ import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.UrlUtils
-import org.connectbot.util.loadLatestScreenshot
 import org.connectbot.util.rememberTerminalTypefaceResultFromStoredValue
+import org.connectbot.util.shrinkPhoto
 import solutions.ormus.logos.commands.PaletteScreen
 import solutions.ormus.logos.commands.SlashCommand
 import solutions.ormus.logos.herd.AgentsBoard
@@ -217,6 +217,9 @@ import solutions.ormus.logos.herd.HerdrConsole
 import solutions.ormus.logos.herd.HerdrConsoles
 import solutions.ormus.logos.herd.HerdrKeys
 import solutions.ormus.logos.herd.HerdrSwipe
+import solutions.ormus.logos.herd.PasteOutcome
+import solutions.ormus.logos.herd.PasteUpload
+import solutions.ormus.logos.herd.SizeDecision
 import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.voice.VoiceSettings
 import timber.log.Timber
@@ -325,14 +328,12 @@ fun ConsoleScreen(
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue == DrawerValue.Open) usage.log(UsageActions.DRAWER_OPEN)
     }
-    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_IMAGES
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    }
-    val mediaPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { }
+    // The system photo picker (no storage permission). onPasteScreenshot waits on [pickedPhoto] for
+    // the choice; a null result is a picker closed with nothing chosen.
+    var pickedPhoto by remember { mutableStateOf<CompletableDeferred<Uri?>?>(null) }
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> pickedPhoto?.complete(uri) }
 
     // Capture latest callback for use in effects
     val currentOnNavigateBack by rememberUpdatedState(onNavigateBack)
@@ -357,7 +358,7 @@ fun ConsoleScreen(
 
     // Keyboard state
     val hasHardwareKeyboard = rememberHasHardwareKeyboard()
-    var showSoftwareKeyboard by remember { mutableStateOf(!hasHardwareKeyboard) }
+    val softKeyboard = remember { SoftKeyboardAsk() }
 
     var rotation by remember(hasHardwareKeyboard) {
         val prefValue = prefs.getString(PreferenceConstants.ROTATION, PreferenceConstants.ROTATION_DEFAULT)
@@ -603,16 +604,16 @@ fun ConsoleScreen(
         }
         // Only sync to hidden state after IME has been visible at least once.
         // This prevents canceling the keyboard before it has a chance to show.
-        if (hasImeBeenVisible && !systemImeVisible && showSoftwareKeyboard) {
-            showSoftwareKeyboard = false
+        if (hasImeBeenVisible && !systemImeVisible && softKeyboard.wanted) {
+            softKeyboard.onKeyboardDismissed()
         }
         imeVisible = systemImeVisible
     }
 
     // Show software keyboard after biometric prompt completes (unless hardware keyboard is connected)
     LaunchedEffect(isBiometricPromptActive) {
-        if (wasBiometricPromptActive && !isBiometricPromptActive && !hasHardwareKeyboard) {
-            showSoftwareKeyboard = true
+        if (wasBiometricPromptActive && !isBiometricPromptActive) {
+            softKeyboard.on(KeyboardEvent.BIOMETRIC_DONE, KeyboardSetting(hasHardwareKeyboard, agentConsole = false))
         }
         wasBiometricPromptActive = isBiometricPromptActive
     }
@@ -624,8 +625,8 @@ fun ConsoleScreen(
         val bridge = currentBridge?.takeIf { it.watch != null } ?: return@LaunchedEffect
         seenLifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) { bridge.keepWatchSeen() }
     }
-    // The compose bar's dictation field for this session; the slash menu puts "/name " in it.
-    val dictationDraft = remember(currentBridge) { DictationDraft() }
+    // The compose bar's dictation field for this session, kept per terminal (unsent text returns); the slash menu puts "/name " in it.
+    val dictationDraft = remember(currentBridge) { currentBridge?.let(viewModel::draftFor) ?: DictationDraft() }
     // These values are computed from bridge state and will recompute when uiState.revision changes
     val sessionOpen = currentBridge?.isSessionOpen == true
     val disconnected = currentBridge?.isDisconnected == true
@@ -652,12 +653,19 @@ fun ConsoleScreen(
     val isConnectionActive = currentBridge != null && !disconnected
     val keepScreenOn = keepScreenAwake && isConnectionActive
 
-    // Show software keyboard when session becomes open (if no hardware keyboard)
-    // Also show when switching to a different bridge that's already open
+    // A console opens to watch an agent with the keyboard down; a plain shell keeps raising it.
     LaunchedEffect(currentBridge, sessionOpen, hasHardwareKeyboard) {
-        if (sessionOpen && !hasHardwareKeyboard) {
-            showSoftwareKeyboard = true
+        val bridge = currentBridge
+        if (sessionOpen && bridge != null) {
+            val agent = bridge.watch != null || bridge.herd != null || Herd.runsHerdr(bridge.host)
+            softKeyboard.on(KeyboardEvent.OPEN, KeyboardSetting(hasHardwareKeyboard, agent))
         }
+    }
+
+    // Each ask tries the keyboard again, so a tap whose first try did not show it is not lost.
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(softKeyboard.requests) {
+        if (softKeyboard.requests > 0) keyboardController?.show()
     }
 
     // Reset selection controller when bridge changes
@@ -1121,7 +1129,7 @@ fun ConsoleScreen(
                                 typeface = fontResult.typeface,
                                 initialFontSize = fontSize.sp,
                                 keyboardEnabled = true,
-                                showSoftKeyboard = showSoftwareKeyboard,
+                                showSoftKeyboard = softKeyboard.wanted,
                                 focusRequester = termFocusRequester,
                                 forcedSize = forceSize,
                                 modifierManager = bridge.keyHandler,
@@ -1131,6 +1139,7 @@ fun ConsoleScreen(
                                     if (at != null && forceSize == null && clickTap(bridge, at, cellSize)) {
                                         usage.log(UsageActions.TERMINAL_MOUSE_CLICK)
                                     }
+                                    softKeyboard.on(KeyboardEvent.TERMINAL_TAP, KeyboardSetting(hasHardwareKeyboard, agentConsole = false))
                                     handleTerminalInteraction(isTerminalTap = true)
                                 },
                                 onImeVisibilityChanged = { visible ->
@@ -1212,31 +1221,26 @@ fun ConsoleScreen(
                                         bridge = bridge,
                                         onSend = { handleTerminalInteraction() },
                                         onPasteScreenshot = {
-                                            if (ContextCompat.checkSelfPermission(
-                                                    context,
-                                                    mediaPermission,
-                                                ) != PackageManager.PERMISSION_GRANTED
-                                            ) {
-                                                mediaPermissionLauncher.launch(mediaPermission)
+                                            if (pickedPhoto != null) {
+                                                // A pick is already open: this tap is not a second one.
                                                 null
                                             } else {
-                                                withContext(Dispatchers.IO) {
-                                                    val shot = loadLatestScreenshot(context)
-                                                    if (shot == null) {
+                                                val choice = CompletableDeferred<Uri?>()
+                                                pickedPhoto = choice
+                                                try {
+                                                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                                    val uri = choice.await()
+                                                    if (uri == null) {
+                                                        Toast.makeText(context, R.string.compose_bar_photo_none, Toast.LENGTH_SHORT).show()
                                                         null
                                                     } else {
-                                                        val remote =
-                                                            "/tmp/logos-pastes/shot-${System.currentTimeMillis()}.png"
-                                                        val ssh = bridge.transport as? SSH
-                                                        if (ssh != null &&
-                                                            runCatching { ssh.uploadFile(remote, shot) }.isSuccess
-                                                        ) {
-                                                            // A core terminal gets the file beside it (hc put).
-                                                            bridge.pathForWatch(remote, shot.size.toLong())
-                                                        } else {
-                                                            null
-                                                        }
+                                                        pasteChosenPhoto(context, bridge, uri)
                                                     }
+                                                } catch (_: ActivityNotFoundException) {
+                                                    Toast.makeText(context, R.string.compose_bar_photo_no_picker, Toast.LENGTH_LONG).show()
+                                                    null
+                                                } finally {
+                                                    pickedPhoto = null
                                                 }
                                             }
                                         },
@@ -1287,6 +1291,7 @@ fun ConsoleScreen(
                                         enterNewLine = enterNewLine,
                                         keyBar = keyBar,
                                         voice = voice,
+                                        voiceIo = viewModel.io,
                                         modifier = barModifier,
                                     )
                                 },
@@ -1951,3 +1956,36 @@ private fun HostDisconnectDialog(
 
 /** Test tag on the tappable host name in the console top bar. */
 const val CONSOLE_TITLE_TAG = "console_title"
+
+/**
+ * Read the photo at [uri] (capped), scale it down when it is over the limit for the target, send it
+ * ([TerminalBridge.sendPhoto]) and give the path, or null after a toast says why. Nothing is uploaded
+ * for a photo that cannot be made to fit.
+ */
+private suspend fun pasteChosenPhoto(context: Context, bridge: TerminalBridge, uri: Uri): String? {
+    val core = bridge.watch != null
+    val photo = withContext(Dispatchers.IO) {
+        runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { PasteUpload.readCapped(it) }
+            val mime = context.contentResolver.getType(uri)
+            when {
+                bytes == null -> null
+                PasteUpload.decide(bytes.size.toLong(), core) == SizeDecision.Send -> bytes to mime
+                else -> shrinkPhoto(bytes, core)?.let { it to "image/jpeg" }
+            }
+        }.getOrNull()
+    }
+    if (photo == null) {
+        Toast.makeText(context, R.string.compose_bar_photo_unreadable, Toast.LENGTH_LONG).show()
+        return null
+    }
+    val name = PasteUpload.fileName(photo.second, System.currentTimeMillis())
+    return when (val sent = bridge.sendPhoto(photo.first, name)) {
+        is PasteOutcome.Landed -> sent.path
+
+        is PasteOutcome.Failed -> {
+            Toast.makeText(context, context.getString(R.string.compose_bar_photo_failed, sent.reason), Toast.LENGTH_LONG).show()
+            null
+        }
+    }
+}

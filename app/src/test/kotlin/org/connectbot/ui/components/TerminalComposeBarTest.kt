@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -42,6 +43,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -61,10 +63,13 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.connectbot.data.entity.Host
 import org.connectbot.service.TerminalBridge
@@ -85,6 +90,9 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.mockito.kotlin.doSuspendableAnswer
+import org.mockito.kotlin.stub
+import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentStatus
@@ -93,6 +101,7 @@ import solutions.ormus.logos.herd.HerdrSessionSnapshot
 import solutions.ormus.logos.herd.HerdrTabInfo
 import solutions.ormus.logos.herd.HerdrWorkspaceInfo
 import solutions.ormus.logos.herd.JumpTarget
+import solutions.ormus.logos.herd.SendResult
 import solutions.ormus.logos.herd.parseHerdrSnapshot
 
 /**
@@ -309,14 +318,14 @@ class TerminalComposeBarTest {
     fun herdrHost_row1_pageKeysMoreThenNeedsYou() {
         setBar(bridgeWithPostLogin("herdr\n"), herdrPanel = true, onSlashMenu = {})
 
-        assertRowOrder("↑", "↓", "Herdr", MORE, CHAT, NEEDS_YOU)
+        assertRowOrder(PAGE_UP, PAGE_DOWN, "Herdr", MORE, CHAT, NEEDS_YOU)
         // The tab arrows are gone: swipes switch tabs, Jump to sits in the Herdr panel.
         composeTestRule.onAllNodesWithContentDescription("Previous tab").assertCountEquals0()
         composeTestRule.onAllNodesWithContentDescription("Next tab").assertCountEquals0()
         assertComfortable(NEEDS_YOU)
-        // ↑ and ↓ keep their glyphs but page.
-        key("PgUp").assertIsDisplayed()
-        key("PgDn").assertIsDisplayed()
+        // PgUp and PgDn page, and say so.
+        key(PAGE_UP).assertIsDisplayed()
+        key(PAGE_DOWN).assertIsDisplayed()
         // / waits in the tray.
         composeTestRule.onAllNodesWithText("/").assertCountEquals0()
         composeTestRule.onAllNodesWithText("Ctrl").assertCountEquals0()
@@ -329,7 +338,7 @@ class TerminalComposeBarTest {
         setBar(bridgeWithPostLogin(null), herdrPanel = true)
 
         // The same row as on Sun; the Herdr keys wait, dimmed, for Herdr to answer.
-        assertRowOrder("↑", "↓", "Herdr", MORE, CHAT, NEEDS_YOU)
+        assertRowOrder(PAGE_UP, PAGE_DOWN, "Herdr", MORE, CHAT, NEEDS_YOU)
         key("Herdr").assertIsNotEnabled()
         key(CHAT).assertIsNotEnabled()
         key(NEEDS_YOU).assertIsNotEnabled()
@@ -595,7 +604,7 @@ class TerminalComposeBarTest {
         setBar(bridgeWithPostLogin("herdr\n"))
 
         key("Herdr").assertIsNotEnabled()
-        assertRowOrder("↑", "↓", "Herdr", MORE, CHAT, NEEDS_YOU)
+        assertRowOrder(PAGE_UP, PAGE_DOWN, "Herdr", MORE, CHAT, NEEDS_YOU)
         assertComfortable("Herdr")
     }
 
@@ -604,7 +613,7 @@ class TerminalComposeBarTest {
         val bridge = bridgeWithPostLogin(null)
         setBar(bridge)
 
-        key("↑").performClick()
+        key(PAGE_UP).performClick()
         composeTestRule.waitForIdle()
 
         verify(bridge, times(1)).injectString(ESC + "[5~")
@@ -616,12 +625,12 @@ class TerminalComposeBarTest {
         val bridge = bridgeWithPostLogin(null)
         setBar(bridge)
 
-        key("↑").performTouchInput {
+        key(PAGE_UP).performTouchInput {
             down(center)
             advanceEventTime(1_000)
         }
         composeTestRule.mainClock.advanceTimeBy(1_000)
-        key("↑").performTouchInput { up() }
+        key(PAGE_UP).performTouchInput { up() }
 
         // One on press, then repeats every 60 ms after the first 400 ms.
         verify(bridge, atLeast(5)).injectString(ESC + "[5~")
@@ -632,12 +641,12 @@ class TerminalComposeBarTest {
         val bridge = bridgeWithPostLogin(null)
         setBar(bridge)
 
-        key("↓").performTouchInput {
+        key(PAGE_DOWN).performTouchInput {
             down(center)
             advanceEventTime(1_000)
         }
         composeTestRule.mainClock.advanceTimeBy(1_000)
-        key("↓").performTouchInput { up() }
+        key(PAGE_DOWN).performTouchInput { up() }
 
         verify(bridge, atLeast(5)).injectString(ESC + "[6~")
     }
@@ -670,6 +679,74 @@ class TerminalComposeBarTest {
         assertEquals(listOf("a long voice note", CR), sentBytes(bridge))
         assertEquals(listOf(UsageActions.DRAFT_SEND), logged)
         assertEquals("", draft.text)
+    }
+
+    @Test
+    fun typedText_isStillInTheField_whenTheTerminalOpensAgain() {
+        val store = ComposeDraftStore()
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, draft = store.draft("1|host"))
+        composeTestRule.onNode(hasSetTextAction()).performTextInput("half a thought")
+
+        // Back and the same tab again: the console builds a new draft for the same terminal.
+        val reopened = store.draft("1|host")
+        assertEquals("half a thought", reopened.text)
+        assertEquals(TextRange("half a thought".length), reopened.value.selection)
+    }
+
+    @Test
+    fun aSentDraft_isNotBroughtBack_whenTheTerminalOpensAgain() {
+        val store = ComposeDraftStore()
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, draft = store.draft("1|host"))
+        composeTestRule.onNode(hasSetTextAction()).performTextInput("run the tests")
+        assertEquals("run the tests", store.kept("1|host"))
+
+        composeTestRule.onNode(hasSetTextAction()).performImeAction()
+        composeTestRule.mainClock.advanceTimeBy(100)
+        composeTestRule.waitForIdle()
+
+        assertEquals("", store.kept("1|host"))
+    }
+
+    private fun coreBridge(send: suspend () -> SendResult): TerminalBridge {
+        val bridge = bridgeWithPostLogin(null)
+        `when`(bridge.watch).thenReturn(CoreWatchTarget("t7", "work", "main"))
+        bridge.stub { onBlocking { composeSend(any() ?: "") } doSuspendableAnswer { send() } }
+        return bridge
+    }
+
+    @Test
+    fun aCoreSendStillWaiting_hasNoStoredDraft_soLeavingNowCannotBringItBack() {
+        val store = ComposeDraftStore()
+        val bridge = coreBridge { CompletableDeferred<SendResult>().await() }
+        setBar(bridge, draft = store.draft("1|watch"))
+        composeTestRule.onNode(hasSetTextAction()).performTextInput("deploy it")
+        assertEquals("deploy it", store.kept("1|watch"))
+
+        composeTestRule.onNode(hasSetTextAction()).performImeAction()
+        composeTestRule.waitForIdle()
+
+        // hc send may already have pasted it: a console that closes now must not offer it again.
+        assertEquals("", store.kept("1|watch"))
+    }
+
+    @Test
+    fun aCoreSendThatFailed_putsTheTextBackInTheFieldAndTheStore() {
+        val store = ComposeDraftStore()
+        val gate = CompletableDeferred<SendResult>()
+        val bridge = coreBridge { gate.await() }
+        val draft = store.draft("1|watch")
+        setBar(bridge, draft = draft)
+        composeTestRule.onNode(hasSetTextAction()).performTextInput("deploy it")
+        composeTestRule.onNode(hasSetTextAction()).performImeAction()
+        composeTestRule.waitForIdle()
+
+        gate.complete(SendResult.Failed("no connection"))
+        composeTestRule.waitForIdle()
+
+        assertEquals("deploy it", draft.text)
+        assertEquals("deploy it", store.kept("1|watch"))
     }
 
     @Test
@@ -750,12 +827,70 @@ class TerminalComposeBarTest {
     }
 
     @Test
+    fun keyBar_pgUpAndPgDnKeys_areDescribedAsPageUpAndPageDownForTalkBack() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+        composeTestRule.onNode(hasClickAction() and hasLabel(PAGE_UP)).assertIsDisplayed()
+        composeTestRule.onNode(hasClickAction() and hasLabel(PAGE_DOWN)).assertIsDisplayed()
+    }
+
+    @Test
+    fun keyBar_anOverFullSavedPageStillShowsEveryKey() {
+        val six = listOf("esc", "tab", "slash", "dash", "pipe", "tilde")
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(six)))
+        listOf("Esc", "Tab", "/", "-", "|", "~").forEach {
+            // Inside the key bar, on screen: the same label may also sit in a row above.
+            val bar = bounds(KEY_BAR_TEST_TAG)
+            val onScreen = composeTestRule.onAllNodes(hasClickAction() and hasLabel(it)).fetchSemanticsNodes()
+                .count { node -> node.boundsInRoot.top >= bar.top && node.boundsInRoot.left >= 0f && node.boundsInRoot.right <= bar.right + 0.5f }
+            assertEquals("'$it' is in the key bar once", 1, onScreen)
+        }
+    }
+
+    @Test
+    fun keyBar_theFirstPageShowsPgUpAndPgDnAsWords_notArrows() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+        composeTestRule.onAllNodesWithText(PAGE_UP_LABEL, useUnmergedTree = true).assertCountEquals(1)
+        composeTestRule.onAllNodesWithText(PAGE_DOWN_LABEL, useUnmergedTree = true).assertCountEquals(1)
+        composeTestRule.onAllNodesWithText("\u2191", useUnmergedTree = true).assertCountEquals(0)
+        composeTestRule.onAllNodesWithText("\u2193", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun keyBar_theShiftTabKeyIsStillCalledShiftTabForAScreenReader() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("shift-tab"))))
+        key("Shift+Tab").performClick()
+        verify(bridge).injectString(ESC + "[Z")
+    }
+
+    @Test
+    fun keyBar_pageDotsDoNotReachIntoTheKeysAboveAndAreWideEnough() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("esc", "tab"), listOf("ctrl-z"))))
+        val density = composeTestRule.density.density
+        val keysBottom = composeTestRule.onAllNodes(hasLabel("Tab")).fetchSemanticsNodes().maxOf { it.boundsInRoot.bottom }
+        (0..2).forEach { i ->
+            val touch = composeTestRule.onNodeWithTag("key_bar_dot_$i").fetchSemanticsNode().touchBoundsInRoot
+            assertTrue("dot $i touch box starts at ${touch.top}, keys end at $keysBottom", touch.top >= keysBottom - 0.5f)
+            assertTrue("dot $i touch box is ${touch.width / density} dp wide, needs 32", touch.width / density >= 32f)
+        }
+    }
+
+    @Test
+    fun keyBar_theCurrentPageDotIsSelectedForTalkBack() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("esc"), listOf("tab"))))
+        val selected = SemanticsMatcher.expectValue(SemanticsProperties.Selected, true)
+        composeTestRule.onNodeWithTag("key_bar_dot_1").assert(selected)
+        composeTestRule.onNodeWithTag("key_bar_dot_0").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
+        composeTestRule.onNodeWithTag("key_bar_dot_1").assertContentDescriptionEquals("Page 2 of 3")
+    }
+
+    @Test
     fun keyBar_theBottomRowIsTheFirstPage_andASwipeShowsHisKeys() {
         val bridge = bridgeWithPostLogin(null)
         setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
 
         val bar = bounds(KEY_BAR_TEST_TAG)
-        listOf(PAGE_UP_LABEL, "PgDn", MORE).forEach { assertInside(it, bar) }
+        listOf(PAGE_UP, PAGE_DOWN, MORE).forEach { assertInside(it, bar) }
         key("Ctrl+C").assertDoesNotExist()
 
         composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).performTouchInput { swipeLeft() }
@@ -764,7 +899,7 @@ class TerminalComposeBarTest {
         verify(bridge).injectString("\u0003")
         // One key row: the bottom row's keys turned away with its page, no second row stayed.
         key(MORE).assertDoesNotExist()
-        key(PAGE_UP_LABEL).assertDoesNotExist()
+        key(PAGE_UP).assertDoesNotExist()
     }
 
     @Test
@@ -773,7 +908,7 @@ class TerminalComposeBarTest {
         setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
 
         // The thumb rests on PgUp past the press delay of a key in a scrolling row, then swipes.
-        key(PAGE_UP_LABEL).performTouchInput { down(center) }
+        key(PAGE_UP).performTouchInput { down(center) }
         composeTestRule.mainClock.advanceTimeBy(150)
         composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).performTouchInput {
             repeat(10) { moveBy(androidx.compose.ui.geometry.Offset(-width / 12f, 0f)) }
@@ -789,7 +924,7 @@ class TerminalComposeBarTest {
         val bridge = bridgeWithPostLogin(null)
         setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
 
-        key(PAGE_UP_LABEL).performClick()
+        key(PAGE_UP).performClick()
         composeTestRule.waitForIdle()
         verify(bridge, times(1)).injectString("\u001b[5~")
     }
@@ -846,6 +981,134 @@ class TerminalComposeBarTest {
         key("Ctrl").assertExists()
         key("\u2190").performClick()
         verify(bridge).injectString("\u001b[D")
+    }
+
+    @Test
+    fun keyBar_anArmedCtrlSurvivesATextKeyAndTakesTheNextKey() {
+        val bridge = bridgeWithPostLogin(null)
+        val clear = KeyBarCatalog.textKeyId("/clear", enter = false)!!
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", clear, "left"))))
+
+        key("Ctrl").performClick()
+        key("/clear").performClick()
+        verify(bridge).injectString("/clear")
+        key("Ctrl, armed for the next key").assertExists()
+        key("\u2190").performClick()
+        verify(bridge).injectString("\u001b[1;5D")
+    }
+
+    @Test
+    fun keyBar_ctrlSpaceSendsNul() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "space"))))
+
+        key("Ctrl").performClick()
+        key("Space").performClick()
+        verify(bridge).injectString("\u0000")
+    }
+
+    @Test
+    fun keyBar_theBottomPageShowsAnArmedOrLockedModifierAndNothingWhenOff() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "alt"))))
+
+        toPage(0)
+        composeTestRule.onAllNodesWithTag(MOD_MARK).assertCountEquals(0)
+
+        toPage(1)
+        key("Ctrl").performClick()
+        toPage(0)
+        composeTestRule.onNodeWithTag(MOD_MARK).assertExists()
+        composeTestRule.onNodeWithContentDescription("Ctrl armed, tap to clear").assertExists()
+
+        toPage(1)
+        key("Ctrl, armed for the next key").performTouchInput { longClick() }
+        toPage(0)
+        composeTestRule.onNodeWithContentDescription("Ctrl locked, tap to clear").assertExists()
+
+        toPage(1)
+        key("Ctrl, locked").performClick()
+        toPage(0)
+        composeTestRule.onAllNodesWithTag(MOD_MARK).assertCountEquals(0)
+    }
+
+    @Test
+    fun keyBar_anArmedCtrlIsSpentByAKeyItDoesNotChange() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "dash", "left"))))
+
+        key("Ctrl").performClick()
+        key("-").performClick()
+        verify(bridge).injectString("-")
+        key("Ctrl").assertExists()
+        key("\u2190").performClick()
+        verify(bridge).injectString("\u001b[D")
+    }
+
+    @Test
+    fun keyBar_altLeavesATextMacroAloneAndStaysArmed() {
+        val bridge = bridgeWithPostLogin(null)
+        val clear = KeyBarCatalog.textKeyId("/clear", enter = false)!!
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("alt", clear, "slash"))))
+
+        key("Alt").performClick()
+        key("/clear").performClick()
+        verify(bridge).injectString("/clear")
+        key("Alt, armed for the next key").assertExists()
+        key("/").performClick()
+        verify(bridge).injectString("\u001b/")
+    }
+
+    @Test
+    fun keyBar_tappingTheMarkClearsTheModifiersAndTheBarKeepsItsHeight() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl", "alt"))))
+        val height = { composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).getUnclippedBoundsInRoot().height }
+        toPage(0)
+        val before = height()
+
+        toPage(1)
+        key("Ctrl").performTouchInput { longClick() }
+        key("Alt").performClick()
+        toPage(0)
+        composeTestRule.onNodeWithContentDescription("Ctrl locked, Alt armed, tap to clear").assertExists()
+        assertEquals(before, height())
+
+        composeTestRule.onNodeWithTag(MOD_MARK).performClick()
+        composeTestRule.onAllNodesWithTag(MOD_MARK).assertCountEquals(0)
+        toPage(1)
+        key("Ctrl").assertExists()
+        key("Alt").assertExists()
+    }
+
+    @Test
+    fun keyBar_switchingTheTerminalClearsALockedModifier() {
+        val first = bridgeWithPostLogin(null)
+        val second = bridgeWithPostLogin(null)
+        var current by mutableStateOf(first)
+        composeTestRule.setContent {
+            ConnectBotTheme {
+                CompositionLocalProvider(LocalUsageLog provides UsageLog { logged += it }) {
+                    Box(Modifier.width(PHONE_WIDTH).fillMaxSize()) {
+                        TerminalComposeBar(
+                            bridge = current,
+                            modifier = Modifier.align(Alignment.BottomCenter).testTag(BAR),
+                            keyBar = KeyBarLayout(listOf(listOf("ctrl", "left"))),
+                        )
+                    }
+                }
+            }
+        }
+        toPage(1)
+        key("Ctrl").performTouchInput { longClick() }
+        key("Ctrl, locked").assertExists()
+
+        composeTestRule.runOnIdle { current = second }
+        composeTestRule.waitForIdle()
+        toPage(1)
+        key("Ctrl").assertExists()
+        key("\u2190").performClick()
+        verify(second).injectString("\u001b[D")
     }
 
     @Test
@@ -1146,14 +1409,14 @@ class TerminalComposeBarTest {
 
     @Test
     fun trayPaste_addsTheScreenshotPathToTheDraft() {
-        setBar(bridgeWithPostLogin(null), onPasteScreenshot = { "/tmp/logos-pastes/shot-1.png" })
+        setBar(bridgeWithPostLogin(null), onPasteScreenshot = { "/home/alex/.cache/mercurio-pastes/photo-1.png" })
         composeTestRule.onNode(hasSetTextAction()).performTextInput("look at")
         openTray()
 
         key(PASTE).performClick()
         assertTrayOpen()
 
-        composeTestRule.onNode(hasSetTextAction()).assertTextContains("look at read /tmp/logos-pastes/shot-1.png ")
+        composeTestRule.onNode(hasSetTextAction()).assertTextContains("look at read /home/alex/.cache/mercurio-pastes/photo-1.png ")
         assertEquals(listOf(UsageActions.BAR_TRAY_OPEN, UsageActions.PASTE_SCREENSHOT), logged)
     }
 
@@ -1284,7 +1547,7 @@ class TerminalComposeBarTest {
             onPasteScreenshot = { null },
             onSlashMenu = {},
         )
-        listOf("↑", "↓", "Herdr", MORE, NEEDS_YOU, "Esc", "Tab", ENTER).forEach { assertComfortable(it) }
+        listOf(PAGE_UP, PAGE_DOWN, "Herdr", MORE, NEEDS_YOU, "Esc", "Tab", ENTER).forEach { assertComfortable(it) }
         openTray()
         listOf("Left", "Up", "Down", "Right", "Jump to bottom", "Mode", "Clear", READ, "Copy latest URL", "Copy last reply", PASTE, "Sidebar", "/")
             .forEach { assertComfortable(it) }
@@ -1293,7 +1556,7 @@ class TerminalComposeBarTest {
     @Test
     fun plainHost_everyBarKey_isAtLeast44dpWide() {
         setBar(bridgeWithPostLogin(null))
-        listOf("↑", "↓", "Herdr", MORE, NEEDS_YOU, "Esc", "Tab", ENTER).forEach { assertComfortable(it) }
+        listOf(PAGE_UP, PAGE_DOWN, "Herdr", MORE, NEEDS_YOU, "Esc", "Tab", ENTER).forEach { assertComfortable(it) }
     }
 
     // The compose box and the key bar are two separate parts.
@@ -1321,7 +1584,7 @@ class TerminalComposeBarTest {
         setBar(bridge)
 
         key("Esc").performClick()
-        key("↓").performClick()
+        key(PAGE_DOWN).performClick()
 
         assertEquals(listOf(ESC, ESC + "[6~"), sentBytes(bridge))
     }
@@ -1335,7 +1598,7 @@ class TerminalComposeBarTest {
         listOf("Esc", "Tab", ENTER).forEach { assertInside(it, box) }
         val field = composeTestRule.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot
         assertTrue("the field sits inside the compose box", field.left >= box.left && field.right <= box.right && field.top >= box.top && field.bottom <= box.bottom)
-        listOf("↑", "↓", "Herdr", MORE, CHAT, NEEDS_YOU).forEach { assertInside(it, keys) }
+        listOf(PAGE_UP, PAGE_DOWN, "Herdr", MORE, CHAT, NEEDS_YOU).forEach { assertInside(it, keys) }
     }
 
     @Test
@@ -1355,12 +1618,16 @@ class TerminalComposeBarTest {
 
     private companion object {
         const val BAR = "composeBar"
+        const val MOD_MARK = "key_bar_modifier_mark"
         const val MORE = "More keys"
+        const val PAGE_UP = "Page up"
+        const val PAGE_DOWN = "Page down"
         const val PAGE_UP_LABEL = "PgUp"
+        const val PAGE_DOWN_LABEL = "PgDn"
         const val READ = "Read output"
         const val SEND = "Send"
         const val ENTER = "Enter"
-        const val PASTE = "Paste latest screenshot"
+        const val PASTE = "Paste a photo"
         val PHONE_WIDTH = 411.dp
         const val NEEDS_YOU = "Needs you"
         const val CHAT = "Chat"

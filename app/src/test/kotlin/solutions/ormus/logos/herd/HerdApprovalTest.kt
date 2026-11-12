@@ -174,7 +174,7 @@ class HerdApprovalTest {
 
     // HerdSession.answer against a scripted host: every command is recorded; the
     // snapshot command answers with [agents], send-keys with [sendKeys].
-    private class Host(var agents: String, val sendKeys: CommandOutput? = CommandOutput("", "", 0)) {
+    private class Host(var agents: String, val sendKeys: CommandOutput? = CommandOutput("", "", 0), var screen: String? = null) {
         val ran = mutableListOf<String>()
 
         fun run(command: String): CommandOutput? {
@@ -182,6 +182,7 @@ class HerdApprovalTest {
             return when {
                 "api snapshot" in command -> if (agents.isEmpty()) null else CommandOutput("""{"result":{"snapshot":{"agents":[$agents]}}}""", "", 0)
                 "send-keys" in command -> sendKeys
+                "pane read" in command -> screen?.let { CommandOutput(it, "", 0) }
                 else -> CommandOutput("", "", 0)
             }
         }
@@ -201,7 +202,7 @@ class HerdApprovalTest {
     fun answer_stillBlocked_sendsTheKey() = runTest {
         val host = Host(blockedClaude)
 
-        assertEquals(HerdAnswerOutcome.Sent, session(host).answer("w1:p1", HerdAnswer.APPROVE))
+        assertEquals(HerdAnswerOutcome.Sent, session(host).answer("w1:p1", HerdAnswer.APPROVE, seq = null))
         assertEquals(1, host.ran.count { "api snapshot" in it })
         assertEquals(HerdApproval.sendKeysCommand("w1:p1", HerdAnswer.APPROVE), host.ran.last())
     }
@@ -241,6 +242,112 @@ class HerdApprovalTest {
         assertTrue(host.ran.none { "send-keys" in it })
     }
 
+    private val promptA = "Run tool A?\n❯ 1. Yes\n2. No"
+    private val promptB = "Run tool B?\n❯ 1. Yes\n2. No"
+
+    @Test
+    fun answerShown_withASeq_sendsOnlyAtThatSeq() = runTest {
+        val same = Host(blockedAt(7))
+        assertEquals(HerdAnswerOutcome.Sent, session(same).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = 7, prompt = null))
+        val moved = Host(blockedAt(9))
+        assertEquals(HerdAnswerOutcome.PromptChanged, session(moved).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = 7, prompt = null))
+        assertTrue(moved.ran.none { "send-keys" in it })
+    }
+
+    @Test
+    fun answerShown_withNoSeq_sendsOnlyWhileThePanesEndIsTheOneShown() = runTest {
+        val shown = CoreNotices.fingerprint(promptA)
+        val same = Host(blockedClaude, screen = promptA)
+        assertEquals(HerdAnswerOutcome.Sent, session(same).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = null, prompt = shown))
+
+        val changed = Host(blockedClaude, screen = promptB)
+        assertEquals(HerdAnswerOutcome.PromptChanged, session(changed).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = null, prompt = shown))
+        assertTrue(changed.ran.none { "send-keys" in it })
+
+        val unread = Host(blockedClaude, screen = null)
+        assertEquals(HerdAnswerOutcome.PromptChanged, session(unread).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = null, prompt = shown))
+        assertTrue(unread.ran.none { "send-keys" in it })
+    }
+
+    @Test
+    fun answerShown_withNeitherASeqNorAPrompt_sendsNothing() = runTest {
+        val host = Host(blockedClaude, screen = promptA)
+        // Not "no longer waiting": it may well still be, there is just nothing to prove which prompt it is.
+        assertEquals(HerdAnswerOutcome.Unproven, session(host).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = null, prompt = null))
+        assertTrue(host.ran.none { "send-keys" in it })
+    }
+
+    // Claude Code's prompt with the owner's status lines under it, which change as the session goes on.
+    private fun withStatus(command: String, context: String, sentinel: String, above: Int = 20) = buildString {
+        repeat(above) { appendLine(" transcript line $it") }
+        appendLine("────────────────────────────────────────")
+        appendLine(" Bash command")
+        appendLine()
+        appendLine("   $command")
+        appendLine("   Run the build")
+        appendLine(" Do you want to proceed?")
+        appendLine(" ❯ 1. Yes")
+        appendLine("   2. Yes, and don't ask again for this command")
+        appendLine("   3. No")
+        appendLine()
+        appendLine(" Esc to cancel")
+        appendLine(" Sonnet 5.5  ~/.claude/plans  ctx $context")
+        appendLine(" project-sentinel: ◆ Context $sentinel")
+    }
+
+    @Test
+    fun fingerprint_coversThePromptAndNotTheStatusLinesUnderIt() {
+        val shown = withStatus("./gradlew build", "0% (0k/1M)", "4% · Work 5/5")
+        val later = withStatus("./gradlew build", "3% (30k/1M)", "5% · Work 5/5 · Cache 9m")
+        assertEquals(CoreNotices.fingerprint(shown), CoreNotices.fingerprint(later))
+        assertTrue(CoreNotices.fingerprint(shown) != null)
+        // Another command is another prompt.
+        assertTrue(CoreNotices.fingerprint(shown) != CoreNotices.fingerprint(withStatus("rm -rf build", "0% (0k/1M)", "4% · Work 5/5")))
+    }
+
+    @Test
+    fun fingerprint_ofTheNoticesTail_isTheFingerprintOfTheWholeRead() {
+        // The notice carries the last 12 lines; the answer reads more. Both must hash the same prompt.
+        val full = withStatus("./gradlew build", "0% (0k/1M)", "4% · Work 5/5")
+        val tail = checkNotNull(HerdApproval.tail(full))
+        assertEquals(CoreNotices.fingerprint(full), CoreNotices.fingerprint(tail))
+    }
+
+    @Test
+    fun fingerprint_ignoresARunningTimerLineAboveThePrompt() {
+        fun screen(timer: String) = "Bash command\n  make\n$timer\nDo you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel"
+        val shown = CoreNotices.fingerprint(screen("✻ Running… (3s · esc to interrupt)"))
+        assertTrue(shown != null)
+        assertEquals(shown, CoreNotices.fingerprint(screen("✻ Running… (41s · ↑ 1.2k tokens · esc to interrupt)")))
+        assertEquals(shown, CoreNotices.fingerprint("Bash command\n  make\nDo you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel"))
+        assertTrue(shown != CoreNotices.fingerprint(screen("✻ Running… (3s · esc to interrupt)").replace("make", "make clean")))
+    }
+
+    @Test
+    fun fingerprint_isNullWhenThereIsNoPermissionPrompt() {
+        assertNull(CoreNotices.fingerprint("just\nsome\noutput"))
+        assertNull(CoreNotices.fingerprint("Pick one\n1. red\n2. blue"))
+    }
+
+    @Test
+    fun answerShown_goesThroughAChangedStatusLine_butNotAChangedCommand() = runTest {
+        val shown = CoreNotices.fingerprint(withStatus("./gradlew build", "0% (0k/1M)", "4% · Work 5/5"))
+        val statusMoved = Host(blockedAt(7), screen = withStatus("./gradlew build", "3% (30k/1M)", "5% · Work 5/5 · Cache 9m"))
+        assertEquals(HerdAnswerOutcome.Sent, session(statusMoved).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = 7, prompt = shown))
+
+        val commandMoved = Host(blockedAt(7), screen = withStatus("rm -rf build", "0% (0k/1M)", "4% · Work 5/5"))
+        assertEquals(HerdAnswerOutcome.PromptChanged, session(commandMoved).answerShown("w1:p1", HerdAnswer.APPROVE.key, "default", seq = 7, prompt = shown))
+        assertTrue(commandMoved.ran.none { "send-keys" in it })
+    }
+
+    @Test
+    fun aSnapshotWithoutAStateChangeSeq_hasNoSeqMark_soNoAnswerPassesOnZero() {
+        val minimal = checkNotNull(parseHerdrSnapshot("""{"result":{"snapshot":{"agents":[{"pane_id":"w1:p1","agent":"claude","agent_status":"blocked"}]}}}"""))
+        assertNull(minimal.agents.single().seqMark)
+        assertEquals(42L, agent("claude").copy(stateChangeSeq = 42).seqMark)
+        assertNull("0 is what a missing field parses to", agent("claude").copy(stateChangeSeq = 0).seqMark)
+    }
+
     @Test
     fun answer_leftBlocked_sendsNothingAndSaysItNoLongerWaits() = runTest {
         // Same seq or not, an agent that is not blocked gets nothing.
@@ -256,7 +363,7 @@ class HerdApprovalTest {
     fun answer_inAnotherSession_checksAndSendsThere() = runTest {
         val host = Host(blockedClaude)
 
-        assertEquals(HerdAnswerOutcome.Sent, session(host).answer("w1:p1", HerdAnswer.APPROVE, "work"))
+        assertEquals(HerdAnswerOutcome.Sent, session(host).answer("w1:p1", HerdAnswer.APPROVE, "work", seq = null))
         assertEquals(listOf(HerdrSessions.snapshotCommand("work"), HerdApproval.sendKeysCommand("w1:p1", HerdAnswer.APPROVE, "work")), host.ran)
     }
 
@@ -264,7 +371,7 @@ class HerdApprovalTest {
     fun answer_noLongerBlocked_sendsNothing() = runTest {
         val host = Host("""{"pane_id":"w1:p1","agent":"claude","agent_status":"working"}""")
 
-        assertEquals(HerdAnswerOutcome.NotBlocked, session(host).answer("w1:p1", HerdAnswer.DENY))
+        assertEquals(HerdAnswerOutcome.NotBlocked, session(host).answer("w1:p1", HerdAnswer.DENY, seq = null))
         assertTrue(host.ran.none { "send-keys" in it })
     }
 
@@ -272,7 +379,7 @@ class HerdApprovalTest {
     fun answer_unprovenKind_sendsNothing() = runTest {
         val host = Host("""{"pane_id":"w1:p1","agent":"grok","agent_status":"blocked"}""")
 
-        assertEquals(HerdAnswerOutcome.NotBlocked, session(host).answer("w1:p1", HerdAnswer.APPROVE))
+        assertEquals(HerdAnswerOutcome.NotBlocked, session(host).answer("w1:p1", HerdAnswer.APPROVE, seq = null))
         assertTrue(host.ran.none { "send-keys" in it })
     }
 
@@ -280,7 +387,7 @@ class HerdApprovalTest {
     fun answer_snapshotFails_sendsNothingAndSaysWhy() = runTest {
         val host = Host("")
 
-        val outcome = session(host).answer("w1:p1", HerdAnswer.APPROVE)
+        val outcome = session(host).answer("w1:p1", HerdAnswer.APPROVE, seq = null)
         assertEquals(HerdAnswerOutcome.Failed("No SSH session is up, so Mercurio could not run any Herdr command."), outcome)
         assertTrue(host.ran.none { "send-keys" in it })
     }
@@ -290,6 +397,6 @@ class HerdApprovalTest {
         val error = CommandOutput("", """{"error":{"code":"pane_not_found","message":"pane w1:p1 not found"}}""", 1)
         val host = Host(blockedClaude, sendKeys = error)
 
-        assertEquals(HerdAnswerOutcome.Failed("pane w1:p1 not found"), session(host).answer("w1:p1", HerdAnswer.APPROVE))
+        assertEquals(HerdAnswerOutcome.Failed("pane w1:p1 not found"), session(host).answer("w1:p1", HerdAnswer.APPROVE, seq = null))
     }
 }

@@ -68,8 +68,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -88,6 +91,8 @@ import org.connectbot.ui.components.WORD_KEY_PADDING
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusTokens
+import org.connectbot.usage.LocalUsageLog
+import org.connectbot.usage.UsageActions
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
 import solutions.ormus.logos.herd.RowAction
@@ -144,7 +149,7 @@ fun InboxScreen(
             value = System.currentTimeMillis()
         }
     }
-    InboxContent(rows = state.rows, notes = state.notes, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, modifier = modifier)
+    InboxContent(rows = state.rows, notes = state.notes, loading = !state.loaded, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, modifier = modifier)
 }
 
 /** The Inbox on [rows]: a search field, then one group per state, each folded after three rows. */
@@ -158,11 +163,31 @@ fun InboxContent(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     onAction: (InboxRow, RowAction) -> Unit = { _, _ -> },
+    loading: Boolean = false,
 ) {
+    val usage = LocalUsageLog.current
+    // Each log is the id of the action alone; the row is passed on untouched.
+    val openRow: (InboxRow) -> Unit = {
+        usage.log(UsageActions.INBOX_OPEN)
+        onOpen(it)
+    }
+    val actOnRow: (InboxRow, RowAction) -> Unit = { row, action ->
+        usage.log(
+            when (action) {
+                RowAction.MARK_READ -> UsageActions.INBOX_MARK_READ
+                RowAction.PIN -> UsageActions.INBOX_PIN
+                RowAction.UNPIN -> UsageActions.INBOX_UNPIN
+                RowAction.INTERRUPT -> UsageActions.INBOX_ESC
+            },
+        )
+        onAction(row, action)
+    }
     // The row a swipe left is asking about: Esc is sent only after the person confirms.
     var interrupting by remember { mutableStateOf<InboxRow?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    // Rows whose helpers were flipped from their default: shut, or open while a helper needs the user.
+    var flipped by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val sections = remember(rows, query, expanded) { Inbox.sections(rows, query, expanded.mapTo(HashSet()) { Inbox.Section.valueOf(it) }) }
 
     interrupting?.let { target ->
@@ -173,7 +198,7 @@ fun InboxContent(
             confirmButton = {
                 TextButton(onClick = {
                     interrupting = null
-                    onAction(target, RowAction.INTERRUPT)
+                    actOnRow(target, RowAction.INTERRUPT)
                 }) { Text(stringResource(R.string.inbox_esc_send)) }
             },
             dismissButton = { TextButton(onClick = { interrupting = null }) { Text(stringResource(R.string.button_cancel)) } },
@@ -200,11 +225,25 @@ fun InboxContent(
             contentPadding = PaddingValues(Ormus.spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Ormus.spacing.lg),
         ) {
-            item(key = "search") { SearchField(query = query, onChange = { query = it }) }
-            if (sections.isEmpty()) {
+            item(key = "search") {
+                SearchField(query = query, onChange = {
+                    // One id when a search starts, not one per key.
+                    if (query.isEmpty() && it.isNotEmpty()) usage.log(UsageActions.INBOX_SEARCH)
+                    query = it
+                })
+            }
+            // No rows: loading says so, a failure shows as its own line below, and only a read that
+            // went through with no agents says there are none.
+            val emptyText = when {
+                rows.isNotEmpty() -> R.string.inbox_no_match
+                loading && notes.isEmpty() -> R.string.inbox_loading
+                notes.isNotEmpty() -> null
+                else -> R.string.inbox_empty
+            }
+            if (sections.isEmpty() && emptyText != null) {
                 item(key = "empty") {
                     Text(
-                        text = stringResource(if (rows.isEmpty()) R.string.inbox_empty else R.string.inbox_no_match),
+                        text = stringResource(emptyText),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = Ormus.spacing.xs),
@@ -214,13 +253,34 @@ fun InboxContent(
             items(sections, key = { it.section.name }) { section ->
                 val open = section.section.name in expanded
                 OrmusGroup(label = stringResource(label(section.section))) {
-                    section.shown.forEach { shown -> row { key(shown.key) { InboxRowItem(shown, now, onOpen, onAction) { interrupting = it } } } }
+                    section.shown.forEach { shown ->
+                        val helpersOpen = shown.helpersNeedYou != (shown.key in flipped)
+                        row {
+                            key(shown.key) {
+                                InboxRowItem(shown, now, openRow, actOnRow, helpersOpen = helpersOpen, onToggleHelpers = {
+                                    usage.log(UsageActions.INBOX_HELPERS)
+                                    flipped = if (shown.key in flipped) flipped - shown.key else flipped + shown.key
+                                }) { interrupting = it }
+                            }
+                        }
+                        if (helpersOpen) {
+                            shown.helperRows.forEach { helper -> row { key(helper.key) { InboxRowItem(helper, now, openRow, actOnRow, indent = true) { interrupting = it } } } }
+                        }
+                    }
                     if (section.hidden > 0) {
                         row {
-                            FoldLine(stringResource(R.string.inbox_show_more, section.hidden)) { expanded = expanded + section.section.name }
+                            FoldLine(stringResource(R.string.inbox_show_more, section.hidden)) {
+                                usage.log(UsageActions.INBOX_FOLD)
+                                expanded = expanded + section.section.name
+                            }
                         }
                     } else if (open && section.canFold) {
-                        row { FoldLine(stringResource(R.string.inbox_show_fewer)) { expanded = expanded - section.section.name } }
+                        row {
+                            FoldLine(stringResource(R.string.inbox_show_fewer)) {
+                                usage.log(UsageActions.INBOX_FOLD)
+                                expanded = expanded - section.section.name
+                            }
+                        }
                     }
                 }
             }
@@ -273,6 +333,14 @@ const val INBOX_UNREAD_TAG = "inbox_unread"
 /** Test tag of the pin on a pinned row. */
 const val INBOX_PINNED_TAG = "inbox_pinned"
 
+/** Test tag of the helper count on a row that has helpers. */
+const val INBOX_HELPERS_TAG = "inbox_helpers"
+
+/** Test tag of the dot on a helper count when a folded helper is unread. */
+const val INBOX_HELPERS_UNREAD_TAG = "inbox_helpers_unread"
+
+private val INDENT = 24.dp
+
 private val DOT_SIZE = 8.dp
 
 /**
@@ -287,12 +355,15 @@ private fun InboxRowItem(
     now: Long,
     onOpen: (InboxRow) -> Unit,
     onAction: (InboxRow, RowAction) -> Unit,
+    indent: Boolean = false,
+    helpersOpen: Boolean = false,
+    onToggleHelpers: () -> Unit = {},
     onInterrupt: (InboxRow) -> Unit,
 ) {
     val right = Inbox.rightSwipe(row.agent)
     val left = Inbox.canInterrupt(row.agent)
     if (right == null && !left) {
-        InboxRowBody(row, now, onOpen)
+        InboxRowBody(row, now, onOpen, indent, onToggleHelpers = onToggleHelpers)
         return
     }
     val currentRow by rememberUpdatedState(row)
@@ -335,14 +406,18 @@ private fun InboxRowItem(
             }
         },
     ) {
-        InboxRowBody(row, now, onOpen, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
+        InboxRowBody(row, now, onOpen, indent, onToggleHelpers = onToggleHelpers, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
     }
 }
 
 @Composable
-private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, modifier: Modifier = Modifier) {
+private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, indent: Boolean, onToggleHelpers: () -> Unit, modifier: Modifier = Modifier) {
     val space = row.agent.space
-    val description = stringResource(R.string.inbox_open, space, row.host)
+    val helpers = if (row.helpers > 0) pluralStringResource(R.plurals.inbox_helpers, row.helpers, row.helpers) else null
+    val helpersText = helpers?.let { if (row.helpersNeedYou) stringResource(R.string.inbox_helpers_need_you, it) else it }
+    var description = stringResource(R.string.inbox_open, space, row.host)
+    if (helpersText != null) description = stringResource(R.string.inbox_open_with, description, helpersText)
+    if (row.helpersUnread) description = stringResource(R.string.inbox_open_with, description, stringResource(R.string.inbox_unread))
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.md),
@@ -351,8 +426,19 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, m
             .heightIn(min = ROW_HEIGHT)
             .testTag(INBOX_ROW_TAG)
             .clickable { onOpen(row) }
-            .semantics { contentDescription = description }
-            .padding(horizontal = Ormus.spacing.lg, vertical = Ormus.spacing.sm),
+            .semantics {
+                contentDescription = description
+                // The count is a control of its own; a merged row hides it from a screen reader, so offer it as an action too.
+                if (helpersText != null) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(helpersText) {
+                            onToggleHelpers()
+                            true
+                        },
+                    )
+                }
+            }
+            .padding(start = Ormus.spacing.lg + if (indent) INDENT else 0.dp, end = Ormus.spacing.lg, top = Ormus.spacing.sm, bottom = Ormus.spacing.sm),
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -400,6 +486,35 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, m
                     .size(16.dp)
                     .testTag(INBOX_PINNED_TAG),
             )
+        }
+        if (helpersText != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.xs),
+                modifier = Modifier
+                    .testTag(INBOX_HELPERS_TAG)
+                    .clip(OrmusCornerShape)
+                    .clickable(onClick = onToggleHelpers)
+                    .padding(horizontal = Ormus.spacing.sm, vertical = Ormus.spacing.xs),
+            ) {
+                if (row.helpersUnread) {
+                    val unread = stringResource(R.string.inbox_unread)
+                    Box(
+                        modifier = Modifier
+                            .size(DOT_SIZE)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .testTag(INBOX_HELPERS_UNREAD_TAG)
+                            .semantics { contentDescription = unread },
+                    )
+                }
+                Text(
+                    text = helpersText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (row.helpersNeedYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
         }
         Inbox.age(row, now)?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

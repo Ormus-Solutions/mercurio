@@ -251,6 +251,78 @@ class CoreSourceTest {
         assertTrue(!u.reason.contains("not installed"), u.reason)
     }
 
+    private fun probes(log: List<String>) = log.count { "--version" in it }
+
+    @Test
+    fun `a host without herdr-core is not probed again on the next polls`() {
+        val log = mutableListOf<String>()
+        val missing = host(versionOut = CommandOutput("", "not found", 127), lsOut = ls(), log = log)
+        val source = CoreSource()
+        val first = assertIs<CoreSource.Result.Unavailable>(source.read(true, "box", 1_000L, missing))
+        assertEquals(CoreSource.NOT_INSTALLED, first.reason)
+        repeat(3) { i ->
+            val again = assertIs<CoreSource.Result.Unavailable>(source.read(true, "box", 5_000L + i * 4_000L, missing))
+            assertEquals(CoreSource.NOT_INSTALLED, again.reason)
+        }
+        assertEquals(1, probes(log))
+    }
+
+    @Test
+    fun `a host without herdr-core is probed again after the backoff`() {
+        val log = mutableListOf<String>()
+        val missing = host(versionOut = CommandOutput("", "", 127), lsOut = ls(), log = log)
+        val source = CoreSource()
+        source.read(true, "box", 1_000L, missing)
+        source.read(true, "box", 1_000L + CoreSource.RECHECK_MS - 1, missing)
+        assertEquals(1, probes(log))
+        source.read(true, "box", 1_000L + CoreSource.RECHECK_MS, missing)
+        assertEquals(2, probes(log))
+    }
+
+    @Test
+    fun `recheck probes a missing host again at once and a later install is seen`() {
+        val log = mutableListOf<String>()
+        val source = CoreSource()
+        source.read(true, "box", 1_000L, host(versionOut = CommandOutput("", "", 127), lsOut = ls(), log = log))
+        source.recheck()
+        val r = source.read(true, "box", 2_000L, host(lsOut = ls(rec("t1")), log = log))
+        assertEquals(listOf("t1"), agents(r).map { it.address })
+        assertEquals(2, probes(log))
+    }
+
+    @Test
+    fun `a host that could not be reached is probed again on the next poll`() {
+        val log = mutableListOf<String>()
+        val source = CoreSource()
+        source.read(true, "box", 1_000L, host(versionOut = null, lsOut = ls(), log = log))
+        source.read(true, "box", 5_000L, host(versionOut = null, lsOut = ls(), log = log))
+        assertEquals(2, probes(log))
+    }
+
+    @Test
+    fun `a probe that closed with no exit status is not a not-installed answer and is asked again`() {
+        val log = mutableListOf<String>()
+        val noStatus = host(versionOut = CommandOutput("", "", null), lsOut = ls(), log = log)
+        val source = CoreSource()
+        assertIs<CoreSource.Result.Unavailable>(source.read(true, "box", 1_000L, noStatus))
+        source.read(true, "box", 5_000L, noStatus)
+        assertEquals(2, probes(log))
+    }
+
+    @Test
+    fun `a recheck made while a read is in flight is not undone by that read`() {
+        val log = mutableListOf<String>()
+        val source = CoreSource()
+        val missing = host(versionOut = CommandOutput("", "", 127), lsOut = ls(), log = log)
+        // The Inbox opens (recheck) while the probe is still out; its late "not installed" must not stand.
+        source.read(true, "box", 1_000L) { cmd ->
+            source.recheck()
+            missing(cmd)
+        }
+        source.read(true, "box", 5_000L, missing)
+        assertEquals(2, probes(log))
+    }
+
     @Test
     fun `login shell noise before the json is skipped`() {
         val noisy = CommandOutput("Welcome to box\n" + ls(rec("t1")).stdout, "", 0)
@@ -275,5 +347,44 @@ class CoreSourceTest {
         src.read(true, "box", 1L, host(lsOut = CommandOutput("", "down", 1), log = log))
         src.read(true, "box", 2L, host(lsOut = ls(), log = log))
         assertEquals(2, log.count { "--version" in it })
+    }
+
+    /** A host answering `hc ls` with [lsOut] and the labels command with [seen] (terminal to herdr.seen); [log] collects the commands. */
+    private fun statesHost(lsOut: CommandOutput?, seen: Map<String, Int> = emptyMap(), log: MutableList<String> = mutableListOf()): (String) -> CommandOutput? = { cmd ->
+        log += cmd
+        if (CoreSource.PINNED_CMD in cmd) {
+            CommandOutput("""{"terminals":[]}""" + "\n" + seen.entries.joinToString("\n") { """{"address":"${it.key}","labels":{"herdr.seen":"${it.value}"}}""" }, "", 0)
+        } else {
+            lsOut
+        }
+    }
+
+    @Test
+    fun `states maps each terminal to its state`() {
+        val got = CoreSource().states(statesHost(ls(rec("t1", status = "\"working\""), rec("t2", status = "\"blocked\""), rec("t3", status = null))))
+        assertEquals(mapOf("t1" to AgentState.Working, "t2" to AgentState.NeedsYou(), "t3" to AgentState.Unknown), got)
+    }
+
+    @Test
+    fun `an idle terminal whose turn is past the seen one is Done, as in the Inbox`() {
+        val host = statesHost(ls(rec("t1", status = "\"idle\"", turn = 3), rec("t2", status = "\"idle\"", turn = 3)), seen = mapOf("t1" to 2, "t2" to 3))
+        assertEquals(mapOf("t1" to AgentState.Done, "t2" to AgentState.Idle), CoreSource().states(host))
+    }
+
+    @Test
+    fun `the labels are read only when a terminal is idle or done past turn 0`() {
+        val log = mutableListOf<String>()
+        CoreSource().states(statesHost(ls(rec("t1", status = "\"working\""), rec("t2", status = "\"idle\"", turn = 0)), log = log))
+        assertEquals(1, log.size)
+        log.clear()
+        CoreSource().states(statesHost(ls(rec("t1", status = "\"idle\"", turn = 2)), log = log))
+        assertEquals(2, log.size)
+    }
+
+    @Test
+    fun `states treats a missing exit code as success and a non-zero one as a failure`() {
+        assertEquals(mapOf("t1" to AgentState.Working), CoreSource().states(statesHost(CommandOutput(ls(rec("t1", status = "\"working\"")).stdout, "", null))))
+        assertEquals(null, CoreSource().states(statesHost(CommandOutput("", "down", 1))))
+        assertEquals(null, CoreSource().states(statesHost(null)))
     }
 }

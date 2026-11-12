@@ -48,6 +48,9 @@ class HerdAttention(
         /**
          * [paneTail]: the last lines of the blocked pane, what Approve would answer. [since]: when the
          * block began, on the attention clock (epoch milliseconds in the app), the notification's time.
+         * [seq]: the agent's `state_change_seq` when the notice was raised, from a snapshot that had one; null
+         * for a notice raised by a push (the push has none). [prompt]: [CoreNotices.fingerprint] of the whole pane
+         * read the notice's [paneTail] was cut from; null when that read showed no yes-or-no permission prompt.
          */
         data class NeedsYou(
             override val agent: HerdrAgentInfo,
@@ -56,6 +59,8 @@ class HerdAttention(
             val paneTail: String? = null,
             val since: Long? = null,
             override val session: String = HerdrCommands.DEFAULT_SESSION,
+            val seq: Long? = null,
+            val prompt: Int? = null,
         ) : Notice
 
         data class Finished(
@@ -120,7 +125,7 @@ class HerdAttention(
                         val previous = lastNeedsYou[pane]
                         if (previous == null || now - previous >= repeatWindowMs) {
                             lastNeedsYou[pane] = now
-                            if (!watching) notices += Notice.NeedsYou(agent, snapshot.workspaceLabel(agent.workspaceId), snapshot.tabLabel(agent.tabId), since = since)
+                            if (!watching) notices += Notice.NeedsYou(agent, snapshot.workspaceLabel(agent.workspaceId), snapshot.tabLabel(agent.tabId), since = since, seq = agent.seqMark)
                         }
                     }
                 }

@@ -37,6 +37,12 @@ sealed interface HerdAnswerOutcome {
     /** The agent is still blocked, but Herdr's state changed since the prompt was shown, so nothing was sent. */
     data object PromptChanged : HerdAnswerOutcome
 
+    /**
+     * The notice carried no mark of the prompt it showed (a notice from an earlier build), so nothing proves
+     * which prompt a tap would answer; nothing was sent. The agent may well still be waiting.
+     */
+    data object Unproven : HerdAnswerOutcome
+
     /** Nothing or something unknown reached the pane; [reason] is one line for the notification. */
     data class Failed(val reason: String) : HerdAnswerOutcome
 }
@@ -97,7 +103,7 @@ object HerdApproval {
         val agent = snapshot.agents.firstOrNull { it.paneId == paneId }
         return when {
             agent == null || !offersAnswers(agent) -> HerdAnswerOutcome.NotBlocked
-            seq != null && agent.stateChangeSeq != seq -> HerdAnswerOutcome.PromptChanged
+            seq != null && agent.seqMark != seq -> HerdAnswerOutcome.PromptChanged
             else -> null
         }
     }
@@ -108,7 +114,19 @@ object HerdApproval {
      * It is one only when its numbered options start at a highlighted "Yes" (what Enter
      * takes), end at a plain "No" (what Esc takes), and nothing but a footer sits below.
      */
-    fun classify(screen: String): ApprovalPrompt? {
+    fun classify(screen: String): ApprovalPrompt? = parse(screen)?.prompt
+
+    /**
+     * The prompt itself in [screen]: the lines just above its first option (the question and the command, less any
+     * running timer line),
+     * then its options through the last one; not the footer or any status line under it, which change while the
+     * prompt stays. Null when [classify] finds no prompt. What a hash of "the prompt the notice showed" covers.
+     */
+    fun promptRegion(screen: String): String? = parse(screen)?.region
+
+    private class Parsed(val prompt: ApprovalPrompt, val region: String)
+
+    private fun parse(screen: String): Parsed? {
         val lines = screen.lineSequence()
             .map { line -> line.trim().trim { it in BOX_DRAWING || it.isWhitespace() } }
             .filter { it.isNotEmpty() }
@@ -118,6 +136,7 @@ object HerdApproval {
         // Up from the last option to the one numbered 1; wrapped option text may sit between.
         val options = ArrayList<MatchResult>()
         var gap = 0
+        var firstAt = end
         for (i in end downTo 0) {
             val match = OPTION.matchEntire(lines[i])
             if (match == null) {
@@ -127,6 +146,7 @@ object HerdApproval {
             val number = match.groupValues[2].toInt()
             if (options.isNotEmpty() && number != options.last().groupValues[2].toInt() - 1) return null
             options += match
+            firstAt = i
             gap = 0
             if (match.groupValues[2] == "1") break
         }
@@ -137,7 +157,11 @@ object HerdApproval {
             APPROVE.matches(first.groupValues[3]) &&
             DENY.matches(last.groupValues[3]) &&
             options.count { NO.containsMatchIn(it.groupValues[3]) } == 1
-        return if (ok) ApprovalPrompt("1. ${first.groupValues[3]}", "${last.groupValues[2]}. ${last.groupValues[3]}") else null
+        if (!ok) return null
+        return Parsed(
+            ApprovalPrompt("1. ${first.groupValues[3]}", "${last.groupValues[2]}. ${last.groupValues[3]}"),
+            (lines.subList(0, firstAt).filterNot { VOLATILE.containsMatchIn(it) }.takeLast(QUESTION_LINES) + lines.subList(firstAt, end + 1)).joinToString("\n"),
+        )
     }
 
     /**
@@ -175,6 +199,12 @@ object HerdApproval {
         .ifEmpty { null }
 
     private val BOX_DRAWING = '─'..'╿'
+
+    // Lines above a prompt's first option that belong to it: the question and the command.
+    private const val QUESTION_LINES = 4
+
+    // A running timer or token count: it ticks while the prompt stays, so it is not part of what the prompt says.
+    private val VOLATILE = Regex("""\(\d+\s*[smh]\b|esc to interrupt|\d[\d.,]*k?\s+tokens""", RegexOption.IGNORE_CASE)
 
     // Lines a prompt's footer (and wrapped option text) may take below or between its options.
     private const val FOOTER_LINES = 3

@@ -84,7 +84,7 @@ class CoreViewBarTest {
         for (label in listOf("Herdr", "Chat", "Needs you")) {
             assertEquals(label, 0, composeTestRule.onAllNodesWithText(label).fetchSemanticsNodes().size)
         }
-        composeTestRule.onNodeWithText("↑").assertIsDisplayed()
+        composeTestRule.onNodeWithText("PgUp").assertIsDisplayed()
     }
 
     @Test

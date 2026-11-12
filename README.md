@@ -14,12 +14,15 @@ management come from ConnectBot. Mercurio is maintained by
 
 ### Terminal and input
 
-- **Compose bar.** Two rows of keys under the terminal: paging ↑ and ↓, Herdr,
+- **Compose bar.** Two rows of keys under the terminal: paging PgUp and PgDn, Herdr,
   Needs you, Esc, Tab, a text field for the keyboard or the phone's voice
   input, and one ⏎ key that sends the field's text and then Enter, or Enter
   alone when the field is empty. Needs you shows how many agents wait for you
   in every Herdr session, in gold while any does; a tap jumps to the next one,
   cycling, and a long press (or a tap with none waiting) opens the Agents board.
+  Unsent text stays with its terminal: leave the console and open the same
+  terminal again and the field still holds it. It is kept in memory only, so
+  closing the app drops it.
 - **Tray.** ⋯ or a swipe up on the bar opens more keys: arrows, jump to the
   latest output, Mode, clear the typed line, the read view, copy the latest
   URL (hold it to open the URL instead, whole even when it wrapped at the screen
@@ -32,8 +35,14 @@ management come from ConnectBot. Mercurio is maintained by
 - **Slash menu.** The agent's built-in slash commands (Claude Code, Codex,
   Grok) and your own commands and skills, read from the host.
 - **Command palette.** One search over every action, from the console menu.
-- **Paste screenshot.** Uploads the phone's newest screenshot to the host over
-  SFTP and puts its path in the text field.
+- **Paste a photo.** Opens the system photo picker, uploads the chosen image to
+  a private folder on the host (`~/.cache/mercurio-pastes`, owned by you, mode
+  700) over SFTP and puts its path in the text field. On a Herdr-core terminal
+  the path is the one `hc put` prints; if that fails, the bar says so. A photo
+  over the limit (8 MB for a core terminal) is scaled down and sent as JPEG,
+  and one that still does not fit is refused before any upload. It needs a
+  POSIX host with bash: Windows and busybox-only hosts get a message instead.
+  The uploaded file is not deleted.
 - **Session drawer.** Every open session on every host, with its state and the
   last line of output. Tap the host name or swipe in from the left edge.
 - **Machines.** A list of your Tailscale machines, read from `tailscale status`
@@ -176,7 +185,9 @@ This repo runs no hosted CI. Before a merge, run the gate in a full clone:
 ```
 
 Run lint on its own: the lint analyzer can crash when it shares a Gradle run
-with other tasks. To prove a change on an emulator, follow
+with other tasks. `:app:lintOssDebug` fails on any lint error; warnings do not.
+The release `lintVitalOssRelease` task also aborts on fatal errors. To prove a
+change on an emulator, follow
 [`.grok/skills/verify-mercurio/SKILL.md`](.grok/skills/verify-mercurio/SKILL.md).
 
 ## Host setup
@@ -205,6 +216,10 @@ with other tasks. To prove a change on an emulator, follow
 - **Push messages carry ids only.** A push holds pane, tab and workspace ids
   and labels, never pane text, prompts or secrets. Mercurio reads the pane over
   SSH after it wakes.
+- **Background logins for the Inbox.** With Include herdr-core agents on,
+  the Inbox logs in to the machine of each saved host while it shows, to read
+  herdr-core there. A machine that has no herdr-core is asked again only every
+  few minutes, or when the Inbox opens. Turn the setting off and no login is made.
 - **Usage log.** Mercurio keeps a log of which controls you use, to guide
   design. It records action ids, never typed text, terminal output, hostnames,
   usernames, keys or passwords. It is stored in the app's private files.

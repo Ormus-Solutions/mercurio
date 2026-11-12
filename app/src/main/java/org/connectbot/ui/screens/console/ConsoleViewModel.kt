@@ -39,6 +39,8 @@ import org.connectbot.service.DisconnectReason
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
 import org.connectbot.terminal.ProgressState
+import org.connectbot.ui.components.ComposeDraftStore
+import org.connectbot.ui.components.DictationDraft
 import org.connectbot.ui.navigation.NavArgs
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
@@ -72,7 +74,11 @@ class ConsoleViewModel @Inject constructor(
     private val notificationPermissionHelper: NotificationPermissionHelper,
     private val hostRepository: HostRepository,
     private val diagnosticsReporter: DiagnosticsReporter,
+    private val composeDrafts: ComposeDraftStore,
 ) : ViewModel() {
+    /** The injected IO dispatcher, for the voice key's server calls the screen starts. */
+    val io: kotlinx.coroutines.CoroutineDispatcher get() = dispatchers.io
+
     private val hostId: Long = savedStateHandle.get<Long>("hostId") ?: -1L
 
     // The Herdr console this screen was asked to show (a Workspaces key); null for the host's own.
@@ -103,6 +109,9 @@ class ConsoleViewModel @Inject constructor(
 
     private val _networkStatusMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val networkStatusMessages: SharedFlow<String> = _networkStatusMessages.asSharedFlow()
+
+    /** The compose draft of [bridge]'s terminal: unsent text comes back when its console opens again. */
+    fun draftFor(bridge: TerminalBridge): DictationDraft = composeDrafts.draft(ComposeDraftStore.key(bridge.host.id, bridge.watch, bridge.console))
 
     fun shouldShowNotificationWarning(): Boolean {
         if (!prefs.contains(PreferenceConstants.NOTIFICATION_PERMISSION_DENIED)) return false

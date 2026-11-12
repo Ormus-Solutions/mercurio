@@ -38,6 +38,7 @@ import org.connectbot.service.DiagnosticsReporter
 import org.connectbot.service.DisconnectReason
 import org.connectbot.service.TerminalBridge
 import org.connectbot.service.TerminalManager
+import org.connectbot.ui.components.ComposeDraftStore
 import org.connectbot.ui.components.KeyBarCatalog
 import org.connectbot.ui.components.KeyBarLayout
 import org.connectbot.ui.navigation.NavArgs
@@ -108,7 +109,7 @@ class CoreViewTest {
         return bridge
     }
 
-    private fun viewModel(): ConsoleViewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter)
+    private fun viewModel(): ConsoleViewModel = ConsoleViewModel(savedStateHandle, dispatchers, prefs, notificationPermissionHelper, hostRepository, diagnosticsReporter, ComposeDraftStore())
         .also { it.setTerminalManager(terminalManager) }
 
     /** The view model inside a store, so that clearing the store is the screen going away. */

@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -169,6 +170,7 @@ fun HostListScreen(
     machinesViewModel: MachinesViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val terminalManager = LocalTerminalManager.current
     val workspaces by workspacesViewModel.workspaces.collectAsState()
     val inboxOn = remember(context) { HomeStart.inboxOn(PreferenceManager.getDefaultSharedPreferences(context)) }
@@ -215,7 +217,7 @@ fun HostListScreen(
                     if (exportResult != null) {
                         Toast.makeText(
                             context,
-                            context.getString(
+                            resources.getString(
                                 R.string.export_hosts_success,
                                 exportResult.hostCount,
                                 exportResult.profileCount,
@@ -226,7 +228,7 @@ fun HostListScreen(
                 } catch (e: Exception) {
                     Toast.makeText(
                         context,
-                        context.getString(R.string.export_hosts_failed, e.message),
+                        resources.getString(R.string.export_hosts_failed, e.message),
                         Toast.LENGTH_LONG,
                     ).show()
                 }
@@ -253,7 +255,7 @@ fun HostListScreen(
                 } catch (e: Exception) {
                     Toast.makeText(
                         context,
-                        context.getString(R.string.import_hosts_failed, e.message),
+                        resources.getString(R.string.import_hosts_failed, e.message),
                         Toast.LENGTH_LONG,
                     ).show()
                 }
@@ -272,7 +274,7 @@ fun HostListScreen(
     // Handle export result - launch file picker when JSON is ready
     LaunchedEffect(uiState.exportedJson) {
         if (uiState.exportedJson != null) {
-            exportLauncher.launch(context.getString(R.string.export_hosts_filename))
+            exportLauncher.launch(resources.getString(R.string.export_hosts_filename))
         }
     }
 
@@ -281,7 +283,7 @@ fun HostListScreen(
         uiState.importResult?.let { result ->
             Toast.makeText(
                 context,
-                context.getString(
+                resources.getString(
                     R.string.import_hosts_success,
                     result.hostsImported,
                     result.hostsSkipped,
@@ -356,7 +358,7 @@ fun HostListScreen(
                     onOpen = onOpenWorkspace,
                     onSave = { host ->
                         viewModel.addHost(host) { saved ->
-                            Toast.makeText(context, context.getString(R.string.workboards_saved, saved.nickname), Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, resources.getString(R.string.workboards_saved, saved.nickname), Toast.LENGTH_SHORT).show()
                         }
                     },
                 )

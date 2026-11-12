@@ -101,7 +101,7 @@ object KeyBarCatalog {
     val all: List<KeyBarKey> = listOf(
         KeyBarKey("esc", "Esc", ESC_SEQ),
         KeyBarKey("tab", "Tab", "\t"),
-        KeyBarKey("shift-tab", "Shift+Tab", ESC_SEQ + "[Z"),
+        KeyBarKey("shift-tab", "S-Tab", ESC_SEQ + "[Z", description = "Shift+Tab"),
         KeyBarKey("enter", "Enter", "\r"),
         KeyBarKey("backspace", "Bksp", 127.toChar().toString(), repeats = true),
         KeyBarKey("delete", "Del", ESC_SEQ + "[3~", repeats = true),
@@ -229,9 +229,6 @@ data class KeyBarLayout(val pages: List<List<String>>) {
         private const val PAGE_SEP = ";"
         private const val KEY_SEP = ","
 
-        /** A saved page may hold more than the editor now lets him add (a six-key page from before). */
-        private const val MAX_KEYS_WHEN_READING = 8
-
         /** The bar he sees until he edits it: the Herdr app's 18 keys in its order, five to a page, then Space. */
         val DEFAULT: KeyBarLayout = KeyBarLayout(
             listOf(
@@ -242,13 +239,38 @@ data class KeyBarLayout(val pages: List<List<String>>) {
             ),
         )
 
-        /** Null (never saved) is [DEFAULT]; unknown keys are dropped, so a bar from a newer build still opens. */
+        /**
+         * Null (never saved) is [DEFAULT]; unknown keys are dropped, so a bar from a newer build still opens.
+         * No known key is ever dropped: a page wider than [MAX_KEYS_PER_PAGE] slots (one saved when a page
+         * held six keys, or one with a Space too many) spills its extra keys, in order, onto a new page
+         * right after it. Past [MAX_PAGES], the rest joins the last page, which the bar draws over-full.
+         */
         fun decode(text: String?): KeyBarLayout {
             if (text == null) return DEFAULT
-            val pages = text.split(PAGE_SEP).map { page ->
-                page.split(KEY_SEP).filter { KeyBarCatalog.byId(it) != null }.take(MAX_KEYS_WHEN_READING)
+            val pages = text.split(PAGE_SEP).flatMap { page ->
+                spill(page.split(KEY_SEP).filter { KeyBarCatalog.byId(it) != null })
             }
-            return KeyBarLayout(pages.take(MAX_PAGES))
+            if (pages.size <= MAX_PAGES) return KeyBarLayout(pages)
+            val last = pages.drop(MAX_PAGES - 1).flatten()
+            return KeyBarLayout(pages.take(MAX_PAGES - 1) + listOf(last))
+        }
+
+        /** [keys] cut into pages of at most [MAX_KEYS_PER_PAGE] slots (a Space is two); an empty list is one empty page. */
+        private fun spill(keys: List<String>): List<List<String>> {
+            val pages = mutableListOf<List<String>>()
+            var page = mutableListOf<String>()
+            var slots = 0
+            for (id in keys) {
+                val span = KeyBarCatalog.byId(id)?.span ?: 1
+                if (slots + span > MAX_KEYS_PER_PAGE) {
+                    pages += page
+                    page = mutableListOf()
+                    slots = 0
+                }
+                page += id
+                slots += span
+            }
+            return pages + listOf(page)
         }
     }
 }

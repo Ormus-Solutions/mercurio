@@ -94,6 +94,7 @@ import org.connectbot.usage.UsageActions
 import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.BoardCard
 import solutions.ormus.logos.herd.BoardColumn
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdAnswer
 import solutions.ormus.logos.herd.HerdAnswerOutcome
 import solutions.ormus.logos.herd.HerdApproval
@@ -161,8 +162,8 @@ fun AgentsBoardDialog(
     }
 
     // Approve, Deny or an option key, then the agent's state read again, so the card moves on.
-    fun answer(card: BoardCard, keys: String) = scope.launch {
-        val outcome = session.answer(card.paneId, keys, card.session, card.seq)
+    fun answer(card: BoardCard, keys: String, prompt: Int?) = scope.launch {
+        val outcome = session.answerShown(card.paneId, keys, card.session, card.seq, prompt)
         outcome(card, outcome)
         if (outcome is HerdAnswerOutcome.Sent) session.refresh(card.session)
     }
@@ -177,8 +178,8 @@ fun AgentsBoardDialog(
             canChat = { card -> canChat(snapshots[card.session], card) },
             onChat = onChat,
             onJump = onJump,
-            onAnswer = { card, reply -> answer(card, reply.key) },
-            onPick = { card, keys -> answer(card, keys) },
+            onAnswer = { card, reply, prompt -> answer(card, reply.key, prompt) },
+            onPick = { card, keys -> answer(card, keys, null) },
             onReply = { card, text ->
                 scope.launch { outcome(card, session.reply(card.paneId, card.session, AgentChat.sendCommand(card.paneId, text, card.session))) }
             },
@@ -200,7 +201,7 @@ fun AgentsBoardContent(
     canChat: (BoardCard) -> Boolean,
     onChat: (BoardCard) -> Unit,
     onJump: (BoardCard) -> Unit,
-    onAnswer: (BoardCard, HerdAnswer) -> Unit,
+    onAnswer: (BoardCard, HerdAnswer, Int?) -> Unit,
     /** A tap on an option key of a card's ask: the card and that option's keys. */
     onPick: (BoardCard, String) -> Unit,
     onReply: (BoardCard, String) -> Unit,
@@ -238,9 +239,9 @@ fun AgentsBoardContent(
             usage.log(UsageActions.BOARD_JUMP)
             onJump(card)
         },
-        answer = { card, reply ->
+        answer = { card, reply, prompt ->
             usage.log(if (reply == HerdAnswer.APPROVE) UsageActions.BOARD_APPROVE else UsageActions.BOARD_DENY)
-            onAnswer(card, reply)
+            onAnswer(card, reply, prompt)
         },
         pick = { card, keys ->
             usage.log(UsageActions.BOARD_OPTION)
@@ -315,7 +316,7 @@ private class CardActions(
     val toggle: (BoardCard) -> Unit,
     val tap: (BoardCard) -> Unit,
     val longPress: (BoardCard) -> Unit,
-    val answer: (BoardCard, HerdAnswer) -> Unit,
+    val answer: (BoardCard, HerdAnswer, Int?) -> Unit,
     val pick: (BoardCard, String) -> Unit,
     val reply: (BoardCard, String) -> Unit,
     val readScreen: suspend (BoardCard) -> String?,
@@ -455,13 +456,13 @@ private fun AgentCard(card: BoardCard, actions: CardActions) {
                 Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OrmusKey(
                         label = stringResource(R.string.chat_approve),
-                        onClick = { actions.answer(card, HerdAnswer.APPROVE) },
+                        onClick = { actions.answer(card, HerdAnswer.APPROVE, CoreNotices.fingerprint(current.orEmpty())) },
                         tone = KeyTone.ON,
                         contentPadding = WORD_KEY_PADDING,
                     )
                     OrmusKey(
                         label = stringResource(R.string.chat_deny),
-                        onClick = { actions.answer(card, HerdAnswer.DENY) },
+                        onClick = { actions.answer(card, HerdAnswer.DENY, CoreNotices.fingerprint(current.orEmpty())) },
                         contentPadding = WORD_KEY_PADDING,
                     )
                 }
@@ -479,6 +480,7 @@ private fun AnswerLine(outcome: HerdAnswerOutcome) {
         HerdAnswerOutcome.Sent -> return
         HerdAnswerOutcome.NotBlocked -> stringResource(R.string.board_answer_not_blocked)
         HerdAnswerOutcome.PromptChanged -> stringResource(R.string.board_answer_prompt_changed)
+        HerdAnswerOutcome.Unproven -> stringResource(R.string.notification_herd_open_app)
         is HerdAnswerOutcome.Failed -> stringResource(R.string.board_answer_failed, outcome.reason)
     }
     Text(

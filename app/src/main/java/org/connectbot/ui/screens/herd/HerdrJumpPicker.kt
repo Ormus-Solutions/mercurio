@@ -76,6 +76,9 @@ const val HERDR_JUMP_SEARCH_TAG = "herdr_jump_search"
 // its state, so the sheet ranks core rows as the Inbox does, and skips the version probe after the first.
 private val coreSources = ConcurrentHashMap<Long, CoreSource>()
 
+/** The host's source, told to ask again about a missing herdr-core: the sheet opening is a reason to look. */
+internal fun coreSourceFor(hostId: Long): CoreSource = coreSources.getOrPut(hostId) { CoreSource() }.also { it.recheck() }
+
 /** Test tag on the Jump to list. */
 const val HERDR_JUMP_LIST_TAG = "herdr_jump_list"
 
@@ -104,7 +107,7 @@ fun HerdrJumpPicker(
     LaunchedEffect(session) { session.refreshAll() }
     LaunchedEffect(session, core) {
         if (!core) return@LaunchedEffect
-        val read = withContext(Dispatchers.IO) { coreSources.getOrPut(hostId) { CoreSource() }.read(true, host, System.currentTimeMillis(), session::exec) }
+        val read = withContext(Dispatchers.IO) { coreSourceFor(hostId).read(true, host, System.currentTimeMillis(), session::exec) }
         coreRows = Inbox.fromCore(hostId, host, read).rows
     }
     val snapshots = buildMap {

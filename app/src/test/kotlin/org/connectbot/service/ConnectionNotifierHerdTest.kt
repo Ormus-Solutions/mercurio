@@ -108,7 +108,7 @@ class ConnectionNotifierHerdTest {
     fun samePaneInAnotherSession_keepsItsOwnNotification_andCarriesItsSession() {
         val notifier = ConnectionNotifier()
         notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1"))
-        notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "ops", "1", session = "work"))
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "ops", "1", session = "work", seq = 1, prompt = 5))
 
         val posted = shadowOf(manager).allNotifications
         assertEquals(2, posted.size)
@@ -125,7 +125,7 @@ class ConnectionNotifierHerdTest {
     @Test
     fun needsYou_provenAgent_approveAndDenyAskForTheUnlock_andShowThePane() {
         val tail = "Do you want to proceed?\n\u276F 1. Yes\n  2. No"
-        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", paneTail = tail))
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", paneTail = tail, prompt = CoreNotices.fingerprint(tail)))
 
         val posted = shadowOf(manager).allNotifications.single()
         assertEquals("~Demo / 1 · Docs site build\n\n$tail", posted.extras.getCharSequence("android.bigText").toString())
@@ -143,14 +143,14 @@ class ConnectionNotifierHerdTest {
     }
 
     @Test
-    fun coreNeedsYou_permission_approveCarriesTheTurn_andTheTapOpensOnlyTheHost() {
+    fun coreNeedsYou_permission_approveCarriesTheTurn_andTheTapCarriesNoHerdPane() {
         val core = HerdrAgentInfo(
             paneId = "t1",
             agent = "claude-code",
             agentStatus = HerdrAgentStatus.BLOCKED,
             core = CoreFacts(NeedsYouKind.PERMISSION, turn = 4),
         )
-        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(core, "alpha · ONE", "main", paneTail = "Run it?\n1. Yes\n2. No", session = CoreNotices.SESSION))
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(core, "alpha · ONE", "main", paneTail = "Run it?\n❯ 1. Yes\n2. No", prompt = CoreNotices.fingerprint("Run it?\n❯ 1. Yes\n2. No"), session = CoreNotices.SESSION))
 
         val posted = shadowOf(manager).allNotifications.single()
         // The core session is no workboard name: the title never says "@core".
@@ -160,11 +160,179 @@ class ConnectionNotifierHerdTest {
         assertEquals(CoreNotices.SESSION, approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_SESSION))
         assertEquals("t1", approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_PANE))
         assertEquals(4, approve.getIntExtra(ConnectionNotifier.EXTRA_HERD_TURN, -1))
-        assertEquals(CoreNotices.fingerprint("Run it?\n1. Yes\n2. No"), approve.getIntExtra(ConnectionNotifier.EXTRA_HERD_PROMPT, 0))
+        assertEquals(CoreNotices.fingerprint("Run it?\n❯ 1. Yes\n2. No"), approve.getIntExtra(ConnectionNotifier.EXTRA_HERD_PROMPT, 0))
         val tap = shadowOf(posted.contentIntent).savedIntent
         assertFalse(tap.hasExtra(MainActivity.EXTRA_HERD_PANE))
         assertFalse(tap.hasExtra(MainActivity.EXTRA_HERD_SESSION))
         assertEquals(host.getUri(), tap.data)
+    }
+
+    @Test
+    fun coreNeedsYou_tapCarriesTheTerminalAddress_toOpenItsWatchView() {
+        val core = HerdrAgentInfo(paneId = "box/t7", agent = "claude-code", agentStatus = HerdrAgentStatus.BLOCKED, core = CoreFacts(NeedsYouKind.QUESTION, turn = 2))
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(core, "alpha", "ONE", session = CoreNotices.SESSION))
+
+        val tap = shadowOf(shadowOf(manager).allNotifications.single().contentIntent).savedIntent
+        assertEquals("box/t7", tap.getStringExtra(MainActivity.EXTRA_CORE_ADDRESS))
+        assertEquals("alpha", tap.getStringExtra(MainActivity.EXTRA_CORE_SPACE))
+        assertEquals("ONE", tap.getStringExtra(MainActivity.EXTRA_CORE_TAB))
+        assertEquals(host.id, tap.getLongExtra(MainActivity.EXTRA_CORE_HOST, -1L))
+        assertEquals(host.getUri(), tap.data)
+        // Not a Herdr pane: the TUI focus extras stay off.
+        assertFalse(tap.hasExtra(MainActivity.EXTRA_HERD_PANE))
+    }
+
+    @Test
+    fun twoAgentsOnOneHost_haveTapIntentsThatAreNotFilterEqual() {
+        // A PendingIntent is found by its filterEquals intent and request code, never by extras: two agents
+        // whose request codes collide must still be two intents, or one notice would open the other's agent.
+        val notifier = ConnectionNotifier()
+        fun core(address: String) = HerdrAgentInfo(paneId = address, agent = "claude-code", agentStatus = HerdrAgentStatus.BLOCKED, core = CoreFacts(NeedsYouKind.QUESTION, turn = 1))
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(core("t1"), "alpha", "ONE", session = CoreNotices.SESSION))
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(core("t2"), "alpha", "ONE", session = CoreNotices.SESSION))
+
+        val taps = shadowOf(manager).allNotifications.map { shadowOf(it.contentIntent).savedIntent }
+        assertEquals(2, taps.size)
+        assertFalse(taps[0].filterEquals(taps[1]))
+    }
+
+    @Test
+    fun coreAnswerOutcome_tapKeepsTheHostConsole() {
+        ConnectionNotifier().showHerdAnswer(service, host, CoreNotices.SESSION, "t1", "claude-code", HerdAnswerOutcome.NotBlocked)
+
+        val tap = shadowOf(shadowOf(manager).allNotifications.single().contentIntent).savedIntent
+        assertFalse(tap.hasExtra(MainActivity.EXTRA_CORE_ADDRESS))
+        assertEquals(host.getUri(), tap.data)
+    }
+
+    @Test
+    fun tuiNeedsYou_tapCarriesNoCoreAddress() {
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "w", "t"))
+
+        val tap = shadowOf(shadowOf(manager).allNotifications.single().contentIntent).savedIntent
+        assertFalse(tap.hasExtra(MainActivity.EXTRA_CORE_ADDRESS))
+    }
+
+    @Test
+    fun coreNeedsYou_permission_withNoPromptToFingerprint_hasNoActions_butStillShowsAndOpens() {
+        val core = HerdrAgentInfo(paneId = "t1", agent = "claude-code", agentStatus = HerdrAgentStatus.BLOCKED, core = CoreFacts(NeedsYouKind.PERMISSION, turn = 4))
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(core, "alpha · ONE", "main", paneTail = null, session = CoreNotices.SESSION))
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("claude-code needs you on Sun", posted.extras.getCharSequence("android.title").toString())
+        assertTrue(posted.actions.isNullOrEmpty())
+        assertEquals(host.getUri(), shadowOf(posted.contentIntent).savedIntent.data)
+    }
+
+    @Test
+    fun tuiNeedsYou_approveAndDeny_carryTheSeqTheNoticeWasRaisedAt_andTheAnswerReadsItBack() {
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", seq = 7, prompt = 5))
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals(2, posted.actions.size)
+        for (action in posted.actions) {
+            val intent = shadowOf(action.actionIntent).savedIntent
+            assertEquals(7L, intent.getLongExtra(ConnectionNotifier.EXTRA_HERD_SEQ, -1))
+            assertEquals(7L, HerdAnswerRequest.from(intent)?.seq)
+        }
+    }
+
+    @Test
+    fun tuiNeedsYou_withNeitherASeqNorAPromptToHash_hasNoActions_butStillShows() {
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1"))
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("claude needs you on Sun", posted.extras.getCharSequence("android.title").toString())
+        assertTrue(posted.actions.isNullOrEmpty())
+    }
+
+    @Test
+    fun tuiNeedsYou_withASeqButNoRecognisedYesNoPrompt_hasNoActions_butStillShows() {
+        // A plan pick or a question: Enter could land on an option nobody offered.
+        val plan = "Ready to code?\n❯ 1. Yes, clear context\n  2. Yes, and manually approve\n  3. Type here to tell Claude what to change"
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", paneTail = plan, prompt = CoreNotices.fingerprint(plan), seq = 7))
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertTrue(posted.actions.isNullOrEmpty())
+        assertEquals("~Demo / 1 · Docs site build\n\n$plan", posted.extras.getCharSequence("android.bigText").toString())
+    }
+
+    @Test
+    fun tuiNeedsYou_aPromptHashFromTheFullRead_isCarried_notOneRehashedFromTheTail() {
+        // The notice's tail is cut; the hash was taken from the whole read and rides on the notice.
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", paneTail = "wrapped end of options", prompt = 1234, seq = 7))
+
+        val intent = shadowOf(shadowOf(manager).allNotifications.single().actions[0].actionIntent).savedIntent
+        assertEquals(1234, HerdAnswerRequest.from(intent)?.prompt)
+    }
+
+    @Test
+    fun tuiNeedsYou_withNoSeqButItsPaneEnd_carriesTheHashOfIt_andNoSeq() {
+        val tail = "Run it?\n❯ 1. Yes\n2. No"
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", paneTail = tail, prompt = CoreNotices.fingerprint(tail)))
+
+        val intent = shadowOf(shadowOf(manager).allNotifications.single().actions[0].actionIntent).savedIntent
+        assertFalse(intent.hasExtra(ConnectionNotifier.EXTRA_HERD_SEQ))
+        assertEquals(CoreNotices.fingerprint(tail), HerdAnswerRequest.from(intent)?.prompt)
+    }
+
+    @Test
+    fun aSeqOfZero_isARealSeq_andIsCarried() {
+        ConnectionNotifier().showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", seq = 0, prompt = 5))
+
+        val intent = shadowOf(shadowOf(manager).allNotifications.single().actions[0].actionIntent).savedIntent
+        assertEquals(0L, HerdAnswerRequest.from(intent)?.seq)
+    }
+
+    @Test
+    fun anAnswerFromANoticeBeforeTheSeqExisted_hasNoSeq() {
+        val intent = Intent(service, TerminalManager::class.java).apply {
+            action = ConnectionNotifier.ACTION_HERD_ANSWER
+            putExtra(ConnectionNotifier.EXTRA_HERD_HOST, 7L)
+            putExtra(ConnectionNotifier.EXTRA_HERD_PANE, "w1:p1")
+            putExtra(ConnectionNotifier.EXTRA_HERD_ANSWER, HerdAnswer.DENY.name)
+        }
+        val request = HerdAnswerRequest.from(intent)!!
+        assertEquals(null, request.seq)
+        assertEquals(null, request.prompt)
+        assertTrue("nothing to hold the answer to", request.unchecked)
+        assertEquals("w1:p1", request.paneId)
+        assertEquals(HerdAnswer.DENY, request.answer)
+    }
+
+    @Test
+    fun answerForAHostThatIsGone_replacesTheNeedsYouWithWhy_withNoOpenAction() {
+        val notifier = ConnectionNotifier()
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", seq = 3, prompt = 5))
+        val approve = shadowOf(shadowOf(manager).allNotifications.single().actions[0].actionIntent).savedIntent
+        val request = HerdAnswerRequest.from(approve)!!
+
+        notifier.showHerdHostGone(service, request)
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("Could not answer claude on Sun", posted.extras.getCharSequence("android.title").toString())
+        assertEquals("That host is no longer saved.", posted.extras.getCharSequence("android.text").toString())
+        assertTrue(posted.actions.isNullOrEmpty())
+    }
+
+    @Test
+    fun answerForAGoneHost_fromANoticeWithNoTag_stillReplacesTheNeedsYou() {
+        val notifier = ConnectionNotifier()
+        // A notice posted by the build before the tag was carried, on the tag that build used (the host row's id).
+        val old = androidx.core.app.NotificationCompat.Builder(service, "logos_agent_channel").setContentTitle("old").build()
+        manager.notify(notifier.legacyTag(host, "default", "w1:p1"), ConnectionNotifier.HERD_NEEDS_YOU_NOTIFICATION, old)
+        val intent = Intent(service, TerminalManager::class.java).apply {
+            action = ConnectionNotifier.ACTION_HERD_ANSWER
+            putExtra(ConnectionNotifier.EXTRA_HERD_HOST, 7L)
+            putExtra(ConnectionNotifier.EXTRA_HERD_PANE, "w1:p1")
+            putExtra(ConnectionNotifier.EXTRA_HERD_ANSWER, HerdAnswer.APPROVE.name)
+            putExtra(ConnectionNotifier.EXTRA_HERD_AGENT, "claude")
+        }
+
+        notifier.showHerdHostGone(service, HerdAnswerRequest.from(intent)!!)
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("That host is no longer saved.", posted.extras.getCharSequence("android.text").toString())
     }
 
     @Test
@@ -208,6 +376,17 @@ class ConnectionNotifierHerdTest {
         assertEquals("pane w1:p1 not found", failed.extras.getCharSequence("android.text").toString())
         assertFalse(failed.actions?.isNotEmpty() == true)
         assertEquals("w1:p1", shadowOf(failed.contentIntent).savedIntent.getStringExtra(MainActivity.EXTRA_HERD_PANE))
+    }
+
+    @Test
+    fun anAnswerThatCouldNotBeProven_saysToOpenTheApp_notThatTheAgentStoppedWaiting() {
+        val notifier = ConnectionNotifier()
+        notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", seq = 1, prompt = 5))
+        notifier.showHerdAnswer(service, host, "default", "w1:p1", "claude", HerdAnswerOutcome.Unproven)
+
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("Could not answer claude on Sun", posted.extras.getCharSequence("android.title").toString())
+        assertEquals("Open Mercurio to answer.", posted.extras.getCharSequence("android.text").toString())
     }
 
     @Test
@@ -294,7 +473,7 @@ class ConnectionNotifierHerdTest {
         assertEquals(postedWhen(), future)
         assertTrue(future <= System.currentTimeMillis())
 
-        val quietRepost = notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = 2_500L, paneTail = "Allow?"), quiet = true)
+        val quietRepost = notifier.showHerdNotification(service, host, Notice.NeedsYou(agent, "~Demo", "1", since = 2_500L, paneTail = "Allow?\n❯ 1. Yes\n  2. No", prompt = CoreNotices.fingerprint("Allow?\n❯ 1. Yes\n  2. No")), quiet = true)
         assertEquals(2_500L, quietRepost)
         assertEquals(postedWhen(), quietRepost)
 

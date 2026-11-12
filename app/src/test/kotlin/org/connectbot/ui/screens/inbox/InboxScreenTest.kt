@@ -18,6 +18,7 @@
 package org.connectbot.ui.screens.inbox
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -61,10 +62,10 @@ class InboxScreenTest {
         minutes: Long? = null,
     ) = Inbox.row(1L, "box", Agent(address, AgentEngine.TUI, null, space, tab, null, null, state, minutes?.let { now - it * 60_000L }))
 
-    private fun show(rows: List<InboxRow>, notes: List<String> = emptyList()) {
+    private fun show(rows: List<InboxRow>, notes: List<String> = emptyList(), loading: Boolean = false) {
         composeTestRule.setContent {
             ConnectBotTheme {
-                InboxContent(rows = rows, notes = notes, now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
+                InboxContent(rows = rows, notes = notes, loading = loading, now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
             }
         }
     }
@@ -131,10 +132,33 @@ class InboxScreenTest {
     }
 
     @Test
-    fun noRows_saysThereAreNoAgents_andNotesShow() {
-        show(emptyList(), notes = listOf("box: herdr-core is not running"))
+    fun aReadThatFound_noRows_saysThereAreNoAgents() {
+        show(emptyList())
         composeTestRule.onNodeWithText("No agents yet").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
+    }
+
+    @Test
+    fun beforeTheFirstRead_theInboxSaysLoading_notNoAgents() {
+        show(emptyList(), loading = true)
+        composeTestRule.onNodeWithText("Loading…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No agents yet").assertDoesNotExist()
+    }
+
+    @Test
+    fun whileLoading_aFailureLineShows_andLoadingDoesNot() {
+        show(emptyList(), notes = listOf("box: no answer"), loading = true)
+        composeTestRule.onAllNodesWithText("box: no answer").assertCountEquals(1)
+        composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
+        composeTestRule.onNodeWithText("No agents yet").assertDoesNotExist()
+    }
+
+    @Test
+    fun aFailingRead_withNoRows_showsTheFailure_notNoAgents() {
+        show(emptyList(), notes = listOf("box: herdr-core is not running"))
         composeTestRule.onAllNodesWithText("box: herdr-core is not running").assertCountEquals(1)
+        composeTestRule.onNodeWithText("No agents yet").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
     }
 
     @Test
@@ -207,5 +231,40 @@ class InboxScreenTest {
         composeTestRule.waitForIdle()
         assertEquals(emptyList<Pair<InboxRow, RowAction>>(), acted)
         composeTestRule.onNodeWithText("Send Esc").assertDoesNotExist()
+    }
+
+    private fun withParent(address: String, state: AgentState, parent: String?, title: String? = null, unread: Boolean? = null) = Inbox.row(1L, "box", Agent(address, AgentEngine.CORE, "box", "alpha · ONE", "work", title, "claude", state, null, 3, unread, false, parent))
+
+    @Test
+    fun theHelperCount_expandsTheHelpersAsRows_andATapOnOneOpensThatHelper() {
+        val parent = withParent("t1", AgentState.Working, null)
+        val helper = withParent("t2", AgentState.Working, "t1", title = "lint pass")
+        show(listOf(parent, helper))
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG).assertCountEquals(1)
+        composeTestRule.onNodeWithTag(INBOX_HELPERS_TAG, useUnmergedTree = true).performClick()
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG).assertCountEquals(2)
+        composeTestRule.onNodeWithText("lint pass").performClick()
+        assertEquals(listOf(helper), opened)
+        composeTestRule.onNodeWithTag(INBOX_HELPERS_TAG, useUnmergedTree = true).performClick()
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG).assertCountEquals(1)
+    }
+
+    @Test
+    fun aHelperThatNeedsYou_isVisibleWithoutAnyTap_andTheParentTapStillOpensTheParent() {
+        val parent = withParent("t1", AgentState.Working, null, title = "main task")
+        val helper = withParent("t2", AgentState.NeedsYou(), "t1", title = "blocked helper")
+        show(listOf(parent, helper))
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG).assertCountEquals(2)
+        composeTestRule.onNodeWithText("main task").performClick()
+        assertEquals(listOf(parent.copy(helperRows = listOf(helper))), opened)
+    }
+
+    @Test
+    fun theRowDescription_namesTheHelpersTheNeedAndTheUnreadMark() {
+        val parent = withParent("t1", AgentState.Working, null, title = "main task")
+        val helper = withParent("t2", AgentState.NeedsYou(), "t1", title = "blocked helper", unread = true)
+        show(listOf(parent, helper))
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open alpha · ONE on box, 1 helper · needs you, Unread")
+        composeTestRule.onAllNodesWithTag(INBOX_HELPERS_UNREAD_TAG, useUnmergedTree = true).assertCountEquals(1)
     }
 }

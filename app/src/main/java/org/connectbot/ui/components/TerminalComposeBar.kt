@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -64,6 +65,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -85,24 +87,31 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.preference.PreferenceManager
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -157,7 +166,7 @@ private val DOWN: String = ESC + "[B"
 private val RIGHT: String = ESC + "[C"
 private val LEFT: String = ESC + "[D"
 
-// Row 1's ↑ and ↓ page: the full-screen agent TUIs scroll on Page Up and Page Down.
+// Row 1's PgUp and PgDn: the full-screen agent TUIs scroll on Page Up and Page Down.
 private val PAGE_UP: String = ESC + "[5~"
 private val PAGE_DOWN: String = ESC + "[6~"
 
@@ -246,7 +255,7 @@ private fun ControlKey(
 /**
  * A [ControlKey] that keeps sending while held, for paging and the arrows: a tap
  * sends once, a hold repeats. It sends on press, not on release. [description] names
- * the key when its glyph alone would not (row 1's ↑ and ↓ page).
+ * the key when its glyph alone would not (the arrow keys of the tray).
  */
 @Composable
 private fun RepeatingControlKey(
@@ -293,17 +302,17 @@ private fun RepeatingControlKey(
 }
 
 /**
- * ↑ or ↓ on the bottom row. Alone, it sends on press ([RepeatingControlKey]); as a page of the
+ * PgUp or PgDn on the bottom row. Alone, it sends on press ([RepeatingControlKey]); as a page of the
  * swipe bar ([paged]), on release or hold ([HoldKey]), so a swipe that starts on it sends nothing.
  */
 @Composable
 private fun PageKey(label: String, sequence: String, onSend: (String) -> Unit, paged: Boolean, description: String, modifier: Modifier = Modifier) {
     if (paged) {
         HoldKey(resolve = { _, _ -> sequence }, activate = { sequence }, send = onSend, description = description, modifier = modifier) {
-            KeyLabel(label, 20.sp)
+            KeyLabel(label)
         }
     } else {
-        RepeatingControlKey(label, sequence, onSend, modifier, symbolSize = 20.sp, description = description)
+        RepeatingControlKey(label, sequence, onSend, modifier, description = description)
     }
 }
 
@@ -348,7 +357,9 @@ internal const val KEY_BAR_TEST_TAG = "key_bar"
  * His key bar, as the Herdr app's: five keys to a page, swipe to turn the page, a dot per page
  * under the keys. [firstPage], the bar's own bottom row, is the page it opens on; his pages follow.
  * Ctrl and Alt arm the next key (a tap), or stay on until tapped (a long press);
- * [KeyBarModifiers] holds that state across the pages. The row keeps its height on an empty page.
+ * [KeyBarModifiers] holds that state across the pages, resets it when [resetKey] (the terminal)
+ * changes, and a small gold mark ([ModifierMark]) shows it on every page, the bottom one included
+ * (the bottom page's own keys ignore Ctrl and Alt). The row keeps its height on an empty page.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -358,17 +369,21 @@ private fun PagedKeyRow(
     onPaste: () -> Unit,
     onCompose: () -> Unit,
     firstPage: @Composable RowScope.() -> Unit,
+    resetKey: Any?,
     modifier: Modifier = Modifier,
 ) {
     val pageCount = layout.pages.size + 1
     val pager = rememberPagerState { pageCount }
     val scope = rememberCoroutineScope()
-    var mods by remember { mutableStateOf(KeyBarModifiers()) }
+    // Keyed on the terminal: a new bridge (another session, a reconnect, a rotation) resets the
+    // modifiers on purpose, so a lock does not follow him into another session.
+    var mods by remember(resetKey) { mutableStateOf(KeyBarModifiers()) }
 
-    // One key's bytes, with the armed or locked modifiers on them; armed ones are spent.
+    // One key's bytes, with the armed or locked modifiers on them; armed ones are spent
+    // except by a text macro.
     val takeBytes: (String) -> String = { sequence ->
         val bytes = mods.encode(sequence)
-        mods = mods.afterKey()
+        mods = mods.afterKey(sequence)
         bytes
     }
     val sendBytes: (String) -> Unit = { if (it.isNotEmpty()) onSend(it) }
@@ -423,8 +438,46 @@ private fun PagedKeyRow(
                 repeat((KeyBarLayout.MAX_KEYS_PER_PAGE - keys.sumOf { it.span }).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
             }
         }
-        PageDots(pageCount, pager.currentPage) { page -> scope.launch { pager.animateScrollToPage(page) } }
+        Box {
+            PageDots(pageCount, pager.currentPage) { page -> scope.launch { pager.animateScrollToPage(page) } }
+            ModifierMark(mods, { mods = KeyBarModifiers() }, Modifier.align(Alignment.CenterEnd))
+        }
     }
+}
+
+/**
+ * Ctrl and Alt state for every page, at the end of the dot row: the bottom page has no Ctrl or
+ * Alt key to show it. Nothing while both are off; the row keeps its height either way (the mark
+ * is fixed to the row height, so a large font scale clips it rather than growing the bar). A tap
+ * clears both modifiers.
+ */
+@Composable
+private fun ModifierMark(mods: KeyBarModifiers, onClear: () -> Unit, modifier: Modifier = Modifier) {
+    val on = BarModifier.entries.filter { mods.level(it) != ModLevel.OFF }
+    if (on.isEmpty()) return
+    val names = mapOf(BarModifier.CTRL to KeyBarCatalog.byId("ctrl")!!.label, BarModifier.ALT to KeyBarCatalog.byId("alt")!!.label)
+    val text = on.joinToString(" ") { names.getValue(it) + if (mods.level(it) == ModLevel.LOCKED) " \u2022" else "" }
+    val descriptions = ArrayList<String>()
+    for (bar in on) {
+        val res = if (mods.level(bar) == ModLevel.LOCKED) R.string.key_bar_modifier_mark_locked else R.string.key_bar_modifier_mark_armed
+        descriptions += stringResource(res, names.getValue(bar))
+    }
+    val description = stringResource(R.string.key_bar_modifier_mark_clear, descriptions.joinToString(", "))
+    Text(
+        text = text,
+        modifier = modifier
+            .height(DOT_ROW_HEIGHT)
+            .testTag("key_bar_modifier_mark")
+            .clickable(role = Role.Button, onClick = onClear)
+            .clearAndSetSemantics { contentDescription = description }
+            .padding(horizontal = 6.dp)
+            .wrapContentHeight(Alignment.CenterVertically),
+        color = MaterialTheme.colorScheme.primary,
+        fontSize = 11.sp,
+        lineHeight = 11.sp,
+        fontWeight = FontWeight.Bold,
+        maxLines = 1,
+    )
 }
 
 /** Ctrl or Alt: gold while armed, gold with a dot while locked; the description says which. */
@@ -451,29 +504,45 @@ private fun ModifierKey(
     )
 }
 
-/** One dot per page, the current one lit; a tap on a dot goes to that page. */
+/**
+ * One dot per page, the current one lit; a tap on a dot goes to that page. Each dot is a
+ * [DOT_TOUCH_WIDTH] by [DOT_ROW_HEIGHT] touch box: Compose would grow a small target to 48 dp on
+ * every side, which reached up into the keys above, so that growth is off here.
+ */
 @Composable
 private fun PageDots(count: Int, current: Int, onPick: (Int) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().height(DOT_ROW_HEIGHT),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        repeat(count) { i ->
-            val description = stringResource(R.string.key_bar_page_dot, i + 1, count)
-            Box(
-                modifier = Modifier
-                    .testTag("key_bar_dot_$i")
-                    .clickable(role = Role.Button, onClickLabel = description) { onPick(i) }
-                    .semantics { contentDescription = description }
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
-            ) {
+    val config = LocalViewConfiguration.current
+    val noGrowth = remember(config) {
+        object : ViewConfiguration by config {
+            override val minimumTouchTargetSize: DpSize = DpSize.Zero
+        }
+    }
+    CompositionLocalProvider(LocalViewConfiguration provides noGrowth) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(DOT_ROW_HEIGHT),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(count) { i ->
+                val description = stringResource(R.string.key_bar_page_dot, i + 1, count)
                 Box(
-                    Modifier
-                        .size(DOT_SIZE)
-                        .clip(CircleShape)
-                        .background(if (i == current) MaterialTheme.colorScheme.primary else Ormus.extras.hairline),
-                )
+                    modifier = Modifier
+                        .testTag("key_bar_dot_$i")
+                        .size(width = DOT_TOUCH_WIDTH, height = DOT_ROW_HEIGHT)
+                        .clickable(role = Role.Button, onClickLabel = description) { onPick(i) }
+                        .semantics {
+                            contentDescription = description
+                            selected = i == current
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .size(DOT_SIZE)
+                            .clip(CircleShape)
+                            .background(if (i == current) MaterialTheme.colorScheme.primary else Ormus.extras.hairline),
+                    )
+                }
             }
         }
     }
@@ -481,6 +550,7 @@ private fun PageDots(count: Int, current: Int, onPick: (Int) -> Unit) {
 
 private val DOT_SIZE = 6.dp
 private val DOT_ROW_HEIGHT = 12.dp
+private val DOT_TOUCH_WIDTH = 32.dp
 
 /** The ⋯ key that opens and closes the tray. Gold-tinted while the tray is open. */
 @Composable
@@ -541,7 +611,7 @@ private fun IconKey(
     }
 }
 
-/** Tray key that uploads the phone's latest screenshot and adds its path to the field. */
+/** Tray key that uploads a photo the person picks and adds its path to the field. */
 @Composable
 private fun PasteScreenshotKey(
     onClick: () -> Unit,
@@ -605,7 +675,7 @@ private fun ReadKey(
  *
  * Two rows, always visible. The compose box is drawn first, directly under the terminal; the
  * key row is under it, at the bottom:
- * 1. (key row) ↑ and ↓, which page (Page Up and Page Down, hold to repeat), Herdr, ⋯, Chat, then Needs you
+ * 1. (key row) PgUp and PgDn, which page (Page Up and Page Down, hold to repeat), Herdr, ⋯, Chat, then Needs you
  *    under ⏎: a tap jumps to the next agent waiting for the user, in any Herdr session on
  *    the host, cycling; with none waiting, or on a long press, it opens the Agents board
  *    ([onBoard]). Gold while an agent waits.
@@ -668,9 +738,12 @@ fun TerminalComposeBar(
     keyBar: KeyBarLayout? = null,
     /** The voice key's settings when the switch is on: a mic key in the compose box, its words into the field. Null (off) leaves the box as it was. */
     voice: VoiceSettings? = null,
+    /** The dispatcher the voice key's server calls run on; the console passes the injected one. */
+    voiceIo: CoroutineDispatcher = Dispatchers.IO,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val clipboard = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
     val usage = LocalUsageLog.current
@@ -688,19 +761,29 @@ fun TerminalComposeBar(
         }
     }
 
-    val voiceKey = voice?.let { rememberVoiceKey(it, bridge.host.hostname, bridge.host.id) { text -> draft.insertAtCursor(text) } }
+    val voiceKey = voice?.let { rememberVoiceKey(voiceIo, it, bridge.host.hostname, bridge.host.id) { text -> draft.insertAtCursor(text) } }
 
     var coreSending by remember(bridge) { mutableStateOf(false) }
+
+    // The send failed with the console still showing: the text goes back, before what was typed meanwhile.
+    fun restoreUnsent(payload: String) {
+        val typedSince = draft.text
+        val text = if (typedSince.isEmpty()) payload else "$payload $typedSince"
+        draft.value = TextFieldValue(text, TextRange(text.length))
+    }
 
     fun send(actionId: String = UsageActions.SEND) {
         if (draft.text.isEmpty()) return
         usage.log(actionId)
         val payload = draft.text
-        // A core terminal: the watch is taken over and hc sends the text; the draft stays when it does not go.
+        // A core terminal: the watch is taken over and hc sends the text; the text goes back in the field when it does not go.
         if (bridge.watch != null) {
             // hc send may wait up to 60 s for a person's draft: one send at a time, so a second tap does not paste twice.
             if (coreSending) return
             coreSending = true
+            // The field is emptied as the send starts, so the kept draft goes too: a console that closes during the
+            // wait cancels this coroutine, and text that may already have been pasted must not come back to be sent twice.
+            draft.value = TextFieldValue()
             scope.launch {
                 val result = try {
                     bridge.composeSend(payload) ?: SendResult.Failed("no connection")
@@ -709,16 +792,20 @@ fun TerminalComposeBar(
                 }
                 when (result) {
                     SendResult.Sent -> {
-                        // Words typed while it waited stay.
-                        if (draft.text == payload) draft.value = TextFieldValue()
                         focusManager.clearFocus()
                         keyboardController?.hide()
                         onSend()
                     }
 
-                    is SendResult.Refused -> Toast.makeText(context, context.getString(R.string.compose_bar_core_not_sent, result.reason), Toast.LENGTH_LONG).show()
+                    is SendResult.Refused -> {
+                        restoreUnsent(payload)
+                        Toast.makeText(context, resources.getString(R.string.compose_bar_core_not_sent, result.reason), Toast.LENGTH_LONG).show()
+                    }
 
-                    is SendResult.Failed -> Toast.makeText(context, context.getString(R.string.compose_bar_core_not_sent, result.reason), Toast.LENGTH_LONG).show()
+                    is SendResult.Failed -> {
+                        restoreUnsent(payload)
+                        Toast.makeText(context, resources.getString(R.string.compose_bar_core_not_sent, result.reason), Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             return
@@ -1035,7 +1122,7 @@ fun TerminalComposeBar(
                                     if (url != null) clipboard.copyText(url)
                                     Toast.makeText(
                                         context,
-                                        if (url != null) context.getString(R.string.compose_bar_url_copied, url) else context.getString(R.string.compose_bar_no_url),
+                                        if (url != null) resources.getString(R.string.compose_bar_url_copied, url) else resources.getString(R.string.compose_bar_no_url),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
@@ -1050,7 +1137,7 @@ fun TerminalComposeBar(
                                     if (!opened) {
                                         Toast.makeText(
                                             context,
-                                            if (url != null) context.getString(R.string.compose_bar_url_open_failed, url) else context.getString(R.string.compose_bar_no_url),
+                                            if (url != null) resources.getString(R.string.compose_bar_url_open_failed, url) else resources.getString(R.string.compose_bar_no_url),
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                     }
@@ -1069,7 +1156,7 @@ fun TerminalComposeBar(
                                     if (reply != null) clipboard.copyText(reply)
                                     Toast.makeText(
                                         context,
-                                        if (reply != null) context.getString(R.string.compose_bar_reply_copied, reply.length) else context.getString(R.string.compose_bar_no_reply),
+                                        if (reply != null) resources.getString(R.string.compose_bar_reply_copied, reply.length) else resources.getString(R.string.compose_bar_no_reply),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
@@ -1255,11 +1342,11 @@ fun TerminalComposeBar(
                 // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎. With his key bar on,
                 // this row is the bar's first page and a swipe turns to his pages.
                 val bottomRow: @Composable RowScope.() -> Unit = {
-                    // ↑ and ↓ page: Page Up and Page Down, the way he scrolls. The arrow keys
+                    // PgUp and PgDn: Page Up and Page Down, the way he scrolls. The arrow keys
                     // themselves are in the tray. On the paged bar they send on release or hold,
                     // so a swipe that starts on them turns the page and scrolls nothing.
-                    PageKey("↑", PAGE_UP, sendKey, paged = keyBar != null, stringResource(R.string.herdr_key_page_up), Modifier.weight(1f))
-                    PageKey("↓", PAGE_DOWN, sendKey, paged = keyBar != null, stringResource(R.string.herdr_key_page_down), Modifier.weight(1f))
+                    PageKey(stringResource(R.string.herdr_key_page_up), PAGE_UP, sendKey, paged = keyBar != null, stringResource(R.string.herdr_key_page_up_description), Modifier.weight(1f))
+                    PageKey(stringResource(R.string.herdr_key_page_down), PAGE_DOWN, sendKey, paged = keyBar != null, stringResource(R.string.herdr_key_page_down_description), Modifier.weight(1f))
                     // On every host. Dimmed, not hidden, until Herdr answers, so the row never
                     // shifts under the thumb. Gold-tinted while the panel is open. Held, it opens
                     // the pane search (Jump to) with the keyboard up: the panel's own Jump to key
@@ -1321,6 +1408,7 @@ fun TerminalComposeBar(
                                 onPaste = { pasteClipboard() },
                                 onCompose = { draft.requestFocus() },
                                 firstPage = bottomRow,
+                                resetKey = bridge,
                             )
                         } else {
                             Row(

@@ -111,4 +111,19 @@ class HerdrJumpPickerTest {
         composeTestRule.onNodeWithText("Recent").assertIsDisplayed()
         composeTestRule.onNodeWithText("All").assertIsDisplayed()
     }
+
+    @Test
+    fun coreSourceFor_asksAHostAgain_thatSaidNotInstalled() {
+        val missing = { _: String -> org.connectbot.transport.CommandOutput("", "", 127) }
+        val first = coreSourceFor(4242L)
+        first.read(true, "box", 1_000L, missing)
+        val log = mutableListOf<String>()
+        val again = coreSourceFor(4242L)
+        again.read(true, "box", 2_000L) {
+            log += it
+            missing(it)
+        }
+        org.junit.Assert.assertSame(first, again)
+        org.junit.Assert.assertEquals(1, log.count { "--version" in it })
+    }
 }

@@ -129,8 +129,8 @@ class InboxViewModelTest {
     private val closed = AtomicInteger(0)
 
     /** A login that always works and runs [exec]: nothing here reaches a network. */
-    private fun fakeLinks(saved: List<Host>, exec: (String) -> CommandOutput?, skip: String? = null) = CoreLinks(
-        hosts = { saved },
+    private fun fakeLinks(saved: List<Host>, exec: (String) -> CommandOutput?, skip: String? = null, live: (() -> List<Host>)? = null) = CoreLinks(
+        hosts = live ?: { saved },
         login = {
             logins.incrementAndGet()
             if (skip != null) {
@@ -234,6 +234,28 @@ class InboxViewModelTest {
         while (log.count { "hc ls" in it } < 2 && System.nanoTime() < end) Thread.sleep(5)
         assertEquals(1, log.count { "--version" in it })
         assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun aHostWithoutCore_isNotProbedAgainOnPolls_butIsWhenTheInboxOpens() = runTest {
+        val log = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val vm = viewModel(
+            true,
+            links = fakeLinks(listOf(saved(1, "one")), {
+                log += it
+                if ("--version" in it) CommandOutput("", "", 127) else answers(it)
+            }),
+        )
+        vm.refresh()
+        awaitState(vm) { it.notes.isNotEmpty() }
+        vm.refresh()
+        Thread.sleep(200)
+        assertEquals(1, log.count { "--version" in it })
+        val watching = launch(Dispatchers.Default) { vm.watch() }
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (log.count { "--version" in it } < 2 && System.nanoTime() < end) Thread.sleep(10)
+        watching.cancel()
+        assertEquals(2, log.count { "--version" in it })
     }
 
     @Test
@@ -372,5 +394,153 @@ class InboxViewModelTest {
         awaitState(vm) { it.notes.any { n -> n.startsWith("one:") } }
         backgroundScope.launch(unconfined) { vm.watch() }
         assertTrue(vm.state.value.notes.none { it.contains("could not write") })
+    }
+
+    @Test
+    fun theInboxIsLoading_untilTheFirstReadCompletes() = runTest {
+        val vm = viewModel(true, links = fakeLinks(listOf(saved(1, "one")), { answers(it) }))
+        assertEquals(false, vm.state.value.loaded)
+        vm.refresh()
+        awaitState(vm) { it.loaded }
+        assertTrue(vm.state.value.rows.any { it.agent.engine == core })
+    }
+
+    @Test
+    fun aFailingRead_isLoaded_andCarriesItsFailure() = runTest {
+        val vm = viewModel(true, links = fakeLinks(listOf(saved(1, "one")), { answers(it) }, skip = "no key"))
+        vm.refresh()
+        awaitState(vm) { it.loaded }
+        assertEquals(listOf("one: no key"), vm.state.value.notes)
+        assertTrue(vm.state.value.rows.isEmpty())
+    }
+
+    @Test
+    fun aFailedWriteNote_goesWhenTheNextReadSucceeds() = runTest {
+        val (b, _) = bridge(1L, "one") { if ("hc label" in it) CommandOutput("", "no", 1) else answers(it) }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { it.notes.any { n -> n.contains("could not write") } }
+        vm.refresh()
+        awaitState(vm) { it.notes.none { n -> n.contains("could not write") } }
+    }
+
+    private val slow = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val labelsCalls = AtomicInteger(0)
+    private val labelsEntered = CountDownLatch(1)
+    private val gateRead = CountDownLatch(1)
+    private val laterRead = CountDownLatch(1)
+
+    /**
+     * While [slow] is set, the first labels command of a read waits on [gateRead] and then gives the
+     * answer it had before the wait; any later one signals [laterRead] and hangs, so a read after the
+     * held one never confirms anything on its own.
+     */
+    private fun slowAnswers(cmd: String): CommandOutput? {
+        val out = answers(cmd)
+        if (slow.get() && solutions.ormus.logos.herd.CoreSource.PINNED_CMD in cmd) {
+            if (labelsCalls.incrementAndGet() == 1) {
+                labelsEntered.countDown()
+                gateRead.await(10, TimeUnit.SECONDS)
+                return out
+            }
+            laterRead.countDown()
+            return hang()
+        }
+        return out
+    }
+
+    /** Poll until a read after the held one has begun: the held one has then published or dropped its rows. */
+    private suspend fun awaitHeldReadDone(vm: InboxViewModel) {
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (!laterRead.await(20, TimeUnit.MILLISECONDS) && System.nanoTime() < end) vm.refresh()
+        assertTrue("the held read never finished", laterRead.count == 0L)
+    }
+
+    @Test
+    fun aPollThatStartedBeforeAWrite_doesNotUndoItsPatch() = runTest {
+        val (b, _) = bridge(1L, "one") { slowAnswers(it) }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        // The second read is inside its labels command when the pin is written and patched.
+        slow.set(true)
+        vm.refresh()
+        assertTrue(labelsEntered.await(10, TimeUnit.SECONDS))
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { s -> s.rows.first { it.agent.engine == core }.agent.pinned }
+        gateRead.countDown()
+        awaitHeldReadDone(vm)
+        assertTrue(coreRow(vm).agent.pinned)
+    }
+
+    @Test
+    fun aFailedWriteNote_staysWhenAReadAlreadyInFlightFinishes() = runTest {
+        val gateWrite = CountDownLatch(1)
+        val (b, _) = bridge(1L, "one") {
+            if ("hc label" in it && slow.get()) {
+                gateWrite.await(10, TimeUnit.SECONDS)
+                CommandOutput("", "no", 1)
+            } else {
+                slowAnswers(it)
+            }
+        }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        slow.set(true)
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        // A read begins while the write is still out, then the write fails, then the read ends well.
+        vm.refresh()
+        assertTrue(labelsEntered.await(10, TimeUnit.SECONDS))
+        gateWrite.countDown()
+        awaitState(vm) { it.notes.any { n -> n.contains("could not write") } }
+        gateRead.countDown()
+        awaitHeldReadDone(vm)
+        assertTrue(vm.state.value.notes.any { it.contains("could not write") })
+    }
+
+    @Test
+    fun aReadThatNeverAnswers_endsInANote_andTheInboxIsLoaded() = runTest {
+        val (stuck, _) = bridge(1L, "stuck") { hang() }
+        val vm = viewModel(true, stuck)
+        vm.readTimeoutMs = 300L
+        vm.refresh()
+        awaitState(vm) { it.loaded }
+        assertEquals(listOf("stuck: no answer"), vm.state.value.notes)
+    }
+
+    @Test
+    fun aNewVisit_readsAHostAgain_whenTheLastVisitsReadNeverReturned() = runTest {
+        val first = java.util.concurrent.atomic.AtomicBoolean(true)
+        val (b, _) = bridge(1L, "one") { if (first.getAndSet(false)) hang() else answers(it) }
+        val vm = viewModel(true, b)
+        vm.refresh()
+        backgroundScope.launch(unconfined) { vm.watch() }
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+    }
+
+    @Test
+    fun aFailedWriteNote_goesWhenItsMachineLeaves() = runTest {
+        val hosts = java.util.concurrent.CopyOnWriteArrayList(listOf(saved(1, "one")))
+        val vm = viewModel(true, links = fakeLinks(emptyList(), { if ("hc label" in it) CommandOutput("", "no", 1) else answers(it) }, live = { hosts.toList() }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { it.notes.any { n -> n.contains("could not write") } }
+        hosts.clear()
+        vm.refresh()
+        awaitState(vm) { it.notes.none { n -> n.contains("could not write") } }
+    }
+
+    @Test
+    fun aManagerThatNeverBinds_endsLoadingWithANote() = runTest {
+        val vm = InboxViewModel(prefs(true), CoroutineDispatchers(unconfined, Dispatchers.IO, unconfined), fakeLinks(emptyList(), { null })).also { made += it }
+        vm.refresh()
+        assertEquals(false, vm.state.value.loaded)
+        repeat(InboxViewModel.UNBOUND_POLLS) { vm.refresh() }
+        assertEquals(true, vm.state.value.loaded)
+        assertEquals(1, vm.state.value.notes.size)
     }
 }

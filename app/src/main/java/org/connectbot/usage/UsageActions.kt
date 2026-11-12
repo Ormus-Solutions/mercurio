@@ -157,6 +157,29 @@ object UsageActions {
     // The Save key of a workboard on the home: a host that attaches its session on its machine was saved.
     const val WORKBOARDS_SAVE_HOST = "workboards:save-host"
 
+    // Inbox: a row opened, the search started (once per typing, never the text), a row swiped to
+    // pin, unpin or mark read, Esc sent after its confirmation, a section's Show more / Show fewer.
+    // Never an agent's or a host's name. Pin, unpin, mark-read and esc record the user's request at
+    // the gesture, not its success: a write that fails or changes nothing still counts.
+    const val INBOX_OPEN = "inbox:open"
+    const val INBOX_SEARCH = "inbox:search"
+    const val INBOX_PIN = "inbox:pin"
+    const val INBOX_UNPIN = "inbox:unpin"
+    const val INBOX_MARK_READ = "inbox:mark-read"
+    const val INBOX_ESC = "inbox:esc"
+    const val INBOX_FOLD = "inbox:fold"
+
+    /** The helper-count control on a row: its helper terminals shown or folded away. */
+    const val INBOX_HELPERS = "inbox:helpers"
+
+    // Spaces: a tab's box opened in a console that watches its first terminal.
+    const val SPACES_OPEN_TAB = "spaces:open-tab"
+
+    // The bottom bar: a place tapped, selected or not.
+    const val PLACES_INBOX = "places:inbox"
+    const val PLACES_SPACES = "places:spaces"
+    const val PLACES_HOSTS = "places:hosts"
+
     // Console top bar, overflow menu and the disconnected overlay.
     const val CONSOLE_BACK = "console:back"
     const val CONSOLE_TEXT_INPUT = "console:text-input"
@@ -432,6 +455,8 @@ object UsageActions {
         TITLE_PULL_DRAWER, TITLE_PULL_DISCONNECT,
         MACHINES_CONNECT, MACHINES_REFRESH, MACHINES_FIX_PROMPT, MACHINES_API_SECRET,
         WORKSPACES_OPEN, HOME_FEED_SET, WORKBOARDS_OPEN, WORKBOARDS_SAVE_HOST,
+        INBOX_OPEN, INBOX_SEARCH, INBOX_PIN, INBOX_UNPIN, INBOX_MARK_READ, INBOX_ESC, INBOX_FOLD, INBOX_HELPERS,
+        SPACES_OPEN_TAB, PLACES_INBOX, PLACES_SPACES, PLACES_HOSTS,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,
         MENU_RECONNECT, MENU_DISCONNECT, MENU_URL_SCAN, MENU_RESIZE, MENU_PORT_FORWARDS,
         MENU_FULLSCREEN, MENU_TITLE_BAR, MENU_WISH, MENU_COPY_DETAILS, MENU_SEND_ERROR,

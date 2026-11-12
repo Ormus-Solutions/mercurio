@@ -31,8 +31,20 @@ import androidx.compose.ui.text.input.TextFieldValue
  * is the one way in from outside.
  */
 @Stable
-class DictationDraft {
-    var value by mutableStateOf(TextFieldValue())
+class DictationDraft(
+    initial: TextFieldValue = TextFieldValue(),
+    // Told the new text whenever it changes: ComposeDraftStore keeps it for the terminal.
+    private val onTextChange: (String) -> Unit = {},
+) {
+    private var held by mutableStateOf(initial)
+
+    var value: TextFieldValue
+        get() = held
+        set(new) {
+            val changed = new.text != held.text
+            held = new
+            if (changed) onTextChange(new.text)
+        }
 
     /** Bumped when the field should take focus and raise the keyboard (for dictation). */
     var focusRequests by mutableIntStateOf(0)

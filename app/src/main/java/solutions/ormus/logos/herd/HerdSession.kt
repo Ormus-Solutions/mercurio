@@ -198,7 +198,7 @@ class HerdSession(
     private fun withPaneTail(notice: HerdAttention.Notice): HerdAttention.Notice {
         if (notice !is HerdAttention.Notice.NeedsYou) return notice
         val read = stdoutOrNull(AgentsBoard.readCommand(notice.session, notice.agent.paneId, HerdApproval.READ_LINES))
-        return notice.copy(paneTail = read?.let { HerdApproval.tail(it) })
+        return notice.copy(paneTail = read?.let { HerdApproval.tail(it) }, prompt = read?.let(CoreNotices::fingerprint))
     }
 
     // The attached session's own poll, beside the monitor's poll of the default: its agents get the same
@@ -251,7 +251,7 @@ class HerdSession(
     private fun withCoreScreen(notice: HerdAttention.Notice): HerdAttention.Notice {
         if (notice !is HerdAttention.Notice.NeedsYou) return notice
         val screen = runQuiet(CoreNotices.getCommand(notice.agent.paneId))?.takeIf { it.exitCode == null || it.exitCode == 0 }?.stdout?.let(CoreNotices::screenOf)
-        return notice.copy(paneTail = screen?.let { HerdApproval.tail(it) })
+        return notice.copy(paneTail = screen?.let { HerdApproval.tail(it) }, prompt = screen?.let(CoreNotices::fingerprint))
     }
 
     private fun runQuiet(command: String): CommandOutput? = try {
@@ -269,6 +269,7 @@ class HerdSession(
     fun start() {
         synchronized(attentions) { attentions.values.forEach { it.reset() } }
         coreAttention.reset()
+        coreSource.recheck()
         monitor.stop()
         monitor.start()
         watchAttached()
@@ -507,14 +508,34 @@ class HerdSession(
      * on an answerable agent, and, when [seq] is given, at the `state_change_seq` the
      * prompt was shown at.
      */
-    suspend fun answer(paneId: String, answer: HerdAnswer, session: String = HerdrCommands.DEFAULT_SESSION, seq: Long? = null): HerdAnswerOutcome = answer(paneId, answer.key, session, seq)
+    suspend fun answer(paneId: String, answer: HerdAnswer, session: String = HerdrCommands.DEFAULT_SESSION, seq: Long?): HerdAnswerOutcome = answer(paneId, answer.key, session, seq)
 
-    /** [answer] with [keys] for the key: a Herdr key name, or the number of the option a tap picked. */
-    suspend fun answer(paneId: String, keys: String, session: String = HerdrCommands.DEFAULT_SESSION, seq: Long? = null): HerdAnswerOutcome = withContext(io) {
+    /**
+     * [answer] with [keys] from a notification or a card: only for the prompt it showed, so one with neither a
+     * [seq] nor a [prompt] (the hash of the prompt the notice carried) to hold the answer to is refused
+     * as [HerdAnswerOutcome.Unproven].
+     */
+    suspend fun answerShown(paneId: String, keys: String, session: String, seq: Long?, prompt: Int?): HerdAnswerOutcome = if (seq == null && prompt == null) {
+        HerdAnswerOutcome.Unproven
+    } else {
+        answer(paneId, keys, session, seq, prompt)
+    }
+
+    /**
+     * [answer] with [keys] for the key: a Herdr key name, or the number of the option a tap picked. A null [seq]
+     * holds the answer to no state change: only a caller that means that passes it. [prompt], when given, is
+     * the hash of the prompt the user saw ([CoreNotices.fingerprint]): the pane is read again and the key goes
+     * only if it still shows that prompt.
+     */
+    suspend fun answer(paneId: String, keys: String, session: String = HerdrCommands.DEFAULT_SESSION, seq: Long?, prompt: Int? = null): HerdAnswerOutcome = withContext(io) {
         val snapshot = stdoutOrNull(HerdrSessions.snapshotCommand(session))?.let { parseHerdrSnapshot(it) }
             ?: return@withContext HerdAnswerOutcome.Failed(FixPrompt.herdrReason(_failure.value))
         keep(session, snapshot)
         HerdApproval.guard(snapshot, paneId, seq)?.let { return@withContext it }
+        if (prompt != null) {
+            val screen = stdoutOrNull(AgentsBoard.readCommand(session, paneId, HerdApproval.READ_LINES))
+            if (screen == null || CoreNotices.fingerprint(screen) != prompt) return@withContext HerdAnswerOutcome.PromptChanged
+        }
         val error = HerdrApi.parseCommandError(run(HerdApproval.sendKeysCommand(paneId, keys, session)))
         if (error != null) return@withContext HerdAnswerOutcome.Failed(oneLine(error.message.ifBlank { error.code }))
         attentionFor(session).answered(paneId)

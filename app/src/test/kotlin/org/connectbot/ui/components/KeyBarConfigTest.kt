@@ -203,6 +203,59 @@ class KeyBarConfigTest {
     }
 
     @Test
+    fun decodeSpillsAPageThatIsTooWideIntoTheNextPage() {
+        // Space is two slots: Space plus four keys is six slots, so the fourth key moves on.
+        assertEquals(
+            listOf(listOf("space", "esc", "tab", "slash"), listOf("dash"), listOf("pipe")),
+            KeyBarLayout.decode("space,esc,tab,slash,dash;pipe").pages,
+        )
+        val page = KeyBarLayout.decode("space,esc,tab,slash,dash").pages
+        assertEquals(listOf(listOf("space", "esc", "tab", "slash"), listOf("dash")), page)
+        page.indices.forEach { assertTrue(KeyBarLayout(page).slots(it) <= KeyBarLayout.MAX_KEYS_PER_PAGE) }
+    }
+
+    @Test
+    fun aLegacySixKeyPageKeepsAllSixKeysAcrossTwoPages() {
+        val six = listOf("esc", "tab", "slash", "dash", "pipe", "tilde")
+        val layout = KeyBarLayout.decode(six.joinToString(","))
+        assertEquals(listOf(six.take(5), six.drop(5)), layout.pages)
+    }
+
+    @Test
+    fun decodeNeverDropsAKnownKey_evenOnAFullEightPageLayout() {
+        val full = List(KeyBarLayout.MAX_PAGES) { listOf("esc", "tab", "slash", "dash", "pipe") }
+        val saved = full.mapIndexed { i, page -> if (i == 0) page + "tilde" else page } + listOf(listOf("home"))
+        val layout = KeyBarLayout.decode(saved.joinToString(";") { it.joinToString(",") })
+        assertEquals(KeyBarLayout.MAX_PAGES, layout.pages.size)
+        // Every key, in its saved order; the leftovers ride on the last page.
+        assertEquals(saved.flatten(), layout.pages.flatten())
+        assertEquals("home", layout.pages.last().last())
+    }
+
+    @Test
+    fun aLegacyLayoutSurvivesDecodeAndEncodeWithoutLosingAKey() {
+        val legacy = "esc,tab,slash,dash,pipe,tilde;ctrl-c,ctrl-d,ctrl-z,ctrl-l,ctrl-a,ctrl-e,ctrl-u"
+        val once = KeyBarLayout.decode(legacy)
+        assertEquals(legacy.split(";", ",").sorted(), once.pages.flatten().sorted())
+        // Saving what he sees and opening it again changes nothing.
+        assertEquals(once, KeyBarLayout.decode(once.encode()))
+    }
+
+    @Test
+    fun shiftTabHasAShortLabelAndTheFullNameForAScreenReader() {
+        val key = KeyBarCatalog.byId("shift-tab")!!
+        assertEquals("S-Tab", key.label)
+        assertEquals("Shift+Tab", key.description)
+    }
+
+    @Test
+    fun noOneSlotKeyLabelIsLongerThanTheBarShowsOnAPhone() {
+        // Measured on a phone (5 slots): "Shift+T" showed, "Shift+Tab" was cut. Seven characters fit.
+        val tooLong = KeyBarCatalog.all.filter { it.span == 1 && it.label.length > MAX_LABEL_CHARS_PER_SLOT }
+        assertEquals(emptyList<String>(), tooLong.map { it.label })
+    }
+
+    @Test
     fun addAppendsAndRespectsThePageLimit() {
         val layout = KeyBarLayout(listOf(listOf("esc")))
         assertEquals(listOf("esc", "tab"), layout.add(0, "tab").pages[0])
@@ -276,5 +329,9 @@ class KeyBarConfigTest {
         val reopened = KeyBarStore(PreferenceManager.getDefaultSharedPreferences(ApplicationProvider.getApplicationContext<Context>()))
         assertFalse(reopened.enabled)
         assertEquals(edited, reopened.layout)
+    }
+
+    private companion object {
+        const val MAX_LABEL_CHARS_PER_SLOT = 7
     }
 }

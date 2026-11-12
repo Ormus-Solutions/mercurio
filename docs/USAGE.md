@@ -25,6 +25,8 @@ One usage event per use of a control or feature:
 | `duration_ms` | Session length, on `session:end` only. |
 | `reason` | A reason class (`REMOTE_EOF`, `NETWORK_LOST`, `AUTH_FAIL`, ...), on `session:end` and `session:fail` only. |
 
+An id records that the user asked for the action at the gesture, not that it succeeded: a swipe to pin that the host then fails to write still logs `inbox:pin`.
+
 Sessions add `session:start`, `session:end`, `session:fail`,
 `session:reconnect` and `session:auto-reconnect` (a dropped link reconnected
 once with no tap). A refused upload adds `key:upload-refused-hostkey`.

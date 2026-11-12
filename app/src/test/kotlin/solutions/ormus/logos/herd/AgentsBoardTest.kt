@@ -164,6 +164,9 @@ class AgentsBoardTest {
         val seen = boardAgent("w1:p1", "w1:t1", "claude", HerdrAgentStatus.BLOCKED).copy(stateChangeSeq = 42)
         val card = AgentsBoard.cards(mapOf("default" to boardSnapshot(listOf("w1" to "alpha"), listOf("w1:t1" to "build"), listOf(seen)))).single()
         assertEquals(42L, card.seq)
+        // A snapshot with no state_change_seq gives the card no mark.
+        val bare = boardAgent("w1:p1", "w1:t1", "claude", HerdrAgentStatus.BLOCKED)
+        assertNull(AgentsBoard.cards(mapOf("default" to boardSnapshot(listOf("w1" to "alpha"), listOf("w1:t1" to "build"), listOf(bare)))).single().seq)
     }
 
     @Test

@@ -218,4 +218,134 @@ class InboxTest {
         val core = Inbox.row(1L, "box", Agent("t1", AgentEngine.CORE, "box", "alpha · TWO", "b", state = AgentState.Idle))
         assertEquals(setOf("alpha · ONE", "alpha · TWO"), Inbox.sections(listOf(tui, core), "", emptySet()).single().shown.map { it.agent.space }.toSet())
     }
+
+    private fun core(address: String, state: AgentState, parent: String? = null, title: String? = null, since: Long? = null) = Agent(address, AgentEngine.CORE, null, "alpha · ONE", "work", title, "claude", state, since, parent = parent)
+
+    private fun allRows(sections: List<InboxSection>) = sections.flatMap { it.rows }
+
+    @Test
+    fun aHelperFoldsUnderItsPresentParent_andTheParentCountsIt() {
+        val sections = Inbox.sections(
+            rows(core("t1", AgentState.Working), core("t2", AgentState.Working, parent = "t1"), core("t3", AgentState.Idle, parent = "t1")),
+            "",
+            emptySet(),
+        )
+        val shown = allRows(sections)
+        assertEquals(listOf("t1"), shown.map { it.agent.address })
+        assertEquals(2, shown.single().helpers)
+        assertFalse(shown.single().helpersNeedYou)
+    }
+
+    @Test
+    fun anOrphanHelper_staysARow() {
+        val shown = allRows(Inbox.sections(rows(core("t2", AgentState.Working, parent = "t1")), "", emptySet()))
+        assertEquals(listOf("t2"), shown.map { it.agent.address })
+        assertEquals(0, shown.single().helpers)
+    }
+
+    @Test
+    fun aHelperOnAnotherHost_doesNotFoldUnderTheSameAddress() {
+        val rows = listOf(Inbox.row(1L, "box", core("t1", AgentState.Working)), Inbox.row(2L, "devbox", core("t2", AgentState.Working, parent = "t1")))
+        assertEquals(2, allRows(Inbox.sections(rows, "", emptySet())).size)
+    }
+
+    @Test
+    fun aHelperThatNeedsYou_marksTheParent_andLiftsItToNeedsYou() {
+        val sections = Inbox.sections(
+            rows(core("t1", AgentState.Working), core("t2", AgentState.NeedsYou(), parent = "t1")),
+            "",
+            emptySet(),
+        )
+        val section = sections.single()
+        assertEquals(Inbox.Section.NEEDS_YOU, section.section)
+        val parent = section.rows.single()
+        assertEquals("t1", parent.agent.address)
+        assertEquals(AgentState.Working, parent.agent.state)
+        assertEquals(1, parent.helpers)
+        assertTrue(parent.helpersNeedYou)
+    }
+
+    @Test
+    fun aGrandchild_foldsUnderTheTopParent() {
+        val shown = allRows(
+            Inbox.sections(
+                rows(core("t1", AgentState.Idle), core("t2", AgentState.Idle, parent = "t1"), core("t3", AgentState.Idle, parent = "t2")),
+                "",
+                emptySet(),
+            ),
+        )
+        assertEquals(listOf("t1"), shown.map { it.agent.address })
+        assertEquals(2, shown.single().helpers)
+    }
+
+    @Test
+    fun aParentCycle_losesNoRow() {
+        val shown = allRows(Inbox.sections(rows(core("t1", AgentState.Idle, parent = "t2"), core("t2", AgentState.Idle, parent = "t1")), "", emptySet()))
+        assertEquals(2, shown.size)
+    }
+
+    @Test
+    fun searchFindsAHelper_andShowsItAsARow() {
+        val sections = Inbox.sections(
+            rows(core("t1", AgentState.Working, title = "build"), core("t2", AgentState.Working, parent = "t1", title = "lint pass")),
+            "lint",
+            emptySet(),
+        )
+        assertEquals(listOf("t2"), allRows(sections).map { it.agent.address })
+    }
+
+    private fun coreAt(address: String, state: AgentState, parent: String? = null, since: Long? = null, unread: Boolean? = null, space: String = "alpha · ONE") = Agent(address, AgentEngine.CORE, null, space, "work", null, "claude", state, since, unread = unread, parent = parent)
+
+    @Test
+    fun theFoldedHelpers_areKeptAsRows_rankedNeedsYouFirst() {
+        val parent = Inbox.row(1L, "box", coreAt("t1", AgentState.Working))
+        val idle = Inbox.row(1L, "box", coreAt("t2", AgentState.Idle, parent = "t1"))
+        val blocked = Inbox.row(1L, "box", coreAt("t3", AgentState.NeedsYou(), parent = "t1"))
+        val shown = allRows(Inbox.sections(listOf(parent, idle, blocked), "", emptySet())).single()
+        assertEquals(listOf(blocked, idle), shown.helperRows)
+    }
+
+    @Test
+    fun aLiftedParent_carriesTheEarliestNeedingHelpersKindAndSince() {
+        val rows = listOf(
+            Inbox.row(1L, "box", coreAt("t1", AgentState.Working, since = 50)),
+            Inbox.row(1L, "box", coreAt("t2", AgentState.NeedsYou(NeedsYouKind.QUESTION), parent = "t1", since = 900)),
+            Inbox.row(1L, "box", coreAt("t3", AgentState.NeedsYou(NeedsYouKind.PERMISSION), parent = "t1", since = 300)),
+        )
+        val parent = allRows(Inbox.sections(rows, "", emptySet())).single()
+        val effective = Inbox.effective(parent)
+        assertEquals(AgentState.NeedsYou(NeedsYouKind.PERMISSION), effective.state)
+        assertEquals(300L, effective.since)
+        assertEquals("5m", Inbox.age(parent, 300 + 5 * 60_000L))
+    }
+
+    @Test
+    fun liftedParents_areOrderedByTheirHelpersWait() {
+        val rows = listOf(
+            Inbox.row(1L, "box", coreAt("a1", AgentState.Working)),
+            Inbox.row(1L, "box", coreAt("a2", AgentState.NeedsYou(), parent = "a1", since = 900)),
+            Inbox.row(1L, "box", coreAt("b1", AgentState.Working)),
+            Inbox.row(1L, "box", coreAt("b2", AgentState.NeedsYou(), parent = "b1", since = 100)),
+        )
+        val section = Inbox.sections(rows, "", emptySet()).single()
+        assertEquals(listOf("b1", "a1"), section.rows.map { it.agent.address })
+    }
+
+    @Test
+    fun aCoreHelper_doesNotFoldUnderATuiRowOfTheSameAddress() {
+        val tui = Inbox.row(1L, "box", agent("t1", AgentState.Working))
+        val helper = Inbox.row(1L, "box", coreAt("t2", AgentState.Working, parent = "t1"))
+        assertEquals(2, allRows(Inbox.sections(listOf(tui, helper), "", emptySet())).size)
+    }
+
+    @Test
+    fun anUnreadFoldedHelper_marksTheParent() {
+        val rows = listOf(
+            Inbox.row(1L, "box", coreAt("t1", AgentState.Idle)),
+            Inbox.row(1L, "box", coreAt("t2", AgentState.Done, parent = "t1", unread = true)),
+        )
+        assertTrue(allRows(Inbox.sections(rows, "", emptySet())).single().helpersUnread)
+        val read = rows.map { if (it.agent.address == "t2") it.copy(agent = it.agent.copy(unread = false)) else it }
+        assertFalse(allRows(Inbox.sections(read, "", emptySet())).single().helpersUnread)
+    }
 }

@@ -77,6 +77,8 @@ data class ChatTarget(
     val place: String? = null,
     /** The Herdr session the pane is in: pane ids repeat across sessions. */
     val session: String = HerdrCommands.DEFAULT_SESSION,
+    /** The agent's `state_change_seq` when the chat read it; an answer is held to it. Null when the snapshot had no agent entry. */
+    val seq: Long? = null,
 )
 
 /**
@@ -136,6 +138,7 @@ object AgentChat {
             title = info?.title(),
             place = place,
             session = herdrSession,
+            seq = info?.seqMark,
         )
     }
 

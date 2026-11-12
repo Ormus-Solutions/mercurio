@@ -48,10 +48,15 @@ class SSHSharedLinkTest {
     private class Shared(override val lent: Connection?) : HeadlessSession {
         var lost: ((Throwable) -> Unit)? = null
         var handles = 0
+        var execs = 0
+        var onExec: () -> CommandOutput = { CommandOutput("", "", 0) }
 
         override fun login(keys: List<java.security.KeyPair>) = HeadlessSsh.Login.Ok
 
-        override fun exec(command: String) = CommandOutput("", "", 0)
+        override fun exec(command: String): CommandOutput {
+            execs++
+            return onExec()
+        }
 
         override fun onLost(lost: (Throwable) -> Unit): AutoCloseable {
             this.lost = lost
@@ -127,19 +132,216 @@ class SSHSharedLinkTest {
     }
 
     @Test
-    fun aLinkThatHasNotAnsweredLately_isNotBorrowed() {
+    fun aStaleLinkThatAnswersTheProbe_isBorrowed_withNoSecondLogin() {
         val rig = Rig()
-        val connection = lent()
-        rig.pool.put(key, inbox, Shared(connection))
+        val session = mock(Session::class.java)
+        val connection = lent(session)
+        val shared = Shared(connection)
+        rig.pool.put(key, inbox, shared)
         rig.now = SSH.SHARED_FRESH_MS + 1
         val (ssh, bridge) = console(rig)
 
         ssh.connect()
 
+        assertEquals(1, shared.execs)
+        verify(connection).openSession()
+        verify(session).execCommand(attach)
+        verify(bridge, never()).dispatchDisconnect(DisconnectReason.IO_ERROR)
+        assertTrue(ssh.isSessionOpen())
+        // The answer made it fresh: the next console borrows with no probe.
+        val (next, _) = console(rig)
+        next.connect()
+        assertEquals(1, shared.execs)
+        assertTrue(next.isSessionOpen())
+    }
+
+    @Test
+    fun aStaleLinkThatFailsTheProbe_isLetGo_andTheConsoleLogsInAsBefore() {
+        val rig = Rig()
+        val connection = lent()
+        val shared = Shared(connection)
+        shared.onExec = { throw IOException("connection reset") }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val (ssh, bridge) = console(rig)
+
+        ssh.connect()
+
+        assertEquals(1, shared.execs)
         verify(connection, never()).openSession()
+        assertEquals(0, shared.handles)
         // It logged in on its own instead: refused here, so the console ends with the reason (the catch
         // and the connection's monitor both report it; the bridge takes the first).
         verify(bridge, atLeastOnce()).dispatchDisconnect(DisconnectReason.IO_ERROR)
+        // Nobody is lent the failed link again.
+        assertEquals(listOf<HeadlessSession>(shared), rig.closed)
+    }
+
+    @Test
+    fun aStaleLinkThatDoesNotAnswerTheProbeInTime_isNotWaitedFor_andStaysForTheOthers() {
+        val rig = Rig()
+        val connection = lent()
+        val shared = Shared(connection)
+        val stuck = java.util.concurrent.CountDownLatch(1)
+        shared.onExec = {
+            stuck.await()
+            CommandOutput("", "", 0)
+        }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val (ssh, bridge) = console(rig)
+        ssh.sharedProbeMs = 50
+
+        try {
+            ssh.connect()
+        } finally {
+            stuck.countDown()
+        }
+
+        verify(connection, never()).openSession()
+        verify(bridge, atLeastOnce()).dispatchDisconnect(DisconnectReason.IO_ERROR)
+        // A slow answer is weak evidence: the link stays for the Inbox, and the next open probes again.
+        assertEquals(0, shared.handles)
+        assertTrue(rig.closed.isEmpty())
+        rig.pool.release(key, inbox)
+        assertEquals(listOf<HeadlessSession>(shared), rig.closed)
+    }
+
+    @Test
+    fun aProbeThatExitsNonZero_stillCountsAsAnAnswer() {
+        // A Windows host or a refused exec channel answers `true` with an error status: the link is alive.
+        val rig = Rig()
+        val connection = lent()
+        val shared = Shared(connection)
+        shared.onExec = { CommandOutput("", "not recognized", 9009) }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val (ssh, _) = console(rig)
+
+        ssh.connect()
+
+        verify(connection).openSession()
+        assertTrue(ssh.isSessionOpen())
+        assertTrue(rig.closed.isEmpty())
+    }
+
+    @Test
+    fun aConsoleClosedDuringTheProbe_leavesNoHolder_andOpensNoSession() {
+        val rig = Rig()
+        val connection = lent()
+        val shared = Shared(connection)
+        val stuck = java.util.concurrent.CountDownLatch(1)
+        shared.onExec = {
+            stuck.await()
+            CommandOutput("", "", 0)
+        }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val (ssh, _) = console(rig)
+        ssh.sharedProbeMs = 5_000
+        val connecting = Thread { ssh.connect() }.apply { start() }
+        while (shared.execs == 0) Thread.sleep(5)
+
+        ssh.close()
+        stuck.countDown()
+        connecting.join()
+
+        verify(connection, never()).openSession()
+        assertEquals(0, shared.handles)
+        // No leaked hold: the Inbox letting go is the last, and the link closes.
+        rig.pool.release(key, inbox)
+        assertEquals(listOf<HeadlessSession>(shared), rig.closed)
+    }
+
+    @Test
+    fun aProbeInterrupted_releasesTheLink_withoutRetiringIt() {
+        val rig = Rig()
+        val connection = lent()
+        val shared = Shared(connection)
+        val stuck = java.util.concurrent.CountDownLatch(1)
+        shared.onExec = {
+            stuck.await()
+            CommandOutput("", "", 0)
+        }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val (ssh, _) = console(rig)
+        ssh.sharedProbeMs = 5_000
+        val connecting = Thread { ssh.connect() }.apply { start() }
+        while (shared.execs == 0) Thread.sleep(5)
+
+        connecting.interrupt()
+        connecting.join()
+        stuck.countDown()
+
+        verify(connection, never()).openSession()
+        assertTrue(rig.closed.isEmpty())
+        rig.pool.release(key, inbox)
+        assertEquals(listOf<HeadlessSession>(shared), rig.closed)
+    }
+
+    @Test
+    fun consolesOnOneStaleLink_shareOneProbe() {
+        val rig = Rig()
+        val shared = Shared(lent())
+        val stuck = java.util.concurrent.CountDownLatch(1)
+        shared.onExec = {
+            stuck.await()
+            CommandOutput("", "", 0)
+        }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val consoles = List(3) { console(rig).first.also { it.sharedProbeMs = 5_000 } }
+        val threads = consoles.map { c -> Thread { c.connect() }.apply { start() } }
+        while (shared.execs == 0) Thread.sleep(5)
+        Thread.sleep(200)
+
+        stuck.countDown()
+        threads.forEach { it.join() }
+
+        assertEquals(1, shared.execs)
+        consoles.forEach { assertTrue(it.isSessionOpen()) }
+    }
+
+    @Test
+    fun aLinkRetiredByAnotherReaderDuringTheProbe_stillServesTheConsole_andClosesWhenItLetsGo() {
+        val rig = Rig()
+        val shared = Shared(lent())
+        val stuck = java.util.concurrent.CountDownLatch(1)
+        shared.onExec = {
+            stuck.await()
+            CommandOutput("", "", 0)
+        }
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS + 1
+        val (ssh, _) = console(rig)
+        ssh.sharedProbeMs = 5_000
+        val connecting = Thread { ssh.connect() }.apply { start() }
+        while (shared.execs == 0) Thread.sleep(5)
+
+        // The Inbox's read failed meanwhile and retired the link; the console is a borrower, so it stays open.
+        rig.pool.retire(key, shared)
+        stuck.countDown()
+        connecting.join()
+
+        assertTrue(ssh.isSessionOpen())
+        assertTrue(rig.closed.isEmpty())
+        ssh.close()
+        assertEquals(listOf<HeadlessSession>(shared), rig.closed)
+    }
+
+    @Test
+    fun aFreshLink_isBorrowedWithNoProbe() {
+        val rig = Rig()
+        val shared = Shared(lent())
+        rig.pool.put(key, inbox, shared)
+        rig.now = SSH.SHARED_FRESH_MS
+        val (ssh, _) = console(rig)
+
+        ssh.connect()
+
+        assertEquals(0, shared.execs)
+        assertTrue(ssh.isSessionOpen())
     }
 
     @Test

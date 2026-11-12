@@ -24,7 +24,8 @@ import java.util.Locale
  * exactly what the engine gave (a core terminal is watched and written by it). [key] is the row's own
  * identity, with the host id and the engine, so the same pane id on two hosts, or in both engines, stays two rows. [console] is the Herdr
  * console a tap opens on the host (a TUI agent's session); null opens the host's own console,
- * which is all a herdr-core agent has until it gets its own view.
+ * which is all a herdr-core agent has until it gets its own view. [helperRows] are the helper terminals
+ * ([Agent.parent]) [Inbox.sections] folded under this row, ranked, each a row of its own to open.
  */
 data class InboxRow(
     val agent: Agent,
@@ -32,7 +33,17 @@ data class InboxRow(
     val host: String,
     val console: HerdrConsole? = null,
     val key: String = Inbox.keyOf(hostId, agent),
+    val helperRows: List<InboxRow> = emptyList(),
 ) {
+    /** How many helpers are folded under this row. */
+    val helpers: Int get() = helperRows.size
+
+    /** Whether a folded helper needs the user. */
+    val helpersNeedYou: Boolean get() = helperRows.any { it.agent.state is AgentState.NeedsYou }
+
+    /** Whether a folded helper has output the user has not seen. */
+    val helpersUnread: Boolean get() = helperRows.any { it.agent.unread == true }
+
     /** The second line: the agent's title (its task) when it has one, else its tab. */
     val detail: String get() = agent.title?.takeIf { it.isNotBlank() } ?: agent.tab
 }
@@ -106,14 +117,53 @@ object Inbox {
     /**
      * The sections for [rows] narrowed by [query], each ranked as [Agent.rank] does; a section
      * is folded to [FOLD] rows unless it is in [expanded]. Sections with no row are left out.
+     * With no query a helper whose parent is in [rows] is not a row: its parent counts it
+     * ([InboxRow.helpers]) and, if the helper needs the user, sits in Needs you. A search lists the helpers it hits.
      */
     fun sections(rows: List<InboxRow>, query: String, expanded: Set<Section>): List<InboxSection> {
-        val ranked = rows.filter { matches(it, query) }.sortedWith(compareBy<InboxRow, Agent>(Agent.RANKING) { it.agent }.thenBy { it.key })
-        val grouped = ranked.groupBy { Section.of(it.agent.state) }
+        val visible = if (query.isBlank()) foldHelpers(rows) else rows.filter { matches(it, query) }
+        val ranked = visible.sortedWith(compareBy<InboxRow, Agent>(Agent.RANKING) { effective(it) }.thenBy { it.key })
+        val grouped = ranked.groupBy { Section.of(effective(it).state) }
         return Section.entries.mapNotNull { section ->
             val all = grouped[section] ?: return@mapNotNull null
             InboxSection(section, all, if (section in expanded) all else all.take(FOLD))
         }
+    }
+
+    /**
+     * The agent the row is ranked, sectioned and aged by: a parent whose helper needs the user reads as
+     * needing the user, with the state (so its kind) and the wait of the helper that has waited longest.
+     */
+    fun effective(row: InboxRow): Agent {
+        if (row.agent.state is AgentState.NeedsYou) return row.agent
+        val waiting = row.helperRows.map { it.agent }.filter { it.state is AgentState.NeedsYou }
+            .minWithOrNull(compareBy<Agent> { it.since ?: Long.MAX_VALUE }.thenBy { it.address }) ?: return row.agent
+        return row.agent.copy(state = waiting.state, since = waiting.since)
+    }
+
+    /**
+     * [rows] without the helpers whose parent (on the same host) is a row: the top parent counts them.
+     * A parent loop leaves its rows as they are, so no row is lost.
+     */
+    private fun foldHelpers(rows: List<InboxRow>): List<InboxRow> {
+        val byAddress = rows.associateBy { Triple(it.hostId, it.agent.engine, it.agent.address) }
+        fun top(row: InboxRow): InboxRow? {
+            val seen = HashSet<String>()
+            var cur = row
+            while (true) {
+                if (!seen.add(cur.key)) return null
+                cur = cur.agent.parent?.let { byAddress[Triple(cur.hostId, cur.agent.engine, it)] } ?: return cur
+            }
+        }
+        val tops = rows.associate { it.key to (top(it) ?: it) }
+        val folded = HashMap<String, MutableList<InboxRow>>()
+        rows.forEach { row ->
+            val parent = tops.getValue(row.key)
+            if (parent.key != row.key) folded.getOrPut(parent.key) { ArrayList() } += row
+        }
+        val order = compareBy<InboxRow, Agent>(Agent.RANKING) { it.agent }.thenBy { it.key }
+        return rows.filter { tops.getValue(it.key).key == it.key }
+            .map { row -> folded[row.key]?.let { row.copy(helperRows = it.sortedWith(order)) } ?: row }
     }
 
     /** Whether [row] holds every word of [query] in its space, tab, title, kind or host, case aside. */
@@ -162,5 +212,5 @@ object Inbox {
     fun accentIndex(group: String): Int = Math.floorMod(group.trim().lowercase(Locale.ROOT).hashCode(), ACCENT_COUNT)
 
     /** How long the row has been in its state ("12m"); null when the time is unknown. */
-    fun age(row: InboxRow, now: Long): String? = row.agent.since?.let { AgentsBoard.age(now - it) }
+    fun age(row: InboxRow, now: Long): String? = effective(row).since?.let { AgentsBoard.age(now - it) }
 }

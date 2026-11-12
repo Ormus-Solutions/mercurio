@@ -90,6 +90,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -122,6 +123,7 @@ fun PubkeyListScreen(
     viewModel: PubkeyListViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val terminalManager = LocalTerminalManager.current
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -211,13 +213,13 @@ fun PubkeyListScreen(
         uiState.biometricKeyToUnlock?.let { pubkey ->
             if (biometricPromptState != null) {
                 biometricPromptState.authenticate(
-                    title = context.getString(R.string.pubkey_biometric_prompt_title),
-                    subtitle = context.getString(R.string.pubkey_biometric_prompt_subtitle, pubkey.nickname),
-                    negativeButtonText = context.getString(android.R.string.cancel),
+                    title = resources.getString(R.string.pubkey_biometric_prompt_title),
+                    subtitle = resources.getString(R.string.pubkey_biometric_prompt_subtitle, pubkey.nickname),
+                    negativeButtonText = resources.getString(android.R.string.cancel),
                 )
             } else {
                 // Biometric not available in this context, show error
-                viewModel.onBiometricError(context.getString(R.string.pubkey_biometric_not_available))
+                viewModel.onBiometricError(resources.getString(R.string.pubkey_biometric_not_available))
             }
         }
     }

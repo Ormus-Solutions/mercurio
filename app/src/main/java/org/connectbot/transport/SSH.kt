@@ -89,9 +89,14 @@ import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.InvalidKeySpecException
 import java.util.Locale
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
+import kotlin.concurrent.thread
 
 /**
  * @author Kenny Root
@@ -156,20 +161,13 @@ class SSH :
     /**
      * Upload [bytes] to [remotePath] on the connected host over a dedicated SFTP
      * channel, separate from the interactive PTY. Blocking; call off the main
-     * thread. Creates the immediate parent directory if it does not exist.
+     * thread. The parent directory must already exist (the photo path makes and
+     * checks a private one first, see `PasteUpload`); a missing one throws.
      */
     fun uploadFile(remotePath: String, bytes: ByteArray) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sftp = SFTPv3Client(conn)
         try {
-            val dir = remotePath.substringBeforeLast('/', "")
-            if (dir.isNotEmpty()) {
-                try {
-                    sftp.mkdir(dir, 448) // 0700
-                } catch (_: Exception) {
-                    // directory already exists
-                }
-            }
             val handle = sftp.createFileTruncate(remotePath)
             try {
                 var offset = 0
@@ -1176,25 +1174,50 @@ class SSH :
         }
     }
 
+    // How long a console waits for the probe of a stale shared link; a test shortens it.
+    internal var sharedProbeMs = SHARED_PROBE_MS
+
     /**
      * Open this console's session on the shared link of its machine, when it has one that answered
-     * within [SHARED_FRESH_MS]: false when there is none, or its channel would not open (then the
-     * console logs in as before). Only a console whose session runs its own command borrows.
+     * within [SHARED_FRESH_MS], or answers a probe now ([probeSharedLink]): false when there is none,
+     * or its channel would not open (then the console logs in as before). Only a console whose
+     * session runs its own command borrows.
      */
     private fun openOnSharedLink(currentHost: Host): Boolean {
         val pool = sharedLinks ?: return false
         // Agent forwarding is one per connection in trilead: a shared link carries none.
         if (bridge?.sessionCommand == null || !currentHost.wantSession || (currentHost.jumpHostId ?: 0L) > 0L || useAuthAgent != HostConstants.AUTHAGENT_NO) return false
         val key = CoreMachines.keyOf(currentHost)
-        val shared = pool.lend(key, this, SHARED_FRESH_MS) ?: return false
-        val lent = shared.lent
-        if (lent == null) {
-            if (shared.alive) pool.release(key, this) else pool.drop(key, shared)
-            return false
-        }
+        var stale = false
+        val shared = pool.lend(key, this, SHARED_FRESH_MS) ?: pool.lend(key, this, Long.MAX_VALUE)?.also { stale = true } ?: return false
+        // Borrowed from here on, so a close() during the probe lets go of the hold.
         val mine = Borrowed(key, shared)
         borrowed.set(mine)
         onLent = true
+        if (stale) {
+            val probe = probeSharedLink(shared)
+            // Closed during the probe: no login of its own and no session.
+            val closed = borrowed.get() !== mine
+            if (probe == Probe.ANSWERED) {
+                pool.answered(key, shared)
+            } else {
+                releaseSharedLink(dead = false)
+                // Only a real failure retires the link; a slow answer says little, so the link stays for the others.
+                if (probe == Probe.FAILED) pool.retire(key, shared)
+                onLent = false
+                return closed
+            }
+            if (closed) {
+                onLent = false
+                return true
+            }
+        }
+        val lent = shared.lent
+        if (lent == null) {
+            releaseSharedLink(dead = !shared.alive)
+            onLent = false
+            return false
+        }
         connection = lent
         connected = true
         // A late loss of the link, after this console let go, is not this console's.
@@ -1225,6 +1248,42 @@ class SSH :
         authenticated = false
         onLent = false
         return false
+    }
+
+    /**
+     * A link idle past [SHARED_FRESH_MS] may be dead without a sign: one tiny command over it tells. Any
+     * output, whatever its exit status, is an answer; only an exception is a failure. Bounded by
+     * [sharedProbeMs] so a silent link never holds a console open for long. One probe runs per link:
+     * consoles that open meanwhile wait for its result.
+     */
+    private fun probeSharedLink(shared: HeadlessSession): Probe {
+        var starter = false
+        val answer = probes.computeIfAbsent(shared) {
+            starter = true
+            CompletableFuture<Probe>()
+        }
+        if (starter) {
+            thread(isDaemon = true, name = "shared-link-probe") {
+                val result = try {
+                    shared.exec("true")
+                    Probe.ANSWERED
+                } catch (e: Exception) {
+                    Probe.FAILED
+                }
+                probes.remove(shared)
+                answer.complete(result)
+            }
+        }
+        return try {
+            answer.get(sharedProbeMs, TimeUnit.MILLISECONDS)
+        } catch (e: TimeoutException) {
+            Probe.TIMEOUT
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            Probe.INTERRUPTED
+        } catch (e: Exception) {
+            Probe.FAILED
+        }
     }
 
     /** Let go of the borrowed link once, whoever calls first; a link known to be down is dropped for every holder. */
@@ -1756,10 +1815,18 @@ class SSH :
         private const val AUTH_TRIES = 20
 
         /**
-         * How lately a shared link must have answered for a console to open on it. The Inbox reads every
-         * 5 s while it shows, so a tap from it finds the link fresh; a link idle for longer is not trusted.
+         * How lately a shared link must have answered for a console to open on it with no check. The Inbox
+         * reads every 5 s while it shows, so a tap from it finds the link fresh; a link idle for longer is
+         * probed first (one command, [SHARED_PROBE_MS] at most) and borrowed only if it answers.
          */
         const val SHARED_FRESH_MS = 15_000L
+
+        private enum class Probe { ANSWERED, FAILED, TIMEOUT, INTERRUPTED }
+
+        private val probes = ConcurrentHashMap<HeadlessSession, CompletableFuture<Probe>>()
+
+        /** The longest a console waits for the probe of a stale shared link before it logs in on its own. */
+        const val SHARED_PROBE_MS = 1_000L
 
         private val hostmask = Pattern.compile(
             "^(.+)@((?:[0-9a-z._-]+)|(?:\\[[a-f:0-9]+(?:%[-_.a-z0-9]+)?\\]))(?::(\\d+))?\$",

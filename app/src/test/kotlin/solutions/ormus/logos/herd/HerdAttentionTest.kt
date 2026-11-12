@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import org.connectbot.transport.CommandOutput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import solutions.ormus.logos.herd.HerdAttention.Notice
@@ -76,6 +77,25 @@ class HerdAttentionTest {
         poll(20_000, snapshot("w1:p1" to WORKING))
         attention.reset()
         assertTrue(poll(30_000, snapshot("w1:p1" to DONE)).isEmpty())
+    }
+
+    @Test
+    fun aNeedsYouFromASnapshot_carriesTheSeqTheAgentBlockedAt() {
+        poll(0, snapshot("w1:p1" to WORKING))
+        val blocked = snapshot("w1:p1" to BLOCKED)
+        val withSeq = blocked.copy(agents = blocked.agents.map { it.copy(stateChangeSeq = 42) })
+        poll(1_000, withSeq)
+
+        assertEquals(42L, (poll(7_000, withSeq).single() as Notice.NeedsYou).seq)
+    }
+
+    @Test
+    fun aNeedsYouFromASnapshotWithNoSeq_carriesNone() {
+        poll(0, snapshot("w1:p1" to WORKING))
+        // No state_change_seq in the snapshot parses to 0: that is no mark, not a seq to hold an answer to.
+        poll(1_000, snapshot("w1:p1" to BLOCKED))
+
+        assertNull((poll(7_000, snapshot("w1:p1" to BLOCKED)).single() as Notice.NeedsYou).seq)
     }
 
     @Test
@@ -324,7 +344,7 @@ class HerdAttentionTest {
         testScheduler.advanceTimeBy(14_000)
         assertEquals(1, posted.size)
 
-        assertEquals(HerdAnswerOutcome.Sent, session.answer("w1:p1", "1", session = "board"))
+        assertEquals(HerdAnswerOutcome.Sent, session.answer("w1:p1", "1", session = "board", seq = null))
         state = WORKING
         testScheduler.advanceTimeBy(5_000)
         state = BLOCKED

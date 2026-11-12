@@ -28,7 +28,7 @@ private const val CTRL_B = "\u0002"
 /**
  * The bar's Ctrl and Alt keys. A tap arms the modifier for the next key (a second tap disarms),
  * a long press locks it, and a tap on a locked one turns it off. [afterKey] is what a sent key
- * leaves behind: armed ones are spent, locked ones stay.
+ * leaves behind: armed ones are spent (except by a text macro), locked ones stay.
  *
  * [encode] writes a key's bytes the way the terminal view's own keys do for Ctrl and Alt (the
  * xterm scheme libvterm uses): Ctrl on a letter is its control code, Alt prefixes Escape, and the
@@ -53,6 +53,15 @@ data class KeyBarModifiers(val ctrl: ModLevel = ModLevel.OFF, val alt: ModLevel 
     fun longPress(modifier: BarModifier): KeyBarModifiers = with(modifier, ModLevel.LOCKED)
 
     fun afterKey(): KeyBarModifiers = KeyBarModifiers(spend(ctrl), spend(alt))
+
+    /**
+     * What [sequence] leaves behind: any key spends an armed modifier, except a text macro (a
+     * several-character string that is not an escape sequence, like `/clear`), which no modifier
+     * touches and so leaves armed for the key that follows. Locked ones always stay.
+     */
+    fun afterKey(sequence: String): KeyBarModifiers = if (isTextMacro(sequence)) this else afterKey()
+
+    private fun isTextMacro(sequence: String) = sequence.length > 1 && sequence[0] != ESC
 
     private fun spend(level: ModLevel) = if (level == ModLevel.ARMED) ModLevel.OFF else level
 
@@ -87,6 +96,7 @@ data class KeyBarModifiers(val ctrl: ModLevel = ModLevel.OFF, val alt: ModLevel 
     private fun controlCode(c: Char): Char = when (c) {
         in 'a'..'z', in 'A'..'Z', '@', '[', '\\', ']', '^', '_' -> (c.code and 0x1f).toChar()
         '?' -> 127.toChar()
+        ' ' -> '\u0000'
         else -> c
     }
 }

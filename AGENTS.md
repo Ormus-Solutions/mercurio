@@ -16,7 +16,7 @@ Use the checked-in Gradle wrapper in a full clone. Never use a git worktree: the
 - `./gradlew :app:lintOssDebug` runs Android lint. Run it on its own: it can crash when it shares a Gradle run with other tasks.
 - `./gradlew connectedOssDebugAndroidTest` runs instrumentation tests on a device or emulator. It wipes the app's data there.
 
-The gate before a merge is `./gradlew testOssDebugUnitTest spotlessCheck :app:assembleOssDebug`, then `./gradlew :app:lintOssDebug`. There is no hosted CI. To prove a change on an emulator, follow `.grok/skills/verify-mercurio/SKILL.md`.
+The gate before a merge is `./gradlew testOssDebugUnitTest spotlessCheck :app:assembleOssDebug`, then `./gradlew :app:lintOssDebug`, which fails on any lint error (warnings do not fail it). `abortOnError` is module-wide, so `:app:lintVitalOssRelease` also aborts on fatal errors. There is no hosted CI. To prove a change on an emulator, follow `.grok/skills/verify-mercurio/SKILL.md`.
 
 ## Coding style
 

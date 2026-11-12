@@ -142,7 +142,8 @@ class ConnectionNotifier @Inject constructor() {
     /**
      * A Herdr agent needs the user or finished. Keyed to the pane in its Herdr session,
      * so one agent's notices replace each other; tapping opens that host's console
-     * focused on the agent ([MainActivity.EXTRA_HERD_PANE]).
+     * focused on the agent ([MainActivity.EXTRA_HERD_PANE]); a core terminal's opens its watch
+     * view ([MainActivity.EXTRA_CORE_ADDRESS]).
      *
      * A "Needs you" shows the end of the pane when expanded, and, for agent kinds
      * where it was proven ([HerdApproval]), Approve (Enter) and Deny (Esc). Both
@@ -176,7 +177,7 @@ class ConnectionNotifier @Inject constructor() {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(text.ifEmpty { null }, tail).joinToString("\n\n")))
-            .setContentIntent(openPaneIntent(context, host, notice.session, agent.paneId, usageId, "$tag:$needsYou"))
+            .setContentIntent(openPaneIntent(context, host, notice.session, agent.paneId, usageId, "$tag:$needsYou", watchCore = true, space = notice.workspaceLabel, tab = notice.tabLabel))
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(if (needsYou) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             // The default, kept on purpose: a lock screen that hides sensitive content hides the pane too.
@@ -193,9 +194,15 @@ class ConnectionNotifier @Inject constructor() {
         builder.setWhen(shownAt)
         if (since != null) builder.setShowWhen(true)
 
-        if (needsYou && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && HerdApproval.offersAnswers(agent)) {
-            builder.addAction(answerAction(context, host, notice.session, agent, tail, HerdAnswer.APPROVE, R.string.notification_herd_approve))
-            builder.addAction(answerAction(context, host, notice.session, agent, tail, HerdAnswer.DENY, R.string.notification_herd_deny))
+        // Enter and Esc answer a yes-or-no permission prompt and nothing else, so a button needs the hash of one
+        // ([HerdAttention.Notice.NeedsYou.prompt], taken from the whole pane read). A notice with none (a push
+        // whose read has not landed, a plan pick, a question) still shows and opens the app, with no buttons. The
+        // agent's state_change_seq (a snapshot's notice) is a second check beside it.
+        val seq = (notice as? HerdAttention.Notice.NeedsYou)?.seq?.takeIf { agent.core == null }
+        val prompt = (notice as? HerdAttention.Notice.NeedsYou)?.prompt
+        if (needsYou && prompt != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && HerdApproval.offersAnswers(agent)) {
+            builder.addAction(answerAction(context, host, notice.session, agent, seq, prompt, HerdAnswer.APPROVE, R.string.notification_herd_approve))
+            builder.addAction(answerAction(context, host, notice.session, agent, seq, prompt, HerdAnswer.DENY, R.string.notification_herd_deny))
         }
 
         val manager = getNotificationManager(context)
@@ -230,6 +237,10 @@ class ConnectionNotifier @Inject constructor() {
                 res.getString(R.string.notification_herd_not_waiting, name, host.nickname) to
                     res.getString(R.string.notification_herd_nothing_sent)
 
+            HerdAnswerOutcome.Unproven ->
+                res.getString(R.string.notification_herd_answer_failed, name, host.nickname) to
+                    res.getString(R.string.notification_herd_open_app)
+
             is HerdAnswerOutcome.Failed ->
                 res.getString(R.string.notification_herd_answer_failed, name, host.nickname) to outcome.reason
         }
@@ -243,6 +254,26 @@ class ConnectionNotifier @Inject constructor() {
             .setSilent(true)
             .setAutoCancel(true)
         manager.notify(tag, HERD_NEEDS_YOU_NOTIFICATION, builder.build())
+    }
+
+    /**
+     * Approve or Deny for a host that is no longer saved: the "Needs you" is replaced by why nothing was sent.
+     */
+    fun showHerdHostGone(context: Service, request: HerdAnswerRequest) {
+        // A notice from before the tag was carried: the tag by the host row's id, as the build before the machine tag keyed it.
+        val tag = request.tag ?: legacyTag(request.hostId, request.session, request.paneId)
+        val res = context.resources
+        val title = res.getString(R.string.notification_herd_answer_failed, agentName(context, request.agentKind), request.hostName ?: res.getString(R.string.notification_herd_host_unnamed))
+        val text = res.getString(R.string.notification_herd_host_gone)
+        val builder = newNotificationBuilder(context, AGENT_CHANNEL)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setSilent(true)
+            .setAutoCancel(true)
+        getNotificationManager(context).notify(tag, HERD_NEEDS_YOU_NOTIFICATION, builder.build())
     }
 
     /**
@@ -263,16 +294,27 @@ class ConnectionNotifier @Inject constructor() {
     }
 
     /** The tag the builds before this one used: the host row's id. */
-    internal fun legacyTag(host: Host, session: String, paneId: String): String = if (HerdrSessions.isDefault(session)) "herd:${host.id}:$paneId" else "herd:${host.id}:$session/$paneId"
+    internal fun legacyTag(host: Host, session: String, paneId: String): String = legacyTag(host.id, session, paneId)
+
+    internal fun legacyTag(hostId: Long, session: String, paneId: String): String = if (HerdrSessions.isDefault(session)) "herd:$hostId:$paneId" else "herd:$hostId:$session/$paneId"
 
     private fun agentName(context: Context, kind: String?) = kind?.ifBlank { null } ?: context.getString(R.string.herd_agent_unnamed)
 
-    private fun openPaneIntent(context: Context, host: Host, session: String, paneId: String, usageId: String, key: String): PendingIntent {
+    private fun openPaneIntent(context: Context, host: Host, session: String, paneId: String, usageId: String, key: String, watchCore: Boolean = false, space: String? = null, tab: String? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = host.getUri()
-            // A core terminal is no pane of any Herdr session: the tap opens the host's console only.
-            if (!CoreNotices.isCore(session)) {
+            // The request code is a hash and PendingIntents are told apart by filterEquals, never by extras: a category
+            // of the key keeps two agents' taps unequal, so a collision cannot make one notice open the other's agent.
+            addCategory("solutions.ormus.logos.category.NOTICE.$key")
+            if (CoreNotices.isCore(session) && watchCore) {
+                // A core terminal is no pane of any Herdr session: the tap opens its watch view, as an Inbox row does.
+                // Only a notice that knows its place opens it: the answer-outcome notice is of an agent that stopped waiting.
+                putExtra(MainActivity.EXTRA_CORE_ADDRESS, paneId)
+                putExtra(MainActivity.EXTRA_CORE_HOST, host.id)
+                space?.let { putExtra(MainActivity.EXTRA_CORE_SPACE, it) }
+                tab?.let { putExtra(MainActivity.EXTRA_CORE_TAB, it) }
+            } else if (!CoreNotices.isCore(session)) {
                 putExtra(MainActivity.EXTRA_HERD_PANE, paneId)
                 putExtra(MainActivity.EXTRA_HERD_SESSION, session)
             }
@@ -282,7 +324,7 @@ class ConnectionNotifier @Inject constructor() {
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
-    private fun answerAction(context: Context, host: Host, session: String, agent: HerdrAgentInfo, tail: String?, answer: HerdAnswer, label: Int): NotificationCompat.Action {
+    private fun answerAction(context: Context, host: Host, session: String, agent: HerdrAgentInfo, seq: Long?, prompt: Int?, answer: HerdAnswer, label: Int): NotificationCompat.Action {
         val intent = Intent(context, TerminalManager::class.java).apply {
             action = ACTION_HERD_ANSWER
             putExtra(EXTRA_HERD_HOST, host.id)
@@ -290,11 +332,14 @@ class ConnectionNotifier @Inject constructor() {
             putExtra(EXTRA_HERD_PANE, agent.paneId)
             putExtra(EXTRA_HERD_AGENT, agent.agent)
             putExtra(EXTRA_HERD_ANSWER, answer.name)
+            putExtra(EXTRA_HERD_TAG, herdTag(host, session, agent.paneId))
+            putExtra(EXTRA_HERD_HOST_NAME, host.nickname)
+            // A plain Herdr notice answers only while the agent is still at the state change it was raised at
+            // (when a snapshot gave one) and its pane still ends as the notice showed (when it showed one).
+            seq?.let { putExtra(EXTRA_HERD_SEQ, it) }
+            prompt?.let { putExtra(EXTRA_HERD_PROMPT, it) }
             // A core notice answers only while the agent's turn is the one it was raised at.
-            if (agent.core != null) {
-                agent.core.turn?.let { putExtra(EXTRA_HERD_TURN, it) }
-                tail?.let(CoreNotices::fingerprint)?.let { putExtra(EXTRA_HERD_PROMPT, it) }
-            }
+            agent.core?.turn?.let { putExtra(EXTRA_HERD_TURN, it) }
         }
         val code = "${herdTag(host, session, agent.paneId)}:${answer.name}".hashCode()
         val pending = PendingIntent.getService(context, code, intent, pendingIntentFlags)
@@ -387,8 +432,15 @@ class ConnectionNotifier @Inject constructor() {
         /** Extra on an Approve or Deny of a core notice: the agent's turn when the notice was raised (an Int). */
         const val EXTRA_HERD_TURN = "solutions.ormus.logos.extra.HERD_TURN"
 
-        /** Extra beside [EXTRA_HERD_TURN]: a hash of the prompt the notice showed (an Int); absent when it showed none. */
+        /** Extra beside [EXTRA_HERD_TURN]: a hash of the prompt the notice showed (an Int), for a core notice and a plain Herdr one; absent when it showed none. */
         const val EXTRA_HERD_PROMPT = "solutions.ormus.logos.extra.HERD_PROMPT"
+
+        /** Extra on an Approve or Deny of a plain Herdr notice: the agent's `state_change_seq` when a snapshot raised the notice (a Long); absent on a push-raised notice and on one raised before it existed. */
+        const val EXTRA_HERD_SEQ = "solutions.ormus.logos.extra.HERD_SEQ"
+
+        /** Extras on an Approve or Deny: the notice's tag and its host's name, so the notice can be replaced when the host row is gone. */
+        const val EXTRA_HERD_TAG = "solutions.ormus.logos.extra.HERD_TAG"
+        const val EXTRA_HERD_HOST_NAME = "solutions.ormus.logos.extra.HERD_HOST_NAME"
         const val EXTRA_HERD_HOST = "solutions.ormus.logos.extra.HERD_HOST"
         const val EXTRA_HERD_SESSION = "solutions.ormus.logos.extra.HERD_ANSWER_SESSION"
         const val EXTRA_HERD_PANE = "solutions.ormus.logos.extra.HERD_ANSWER_PANE"

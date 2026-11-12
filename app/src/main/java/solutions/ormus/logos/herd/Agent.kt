@@ -89,7 +89,8 @@ data class Agent(
             .thenBy { it.since ?: Long.MAX_VALUE }
             .thenBy { it.address }
 
-        private fun urgency(state: AgentState): Int = when (state) {
+        /** How urgent [state] is: lower is more urgent; the order [RANKING] uses. */
+        fun urgency(state: AgentState): Int = when (state) {
             is AgentState.NeedsYou -> 0
             AgentState.Done -> 1
             AgentState.Working -> 2

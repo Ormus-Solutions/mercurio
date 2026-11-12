@@ -29,6 +29,7 @@ import kotlinx.coroutines.test.runTest
 import org.connectbot.data.HostRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.service.ConnectionNotifier
+import org.connectbot.service.HerdAnswerRequest
 import org.connectbot.usage.UsageActions
 import org.connectbot.usage.UsageTracker
 import org.junit.Assert.assertEquals
@@ -47,6 +48,7 @@ import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.Shadows.shadowOf
+import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.HerdAttention
 
 /** A push becomes the monitor's own "Needs you" for a saved host only, never showing an earlier prompt's question. */
@@ -62,7 +64,7 @@ class HerdPushNoticesTest {
     private val tail = mock<HerdPushTail> {
         onBlocking { read(any(), any(), any()) } doAnswer {
             reads++
-            paneEnd?.let { HerdPushTail.Read.Text(it) } ?: HerdPushTail.Read.Missed
+            paneEnd?.let { HerdPushTail.Read.Text(it, CoreNotices.fingerprint(it)) } ?: HerdPushTail.Read.Missed
         }
     }
     private val scope = CoroutineScope(UnconfinedTestDispatcher())
@@ -74,18 +76,34 @@ class HerdPushNoticesTest {
         """"pane_id":"$pane","agent":"claude","workspace_id":"w1","workspace":"mercurio","tab_id":"w1:t2","tab":"build","ts":$ts}"""
 
     @Test
-    fun blocked_postsNeedsYouWithApproveAndDeny_onTheMonitorsTag() = runTest {
+    fun blocked_postsNeedsYouOnTheMonitorsTag_withNoButtonsUntilItsPaneEndIsRead() = runTest {
         assertTrue(notices.post(context, alert().toByteArray()))
 
         val posted = shadowOf(manager).allNotifications.single()
         assertEquals("claude needs you on Sun", posted.extras.getCharSequence("android.title").toString())
         assertEquals("mercurio / build", posted.extras.getCharSequence("android.text").toString())
+        // The push has no state_change_seq and the read missed: nothing proves which prompt a tap would answer.
+        assertTrue(posted.actions.isNullOrEmpty())
+        // The monitor's tag: the machine (account, host, port), not the host row.
+        assertEquals("herd:@100.100.1.1:22:w1:p3", manager.activeNotifications.single().tag)
+    }
+
+    @Test
+    fun blocked_aPushRaisedNotice_answersOnlyThePromptItsPaneEndShowed() = runTest {
+        paneEnd = "Run tool A?\n❯ 1. Yes\n2. No"
+        assertTrue(notices.post(context, alert().toByteArray()))
+
+        val posted = shadowOf(manager).allNotifications.single()
         assertEquals(listOf("Approve", "Deny"), posted.actions.map { it.title.toString() })
         val approve = shadowOf(posted.actions[0].actionIntent).savedIntent
         assertEquals(7L, approve.getLongExtra(ConnectionNotifier.EXTRA_HERD_HOST, 0))
         assertEquals("w1:p3", approve.getStringExtra(ConnectionNotifier.EXTRA_HERD_PANE))
-        // The monitor's tag: the machine (account, host, port), not the host row.
-        assertEquals("herd:@100.100.1.1:22:w1:p3", manager.activeNotifications.single().tag)
+        // The push carries no seq, so the extra is absent (not 0): the guard must not hold the answer to a made-up one.
+        assertFalse(approve.hasExtra(ConnectionNotifier.EXTRA_HERD_SEQ))
+        val request = checkNotNull(HerdAnswerRequest.from(approve))
+        assertNull(request.seq)
+        assertEquals(CoreNotices.fingerprint(paneEnd!!), request.prompt)
+        assertFalse(request.unchecked)
     }
 
     @Test
@@ -149,14 +167,14 @@ class HerdPushNoticesTest {
 
     @Test
     fun blocked_thePanesEnd_isPutInQuietly_onTheSameNotice() = runTest {
-        paneEnd = "Edit app/build.gradle.kts?\n1. Yes\n2. No"
+        paneEnd = "Edit app/build.gradle.kts?\n❯ 1. Yes\n2. No"
 
         assertTrue(notices.post(context, alert().toByteArray()))
 
         val shown = manager.activeNotifications.single()
         assertEquals("herd:@100.100.1.1:22:w1:p3", shown.tag)
         val big = shown.notification.extras.getCharSequence("android.bigText").toString()
-        assertEquals("mercurio / build\n\nEdit app/build.gradle.kts?\n1. Yes\n2. No", big)
+        assertEquals("mercurio / build\n\nEdit app/build.gradle.kts?\n❯ 1. Yes\n2. No", big)
         // The update makes no second sound.
         assertTrue(shown.notification.flags and android.app.Notification.FLAG_ONLY_ALERT_ONCE != 0)
         verify(usage).log(UsageActions.PUSH_TAIL_READ)
@@ -343,12 +361,13 @@ class HerdPushNoticesTest {
         notices(slow).post(context, alert().toByteArray())
         val first = manager.activeNotifications.single().notification
 
-        answer.complete(HerdPushTail.Read.Text("Allow?"))
+        answer.complete(HerdPushTail.Read.Text("Allow?\n❯ 1. Yes\n  2. No", CoreNotices.fingerprint("Allow?\n❯ 1. Yes\n  2. No")))
 
         val second = manager.activeNotifications.single().notification
         assertEquals(first.channelId, second.channelId)
-        assertEquals(first.actions.map { it.title.toString() }, second.actions.map { it.title.toString() })
-        assertEquals(first.actions.map { shadowOf(it.actionIntent).savedIntent.extras?.keySet() }, second.actions.map { shadowOf(it.actionIntent).savedIntent.extras?.keySet() })
+        // The buttons come with the read: the first post had no proof of its prompt, the repost has the pane's end.
+        assertTrue(first.actions.isNullOrEmpty())
+        assertEquals(listOf("Approve", "Deny"), second.actions.map { it.title.toString() })
         assertEquals(first.`when`, second.`when`)
         assertEquals(shadowOf(first.contentIntent).savedIntent.component, shadowOf(second.contentIntent).savedIntent.component)
         assertEquals(shadowOf(first.contentIntent).savedIntent.extras?.keySet(), shadowOf(second.contentIntent).savedIntent.extras?.keySet())
@@ -480,7 +499,7 @@ class HerdPushNoticesTest {
         val tail = mock<HerdPushTail> {
             onBlocking { read(any(), any(), any()) } doAnswer {
                 stale = null
-                paneEnd?.let { HerdPushTail.Read.Text(it) } ?: HerdPushTail.Read.Missed
+                paneEnd?.let { HerdPushTail.Read.Text(it, CoreNotices.fingerprint(it)) } ?: HerdPushTail.Read.Missed
             }
         }
         val notices = HerdPushNotices(hosts, notifier, usage, tail, scope) { clock }

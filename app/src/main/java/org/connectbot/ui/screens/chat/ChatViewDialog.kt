@@ -829,6 +829,7 @@ private fun AnswerLine(outcome: HerdAnswerOutcome) {
     val text = when (outcome) {
         HerdAnswerOutcome.NotBlocked -> stringResource(R.string.chat_not_blocked)
         HerdAnswerOutcome.PromptChanged -> stringResource(R.string.board_answer_prompt_changed)
+        HerdAnswerOutcome.Unproven -> stringResource(R.string.notification_herd_open_app)
         is HerdAnswerOutcome.Failed -> stringResource(R.string.chat_answer_failed, outcome.reason)
         HerdAnswerOutcome.Sent -> return
     }

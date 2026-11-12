@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import org.connectbot.R
@@ -43,6 +44,7 @@ fun BiometricPromptHandler(
     onResponse: (PromptResponse.BiometricResponse) -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val activity = remember(context) { context.findFragmentActivity() }
     val currentOnResponse by rememberUpdatedState(onResponse)
 
@@ -75,9 +77,9 @@ fun BiometricPromptHandler(
         val biometricPrompt = BiometricPrompt(activity, executor, callback)
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(context.getString(R.string.pubkey_biometric_prompt_title))
-            .setSubtitle(context.getString(R.string.pubkey_biometric_prompt_subtitle, prompt.keyNickname))
-            .setNegativeButtonText(context.getString(R.string.delete_neg))
+            .setTitle(resources.getString(R.string.pubkey_biometric_prompt_title))
+            .setSubtitle(resources.getString(R.string.pubkey_biometric_prompt_subtitle, prompt.keyNickname))
+            .setNegativeButtonText(resources.getString(R.string.delete_neg))
             .build()
 
         biometricPrompt.authenticate(promptInfo)

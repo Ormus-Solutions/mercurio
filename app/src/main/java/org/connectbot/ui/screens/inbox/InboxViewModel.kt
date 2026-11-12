@@ -23,12 +23,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.connectbot.di.CoroutineDispatchers
 import org.connectbot.service.TerminalManager
 import org.connectbot.ui.screens.herd.boardSnapshots
@@ -58,8 +60,12 @@ class InboxViewModel @Inject constructor(
     private val dispatchers: CoroutineDispatchers,
     private val links: CoreLinks,
 ) : ViewModel() {
-    /** What the Inbox shows: the rows, and a line for each host whose herdr-core could not be read. */
-    data class State(val rows: List<InboxRow> = emptyList(), val notes: List<String> = emptyList())
+    /**
+     * What the Inbox shows: the rows, and a line for each host whose herdr-core could not be read.
+     * [loaded] is false until every machine has answered once, with rows or with a failure; an empty
+     * Inbox that is not loaded is still loading, not empty.
+     */
+    data class State(val rows: List<InboxRow> = emptyList(), val notes: List<String> = emptyList(), val loaded: Boolean = false)
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -77,6 +83,23 @@ class InboxViewModel @Inject constructor(
     private val probes = HashMap<Long, CoreSource.Result>()
     private var herdrRows: List<InboxRow> = emptyList()
 
+    // True once a poll has listed the machines; false again when the Inbox is opened. Main thread only.
+    private var listed = false
+
+    // Counts the writes of [act], at their start and at their patch. A read that began under an older
+    // count may hold the row as it was before the write, so it is dropped. Main thread only.
+    private var writes = 0
+
+    // Counts the visits ([watch] calls). A read of an earlier visit ends without touching the new one's state.
+    private var visit = 0
+
+    // Polls in a row that found no terminal manager, and the line shown once there were [UNBOUND_POLLS].
+    private var unboundPolls = 0
+    private var unboundNote: String? = null
+
+    /** How long a machine's read may take before the Inbox gives up on it and says so. */
+    internal var readTimeoutMs = READ_TIMEOUT_MS
+
     fun setTerminalManager(value: TerminalManager) {
         manager = value
     }
@@ -86,7 +109,17 @@ class InboxViewModel @Inject constructor(
         // Rows kept from an earlier visit are old; they go before the first read of this one.
         _state.value = State()
         coreRows.clear()
+        // Opening the Inbox asks a host that said "not installed" again.
+        cores.values.forEach { it.recheck() }
+        machines = emptyList()
+        listed = false
         failure = null
+        failureHost = null
+        unboundPolls = 0
+        unboundNote = null
+        // A read still out from an earlier visit must not keep its host from being read again.
+        visit++
+        reading.clear()
         links.reopen()
         try {
             while (true) {
@@ -110,7 +143,18 @@ class InboxViewModel @Inject constructor(
      * has none under way. A read runs on its own, so a host that is slow holds back only itself.
      */
     internal suspend fun refresh() {
-        val bridges = manager?.bridgesFlow?.value ?: return
+        val bridges = manager?.bridgesFlow?.value
+        if (bridges == null) {
+            // The screen binds the manager before it shows; a manager that never comes is said, not waited on.
+            if (++unboundPolls >= UNBOUND_POLLS) {
+                listed = true
+                unboundNote = "Inbox: no terminal service to read from"
+                publish()
+            }
+            return
+        }
+        unboundPolls = 0
+        unboundNote = null
         val core = HomeStart.coreOn(prefs)
         herdrRows = bridges.flatMap { bridge ->
             val herd = bridge.herd ?: return@flatMap emptyList()
@@ -122,30 +166,40 @@ class InboxViewModel @Inject constructor(
             cores.clear()
             probes.clear()
             links.close()
+            machines = emptyList()
+            listed = true
+            dropFailureUnless(emptySet())
             publish()
             return
         }
         val all = withContext(dispatchers.io) { links.machines(bridges.map { it.host }) }
         machines = all
+        listed = true
         val ids = all.map { it.primary.id }.toSet()
         cores.keys.retainAll(ids)
         coreRows.keys.retainAll(ids)
         probes.keys.retainAll(ids)
+        dropFailureUnless(ids)
         publish()
         for (machine in all) {
             val id = machine.primary.id
             if (!reading.add(id)) continue
             val source = cores.getOrPut(id) { CoreSource() }
             val open = openExec(machine, bridges)
+            val startedAt = writes
+            val startedIn = visit
             viewModelScope.launch {
                 try {
                     val result = try {
-                        val read = withContext(dispatchers.io) {
+                        // The read runs on its own, so a deadline can leave it behind; its late answer is dropped.
+                        val work = viewModelScope.async(dispatchers.io) {
                             when (val link = links.link(machine, open)) {
                                 is CoreLinks.Link.Down -> CoreSource.Result.Unavailable(link.reason)
                                 is CoreLinks.Link.Up -> source.read(true, machine.name, System.currentTimeMillis(), link.run)
                             }
                         }
+                        val read = withContext(dispatchers.io) { withTimeoutOrNull(readTimeoutMs) { work.await() } }
+                            ?: return@launch timedOut(id, machine.name, startedIn)
                         probes[id] = read
                         HomeStart.noteProbes(prefs, probes.values)
                         FeedbackText.coreVersionOf(source.version.orEmpty())?.let { v ->
@@ -158,12 +212,31 @@ class InboxViewModel @Inject constructor(
                         Inbox.CoreRows(emptyList(), "${machine.name}: ${e.message ?: e::class.simpleName}")
                     }
                     // A read cut short by the screen leaving says nothing about the machine.
-                    if (id in cores && !leftBy(result)) coreRows[id] = result
+                    // A read begun before the latest write may predate it, so it is dropped; the next poll reads again.
+                    if (startedIn == visit && id in cores && !leftBy(result) && startedAt == writes) {
+                        coreRows[id] = result
+                        if (result.note == null && failureHost == id) failure = null
+                    }
                 } finally {
-                    reading.remove(id)
-                    publish()
+                    if (startedIn == visit) {
+                        reading.remove(id)
+                        publish()
+                    }
                 }
             }
+        }
+    }
+
+    /** A read past its deadline counts as an answer: a note for the machine, so the Inbox is no longer loading. */
+    private fun timedOut(id: Long, name: String, startedIn: Int) {
+        if (startedIn == visit && id in cores) coreRows[id] = Inbox.CoreRows(emptyList(), "$name: no answer")
+    }
+
+    // A failed write is about one machine; when that machine is gone from the poll, its line goes too.
+    private fun dropFailureUnless(ids: Set<Long>) {
+        if (failureHost !in ids) {
+            failure = null
+            failureHost = null
         }
     }
 
@@ -171,8 +244,10 @@ class InboxViewModel @Inject constructor(
     private fun openExec(machine: CoreMachines.Machine, bridges: List<org.connectbot.service.TerminalBridge>): ((String) -> org.connectbot.transport.CommandOutput?)? = bridges
         .firstOrNull { b -> b.herd != null && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
 
-    // The last write that failed, as a line for the user; the next write or visit clears it.
+    // The last write that failed, as a line for the user, and the machine it was for; the next write,
+    // the next visit or the next good read of that machine clears it.
     private var failure: String? = null
+    private var failureHost: Long? = null
 
     /**
      * Write [action] on [row]'s terminal through its host's connection. A herdr-core row only: a TUI
@@ -184,6 +259,7 @@ class InboxViewModel @Inject constructor(
         if (agent.engine != AgentEngine.CORE) return
         val machine = machines.firstOrNull { it.primary.id == row.hostId } ?: return
         val open = openExec(machine, manager?.bridgesFlow?.value.orEmpty())
+        writes++
         viewModelScope.launch {
             val ok = try {
                 withContext(dispatchers.io) {
@@ -195,6 +271,9 @@ class InboxViewModel @Inject constructor(
                 false
             }
             failure = if (ok) null else "${row.host}: could not write to ${agent.address}"
+            failureHost = row.hostId
+            // A read already out may hold the row as it was; it must neither undo the patch nor clear the line.
+            writes++
             if (ok) {
                 coreRows[row.hostId]?.let { held ->
                     coreRows[row.hostId] = held.copy(rows = Inbox.patched(held.rows, agent, action))
@@ -207,11 +286,18 @@ class InboxViewModel @Inject constructor(
     private fun leftBy(rows: Inbox.CoreRows) = rows.note?.endsWith(": ${CoreLinks.LEFT}") == true
 
     private fun publish() {
-        _state.value = State(herdrRows + coreRows.values.flatMap { it.rows }, coreRows.values.mapNotNull { it.note } + listOfNotNull(failure))
+        val loaded = listed && machines.all { it.primary.id in coreRows }
+        _state.value = State(herdrRows + coreRows.values.flatMap { it.rows }, coreRows.values.mapNotNull { it.note } + listOfNotNull(failure, unboundNote), loaded)
     }
 
     companion object {
         /** How long the Inbox waits between two reads while it shows. */
         const val PERIOD_MS = 5_000L
+
+        /** How long one machine's read may take: the exec timeout of a command, with room for a login. */
+        const val READ_TIMEOUT_MS = 15_000L
+
+        /** Polls without a terminal manager after which the Inbox stops saying it is loading. */
+        const val UNBOUND_POLLS = 3
     }
 }

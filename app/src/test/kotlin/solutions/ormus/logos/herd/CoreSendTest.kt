@@ -100,7 +100,7 @@ class CoreSendTest {
     }
 
     @Test fun `put runs hc put json on the uploaded file`() {
-        assertEquals(sh("hc put --json 't7' '/tmp/logos-pastes/shot-1.png'"), CoreSend.putCommand("t7", "/tmp/logos-pastes/shot-1.png"))
+        assertEquals(sh("hc put --json 't7' '/home/alex/.cache/mercurio-pastes/photo-1.png'"), CoreSend.putCommand("t7", "/home/alex/.cache/mercurio-pastes/photo-1.png"))
         assertNull(CoreSend.putCommand("t7; x", "/tmp/a.png"))
         assertEquals(sh("hc put --json 't7' '/tmp/it'\\''s.png'"), CoreSend.putCommand("t7", "/tmp/it's.png"))
     }

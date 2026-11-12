@@ -612,7 +612,7 @@
 	<string name="settings_panel_inbox_on">El inicio tiene una tecla Bandeja, y una pulsación larga en Te necesitan la abre.</string>
 	<string name="settings_panel_inbox_off">Una pulsación larga en Te necesitan abre el tablero de agentes.</string>
 	<string name="settings_panel_core_switch">Incluir agentes de herdr-core</string>
-	<string name="settings_panel_core_on">La bandeja lee herdr-core en cada host conectado.</string>
+	<string name="settings_panel_core_on">Mientras la bandeja está abierta, Mercurio inicia sesión en segundo plano en la máquina de cada host guardado y lee herdr-core allí.</string>
 	<string name="settings_panel_core_off">La bandeja lista solo agentes de Herdr.</string>
 	<!-- Spaces: the herdr-core spaces of a host, a box per tab -->
 	<!-- Title of the Spaces screen -->
