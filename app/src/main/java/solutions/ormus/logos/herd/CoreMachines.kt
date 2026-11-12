@@ -57,7 +57,8 @@ object CoreMachines {
         .groupBy { keyOf(it) }
         .map { (key, same) -> Machine(key, same.sortedBy { if (it.postLogin?.trim() == PLAIN_HERDR) 0 else 1 }) }
 
-    private fun keyOf(host: Host) = "${host.hostname.trim().lowercase(Locale.ROOT)}:${host.port}:${host.username.trim()}"
+    /** The machine [host] logs in to: hostname, port and user. */
+    fun keyOf(host: Host) = "${host.hostname.trim().lowercase(Locale.ROOT)}:${host.port}:${host.username.trim()}"
 
     private const val PLAIN_HERDR = "herdr"
 }
@@ -162,17 +163,21 @@ class CoreLinks internal constructor(
         val out = try {
             session.exec(command)
         } catch (e: Exception) {
-            drop(machine, session)
+            failed(machine, session)
             throw e
         }
         // No exit status: the channel closed early, so the connection is dead; the next read logs in again.
-        if (out.exitCode == null) drop(machine, session) else pool.answered(machine.key, session)
+        if (out.exitCode == null) failed(machine, session) else pool.answered(machine.key, session)
         out
     }
 
-    // Dead for every holder; a late answer from an older session drops nothing (it is not the key's any more).
-    private fun drop(machine: CoreMachines.Machine, session: HeadlessSession) {
-        pool.drop(machine.key, session)
+    /**
+     * A command failed on [session]: nobody gets it again, so the next read logs in again
+     * ([CoreConnections.retire]: the terminals that run on it keep it until they let go). A late answer
+     * from an older session retires nothing (it is not the key's any more).
+     */
+    private fun failed(machine: CoreMachines.Machine, session: HeadlessSession) {
+        pool.retire(machine.key, session)
     }
 
     /** Let go of every machine, and make no more links until [reopen] (the next visit). A login that could not be made stays remembered. */

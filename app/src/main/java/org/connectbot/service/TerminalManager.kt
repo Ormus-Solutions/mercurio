@@ -73,6 +73,7 @@ import org.connectbot.util.PreferenceConstants
 import org.connectbot.util.ProviderLoader
 import org.connectbot.util.ProviderLoaderListener
 import org.connectbot.util.PubkeyUtils
+import solutions.ormus.logos.herd.CoreConnections
 import solutions.ormus.logos.herd.CoreNotices
 import solutions.ormus.logos.herd.CoreWatchReuse
 import solutions.ormus.logos.herd.CoreWatchTarget
@@ -177,6 +178,13 @@ class TerminalManager :
 
     @Inject
     internal lateinit var usageTracker: UsageTracker
+
+    /** The app's signed-in herdr-core links, one per machine; a core console opens its terminal on one. */
+    @Inject
+    internal lateinit var coreConnections: CoreConnections
+
+    /** [coreConnections], or null in a test that built the service with no injection. */
+    internal val coreConnectionsOrNull: CoreConnections? get() = if (::coreConnections.isInitialized) coreConnections else null
 
     @Inject
     internal lateinit var sunSync: SunSync

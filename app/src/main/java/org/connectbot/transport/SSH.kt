@@ -66,6 +66,8 @@ import org.connectbot.util.PubkeyUtils
 import org.connectbot.util.SshKeyType
 import org.connectbot.util.UrlUtils
 import solutions.ormus.logos.devtools.LoopbackForward
+import solutions.ormus.logos.herd.CoreConnections
+import solutions.ormus.logos.herd.CoreMachines
 import solutions.ormus.logos.herd.HostShell
 import timber.log.Timber
 import java.io.IOException
@@ -87,6 +89,8 @@ import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.InvalidKeySpecException
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
 
 /**
@@ -125,6 +129,28 @@ class SSH :
     private var stderr: InputStream? = null
 
     private val portForwards = mutableListOf<PortForward>()
+
+    /**
+     * The app's signed-in links ([CoreConnections]); set for a console that shows a herdr-core
+     * terminal. Such a console opens its session on a link that answered lately: no login, no
+     * sign-in text, as the Herdr app opens a terminal on its one connection.
+     */
+    internal var sharedLinks: CoreConnections? = null
+
+    // The shared link this console borrowed, with the hook that tells it of the link's loss and the
+    // loopback forwards made on it; null on a link of its own, and once let go.
+    private class Borrowed(val key: String, val shared: HeadlessSession) {
+        @Volatile
+        var lost: AutoCloseable? = null
+        val forwards = CopyOnWriteArrayList<LoopbackForward>()
+    }
+
+    private val borrowed = AtomicReference<Borrowed?>(null)
+
+    // True from the borrow to the end of this transport: a close() that races another must never take
+    // the own-link path and close the lent connection under the Inbox and the other terminals.
+    @Volatile
+    private var onLent = false
     private val userAuthBannerCallbacks = mutableListOf<Pair<Connection, UserAuthBannerCallback>>()
 
     /**
@@ -200,7 +226,17 @@ class SSH :
         // sshlib does not say which port it bound, so take a free one first.
         val port = ServerSocket(0, 1, loopback).use { it.localPort }
         val forwarder = conn.createLocalPortForwarder(InetSocketAddress(loopback, port), destHost, destPort)
-        return LoopbackForward(port, forwarder::close)
+        // On a borrowed link the forward would outlive this console: it ends when the console lets go.
+        val forward = LoopbackForward(port, forwarder::close)
+        if (onLent) {
+            borrowed.get()?.forwards?.add(forward)
+            // The console let go meanwhile: nothing would close it.
+            if (borrowed.get() == null) {
+                forward.close()
+                throw IOException("The console closed")
+            }
+        }
+        return forward
     }
 
     /**
@@ -764,7 +800,8 @@ class SSH :
     private fun finishConnection() {
         authenticated = true
 
-        for (portForward in portForwards) {
+        // Port forwards belong to a connection of the console's own: a borrowed link keeps none of them.
+        for (portForward in portForwards.takeIf { !onLent }.orEmpty()) {
             try {
                 enablePortForward(portForward)
                 bridge?.outputLine(manager?.res?.getString(R.string.terminal_enable_portfoward, portForward.getDescription()))
@@ -988,6 +1025,7 @@ class SSH :
 
     override fun connect() {
         val currentHost = host ?: return
+        if (openOnSharedLink(currentHost)) return
 
         // Check if we need to connect through a jump host
         val jumpHostId = currentHost.jumpHostId
@@ -1097,6 +1135,18 @@ class SSH :
     }
 
     override fun close() {
+        if (onLent) {
+            // A borrowed link stays open for the others that hold it: this console closes its session and
+            // lets go, at once (a grace period keeps a link of the console's own, not this one).
+            connected = false
+            session?.close()
+            session = null
+            releaseSharedLink(dead = false)
+            // Only the lent reference: exec, uploads and forwards say "Not connected" from now on.
+            connection = null
+            return
+        }
+
         // Don't close during grace period - wait for network restore
         if (bridge?.isInGracePeriod() == true) {
             Timber.d("Deferring SSH close - bridge in network grace period")
@@ -1124,6 +1174,66 @@ class SSH :
         synchronized(userAuthBannerCallbacks) {
             userAuthBannerCallbacks.clear()
         }
+    }
+
+    /**
+     * Open this console's session on the shared link of its machine, when it has one that answered
+     * within [SHARED_FRESH_MS]: false when there is none, or its channel would not open (then the
+     * console logs in as before). Only a console whose session runs its own command borrows.
+     */
+    private fun openOnSharedLink(currentHost: Host): Boolean {
+        val pool = sharedLinks ?: return false
+        // Agent forwarding is one per connection in trilead: a shared link carries none.
+        if (bridge?.sessionCommand == null || !currentHost.wantSession || (currentHost.jumpHostId ?: 0L) > 0L || useAuthAgent != HostConstants.AUTHAGENT_NO) return false
+        val key = CoreMachines.keyOf(currentHost)
+        val shared = pool.lend(key, this, SHARED_FRESH_MS) ?: return false
+        val lent = shared.lent
+        if (lent == null) {
+            if (shared.alive) pool.release(key, this) else pool.drop(key, shared)
+            return false
+        }
+        val mine = Borrowed(key, shared)
+        borrowed.set(mine)
+        onLent = true
+        connection = lent
+        connected = true
+        // A late loss of the link, after this console let go, is not this console's.
+        mine.lost = shared.onLost { reason -> if (borrowed.get() === mine && connected) connectionLost(reason) }
+        try {
+            finishConnection()
+        } catch (e: Exception) {
+            // Past the open (the bridge's onConnected) it is not the link's failure: the bridge handles it.
+            if (sessionOpen) throw e
+            // trilead throws IllegalStateException on a link closed meanwhile; log in on its own instead.
+            Timber.w(e, "Session on the shared link of ${currentHost.nickname} failed")
+        }
+        // Closed meanwhile (the link dropped, or the user left): no login of its own, and a channel
+        // opened after the close is closed here, since the close could not see it.
+        if (!connected) {
+            runCatching { session?.close() }
+            session = null
+            onLent = false
+            return true
+        }
+        if (sessionOpen) return true
+        Timber.w("Could not open a session on the shared link of ${currentHost.nickname}; logging in")
+        runCatching { session?.close() }
+        session = null
+        releaseSharedLink(dead = !shared.alive)
+        connection = null
+        connected = false
+        authenticated = false
+        onLent = false
+        return false
+    }
+
+    /** Let go of the borrowed link once, whoever calls first; a link known to be down is dropped for every holder. */
+    private fun releaseSharedLink(dead: Boolean) {
+        val mine = borrowed.getAndSet(null) ?: return
+        mine.lost?.close()
+        mine.forwards.forEach { runCatching { it.close() } }
+        val pool = sharedLinks ?: return
+        if (dead) pool.drop(mine.key, mine.shared) else pool.release(mine.key, this)
     }
 
     private fun onDisconnect(reason: DisconnectReason = DisconnectReason.IO_ERROR) {
@@ -1644,6 +1754,12 @@ class SSH :
         private const val AUTH_KEYBOARDINTERACTIVE = "keyboard-interactive"
 
         private const val AUTH_TRIES = 20
+
+        /**
+         * How lately a shared link must have answered for a console to open on it. The Inbox reads every
+         * 5 s while it shows, so a tap from it finds the link fresh; a link idle for longer is not trusted.
+         */
+        const val SHARED_FRESH_MS = 15_000L
 
         private val hostmask = Pattern.compile(
             "^(.+)@((?:[0-9a-z._-]+)|(?:\\[[a-f:0-9]+(?:%[-_.a-z0-9]+)?\\]))(?::(\\d+))?\$",

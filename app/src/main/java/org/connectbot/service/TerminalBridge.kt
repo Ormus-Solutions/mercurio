@@ -671,6 +671,8 @@ class TerminalBridge {
             // console opened out of sight) otherwise asks for 0x0, and Herdr's client refuses to
             // attach: "cannot attach without a usable terminal" (measured on the emulator).
             terminalEmulator.dimensions.let { newTransport.setDimensions(it.columns, it.rows, 0, 0) }
+            // A core console opens on the link the Inbox already signed in, when it answered lately.
+            if (watch != null) newTransport.sharedLinks = manager.coreConnectionsOrNull
         }
         newTransport.setEmulation(emulation)
 

@@ -23,6 +23,7 @@ import org.connectbot.data.entity.Host
 import solutions.ormus.logos.herd.HostShell
 import java.io.IOException
 import java.security.KeyPair
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * A short SSH login with no terminal, for work that cannot wait for the user (an
@@ -52,6 +53,40 @@ class HeadlessSsh(
 
     private val connection = Connection(host.hostname, host.port)
 
+    // trilead cannot remove a monitor once added: one monitor tells the borrowers that hold it now.
+    private class Lost(val tell: (Throwable) -> Unit)
+
+    private val lostTo = CopyOnWriteArrayList<Lost>()
+
+    // Plain flags, so asking costs no lock (trilead's Connection methods are synchronized).
+    @Volatile
+    private var lost = false
+
+    @Volatile
+    private var loggedIn = false
+
+    @Volatile
+    private var closed = false
+
+    init {
+        connection.addConnectionMonitor { reason ->
+            lost = true
+            lostTo.forEach { runCatching { it.tell(reason) } }
+        }
+    }
+
+    override val lent: Connection?
+        get() = connection.takeIf { alive }
+
+    override val alive: Boolean
+        get() = loggedIn && !lost && !closed
+
+    override fun onLost(lost: (Throwable) -> Unit): AutoCloseable {
+        val entry = Lost(lost)
+        lostTo += entry
+        return AutoCloseable { lostTo -= entry }
+    }
+
     /**
      * Connect and log in with the first of [keys] the server takes. Blocking. The TCP connect
      * has [connectTimeoutMs] and the key exchange [kexTimeoutMs] from the start of the connect;
@@ -71,7 +106,7 @@ class HeadlessSsh(
         return try {
             connection.connect(checked, connectTimeoutMs, kexTimeoutMs, SSH.parseIpVersion(host.ipVersion, host.hostname))
             val user = host.username.trim()
-            if (keys.any { connection.authenticateWithPublicKey(user, it) }) Login.Ok else Login.KeysRefused
+            if (keys.any { connection.authenticateWithPublicKey(user, it) }) Login.Ok.also { loggedIn = true } else Login.KeysRefused
         } catch (e: IOException) {
             if (hostKeyRefused) Login.HostKeyRefused else Login.Failed(firstLine(e))
         }
@@ -84,6 +119,7 @@ class HeadlessSsh(
     override fun exec(command: String): CommandOutput = hostShell.run(command) { SSH.execDetailed(connection, it) }
 
     override fun close() {
+        closed = true
         connection.close()
     }
 
@@ -104,6 +140,18 @@ interface HeadlessSession : AutoCloseable {
 
     /** Run [command] over its own exec channel. Blocking. */
     fun exec(command: String): CommandOutput
+
+    /**
+     * The signed-in connection itself, for a console that opens its terminal on it ([SSH] borrows it
+     * from [solutions.ormus.logos.herd.CoreConnections]); null when there is none to lend. A borrower never closes it.
+     */
+    val lent: Connection? get() = null
+
+    /** Call [lost] when the connection drops, until the returned handle is closed. */
+    fun onLost(lost: (Throwable) -> Unit): AutoCloseable = AutoCloseable {}
+
+    /** False once the connection is known to be down (it dropped, or was closed); true while it may be up. */
+    val alive: Boolean get() = true
 
     /** Log out; safe to call more than once. trilead waits for a connect or login in progress to end first. */
     override fun close()

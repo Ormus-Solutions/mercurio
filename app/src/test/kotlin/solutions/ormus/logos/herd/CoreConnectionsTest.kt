@@ -139,10 +139,10 @@ class CoreConnectionsTest {
         val s = Fake()
         rig.pool.put("sg", inbox, s)
         rig.now = 20_000
-        assertNull(rig.pool.joinFresh("sg", console, withinMs = 15_000))
+        assertNull(rig.pool.lend("sg", console, withinMs = 15_000))
         rig.pool.answered("sg", s)
         rig.now = 30_000
-        assertSame(s, rig.pool.joinFresh("sg", console, withinMs = 15_000))
+        assertSame(s, rig.pool.lend("sg", console, withinMs = 15_000))
     }
 
     private fun host(id: Long) = Host(id = id, nickname = "sg", protocol = "ssh", username = "me", hostname = "sg.example", port = 22)
@@ -219,5 +219,55 @@ class CoreConnectionsTest {
         dead = false
         assertTrue(spacesLinks.link(m) is CoreLinks.Link.Up)
         assertEquals(2, logins)
+    }
+
+    private class Flaky : HeadlessSession by Fake() {
+        override fun exec(command: String): CommandOutput = throw java.io.IOException("read timed out")
+    }
+
+    @Test fun `a failed read on a link a console runs on retires it, the next read logs in anew, and it closes when the console lets go`() = runBlocking {
+        val rig = Rig(linger = 0)
+        val flaky = Flaky()
+        var logins = 0
+        val links = CoreLinks({ emptyList() }, {
+            logins++
+            CoreLinks.Opened.Session(if (logins == 1) flaky else Fake())
+        }, pool = rig.pool)
+        val m = CoreMachines.group(listOf(host(1))).single()
+        val up = links.link(m) as CoreLinks.Link.Up
+        rig.pool.lend(m.key, console, withinMs = Long.MAX_VALUE)
+        runCatching { up.run("hc ls") }
+        // The terminal keeps its link; nobody else is given it.
+        assertTrue(rig.closed.isEmpty())
+        assertNull(rig.pool.lend(m.key, Any(), withinMs = Long.MAX_VALUE))
+        assertTrue(links.link(m) is CoreLinks.Link.Up)
+        assertEquals(2, logins)
+        // The screen leaving does not close it under the terminal; the terminal letting go does.
+        links.close()
+        assertEquals(1, rig.closed.size)
+        assertTrue(rig.closed[0] !== flaky)
+        rig.pool.release(m.key, console)
+        assertEquals(2, rig.closed.size)
+        assertSame(flaky, rig.closed[1])
+    }
+
+    @Test fun `a failed read on a link no console runs on closes it at once`() = runBlocking {
+        val rig = Rig(linger = 0)
+        val flaky = Flaky()
+        val links = CoreLinks({ emptyList() }, { CoreLinks.Opened.Session(flaky) }, pool = rig.pool)
+        val m = CoreMachines.group(listOf(host(1))).single()
+        runCatching { (links.link(m) as CoreLinks.Link.Up).run("hc ls") }
+        assertEquals(listOf<HeadlessSession>(flaky), rig.closed)
+    }
+
+    @Test fun `dropping a retired link closes it`() {
+        val rig = Rig()
+        val s = Fake()
+        rig.pool.put("sg", inbox, s)
+        rig.pool.lend("sg", console, withinMs = Long.MAX_VALUE)
+        rig.pool.retire("sg", s)
+        assertTrue(rig.closed.isEmpty())
+        assertTrue(rig.pool.drop("sg", s))
+        assertEquals(listOf<HeadlessSession>(s), rig.closed)
     }
 }
