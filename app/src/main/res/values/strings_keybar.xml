@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Key bar: his own paged keys above the compose bar, edited in the settings panel. -->
+<!-- Key bar: his own paged keys after the bottom key row, edited in the settings panel. -->
 <resources>
 	<!-- Settings panel: the switch for the custom key bar -->
 	<string name="key_bar_custom">Custom key bar</string>
-	<string name="key_bar_custom_on">Your keys show above the compose bar</string>
+	<string name="key_bar_custom_on">Swipe the bottom key row for your keys</string>
 	<string name="key_bar_custom_off">Off: the compose bar stays as it is</string>
 	<!-- Settings panel: opens the editor; %1$d is the number of keys, %2$d the number of pages -->
 	<string name="key_bar_edit">Edit key bar</string>

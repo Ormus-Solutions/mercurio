@@ -213,14 +213,14 @@ class SettingsPanelScreenTest {
         composeTestRule.onNodeWithTag(THEME_VALUE_TAG, useUnmergedTree = true).assertTextContains("Saturn")
         composeTestRule.onNodeWithTag(FONT_ROW_TAG, useUnmergedTree = true).assertExists()
         composeTestRule.onNodeWithTag(FONT_VALUE_TAG, useUnmergedTree = true).assertTextContains("Default (Monospace)")
-        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("Off")
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("19 keys")
     }
 
     @Test
     fun theKeyBarValue_countsTheKeysOfTheCustomBar() {
         prefs.edit().putBoolean(PreferenceConstants.KEY_BAR_CUSTOM, true).commit()
         setPanel()
-        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("18 keys")
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("19 keys")
     }
 
     @Test
@@ -261,11 +261,11 @@ class SettingsPanelScreenTest {
     @Test
     fun theKeyBarValue_followsTheSwitchInThePanel() {
         setPanel()
-        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("Off")
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("19 keys")
 
         composeTestRule.onNodeWithTag(org.connectbot.ui.components.KEY_BAR_SWITCH_TAG).performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("18 keys")
+        composeTestRule.onNodeWithTag(KEY_BAR_VALUE_TAG, useUnmergedTree = true).assertTextContains("Off")
     }
 }

@@ -206,6 +206,7 @@ class TerminalComposeBarTest {
         onInbox: (() -> Unit)? = null,
         enterNewLine: Boolean = false,
         keyBar: KeyBarLayout? = null,
+        hisKeys: Boolean = true,
     ) {
         composeTestRule.setContent {
             ConnectBotTheme {
@@ -237,6 +238,13 @@ class TerminalComposeBarTest {
                 }
             }
         }
+        composeTestRule.waitForIdle()
+        // With his keys on, the bar's first page is the bottom row; his first page is the next one.
+        if (keyBar != null && hisKeys) toPage(1)
+    }
+
+    private fun toPage(page: Int) {
+        composeTestRule.onNodeWithTag("key_bar_dot_$page").performClick()
         composeTestRule.waitForIdle()
     }
 
@@ -729,17 +737,73 @@ class TerminalComposeBarTest {
         key("Ctrl+C").performClick()
         verify(bridge).injectString("\u0003")
 
-        composeTestRule.onNodeWithTag("key_bar_dot_1").performClick()
-        composeTestRule.waitForIdle()
+        toPage(2)
         key("Ctrl+Z").performClick()
         verify(bridge).injectString("\u001a")
     }
 
     @Test
-    fun keyBar_showsOneDotPerPageAndNoneForASinglePage() {
+    fun keyBar_showsOneDotPerPage_theBottomRowsPageToo() {
         setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("esc"), listOf("tab"), listOf("up"))))
-        (0..2).forEach { composeTestRule.onNodeWithTag("key_bar_dot_$it").assertExists() }
-        composeTestRule.onAllNodesWithTag("key_bar_dot_3").assertCountEquals(0)
+        (0..3).forEach { composeTestRule.onNodeWithTag("key_bar_dot_$it").assertExists() }
+        composeTestRule.onAllNodesWithTag("key_bar_dot_4").assertCountEquals(0)
+    }
+
+    @Test
+    fun keyBar_theBottomRowIsTheFirstPage_andASwipeShowsHisKeys() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        val bar = bounds(KEY_BAR_TEST_TAG)
+        listOf(PAGE_UP_LABEL, "PgDn", MORE).forEach { assertInside(it, bar) }
+        key("Ctrl+C").assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        key("Ctrl+C").performClick()
+        verify(bridge).injectString("\u0003")
+        // One key row: the bottom row's keys turned away with its page, no second row stayed.
+        key(MORE).assertDoesNotExist()
+        key(PAGE_UP_LABEL).assertDoesNotExist()
+    }
+
+    @Test
+    fun keyBar_aSwipeStartedOnPgUpTurnsThePage_andScrollsNothing() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        // The thumb rests on PgUp past the press delay of a key in a scrolling row, then swipes.
+        key(PAGE_UP_LABEL).performTouchInput { down(center) }
+        composeTestRule.mainClock.advanceTimeBy(150)
+        composeTestRule.onNodeWithTag(KEY_BAR_TEST_TAG).performTouchInput {
+            repeat(10) { moveBy(androidx.compose.ui.geometry.Offset(-width / 12f, 0f)) }
+            up()
+        }
+        composeTestRule.waitForIdle()
+        verify(bridge, never()).injectString("\u001b[5~")
+        key("Ctrl+C").assertExists()
+    }
+
+    @Test
+    fun keyBar_aTapOnPgUpOnTheFirstPageSendsItOnce() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        key(PAGE_UP_LABEL).performClick()
+        composeTestRule.waitForIdle()
+        verify(bridge, times(1)).injectString("\u001b[5~")
+    }
+
+    @Test
+    fun keyBar_theSpaceKeyTypesASpace_andIsTwoKeysWide() {
+        val bridge = bridgeWithPostLogin(null)
+        setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("space", "slash"))))
+
+        key("Space").performClick()
+        verify(bridge).injectString(" ")
+        val space = key("Space").fetchSemanticsNode().boundsInRoot
+        val slash = key("/").fetchSemanticsNode().boundsInRoot
+        assertTrue("Space is about two keys wide: ${space.width} against ${slash.width}", space.width > slash.width * 1.8f)
     }
 
     @Test
@@ -790,8 +854,7 @@ class TerminalComposeBarTest {
         setBar(bridge, keyBar = KeyBarLayout(listOf(listOf("alt"), listOf("slash"))))
 
         key("Alt").performClick()
-        composeTestRule.onNodeWithTag("key_bar_dot_1").performClick()
-        composeTestRule.waitForIdle()
+        toPage(2)
         key("/").performClick()
         verify(bridge).injectString("\u001b/")
     }
@@ -1293,6 +1356,7 @@ class TerminalComposeBarTest {
     private companion object {
         const val BAR = "composeBar"
         const val MORE = "More keys"
+        const val PAGE_UP_LABEL = "PgUp"
         const val READ = "Read output"
         const val SEND = "Send"
         const val ENTER = "Enter"

@@ -33,17 +33,29 @@ class KeyBarConfigTest {
     private val prefs = PreferenceManager.getDefaultSharedPreferences(ApplicationProvider.getApplicationContext<Context>())
 
     @Test
-    fun defaultBarIsTheHerdrAppsEighteenKeysInItsOrderFiveToAPage() {
+    fun defaultBarIsTheHerdrAppsEighteenKeysInItsOrderFiveToAPage_thenSpace() {
         assertEquals(
             listOf(
                 listOf("esc", "ctrl", "alt", "tab", "shift-tab"),
                 listOf("arrows", "ctrl-c", "ctrl-d", "ctrl-z", "ctrl-l"),
                 listOf("pipe", "tilde", "slash", "dash", "home"),
-                listOf("end", "pgup", "pgdn"),
+                listOf("end", "pgup", "pgdn", "space"),
             ),
             KeyBarLayout.DEFAULT.pages,
         )
-        assertEquals(18, KeyBarLayout.DEFAULT.pages.sumOf { it.size })
+        assertEquals(19, KeyBarLayout.DEFAULT.pages.sumOf { it.size })
+        // Every page fills the row, Space two slots wide.
+        KeyBarLayout.DEFAULT.pages.forEach { page -> assertEquals(KeyBarLayout.MAX_KEYS_PER_PAGE, page.sumOf { KeyBarCatalog.byId(it)!!.span }) }
+    }
+
+    @Test
+    fun theSpaceKeyTypesASpace_repeatsWhenHeld_andIsTwoSlotsWide() {
+        val space = KeyBarCatalog.byId("space")!!
+        assertEquals(" ", space.sequence)
+        assertEquals(KeyKind.SEQUENCE, space.kind)
+        assertTrue(space.repeats)
+        assertEquals(2, space.span)
+        assertEquals(1, KeyBarCatalog.byId("esc")!!.span)
     }
 
     @Test
@@ -233,22 +245,36 @@ class KeyBarConfigTest {
     }
 
     @Test
-    fun storeIsOffAndDefaultUntilEdited() {
+    fun storeIsOnAndDefaultUntilEdited() {
         val store = KeyBarStore(prefs)
-        assertFalse(store.enabled)
+        assertTrue(store.enabled)
         assertEquals(KeyBarLayout.DEFAULT, store.layout)
+    }
+
+    @Test
+    fun aPageIsFullAtFiveSlots_spaceTakingTwo() {
+        val four = KeyBarLayout(listOf(listOf("esc", "tab", "slash", "dash")))
+        assertEquals(four, four.add(0, "space"))
+        assertEquals(listOf("esc", "tab", "slash", "dash", "pipe"), four.add(0, "pipe").pages[0])
+        val three = KeyBarLayout(listOf(listOf("esc", "tab", "slash")))
+        val withSpace = three.add(0, "space")
+        assertEquals(listOf("esc", "tab", "slash", "space"), withSpace.pages[0])
+        assertEquals(withSpace, withSpace.add(0, "pipe"))
+        assertEquals(5, withSpace.slots(0))
+        assertTrue(three.fits(0, "space"))
+        assertFalse(four.fits(0, "space"))
     }
 
     @Test
     fun storeKeepsHisOrderAcrossARestart() {
         val edited = KeyBarLayout.DEFAULT.move(0, 0, 4).remove(1, 0).add(1, "esc")
         KeyBarStore(prefs).apply {
-            enabled = true
+            enabled = false
             layout = edited
         }
         // A new store over the same preferences is what the app builds after a restart.
         val reopened = KeyBarStore(PreferenceManager.getDefaultSharedPreferences(ApplicationProvider.getApplicationContext<Context>()))
-        assertTrue(reopened.enabled)
+        assertFalse(reopened.enabled)
         assertEquals(edited, reopened.layout)
     }
 }

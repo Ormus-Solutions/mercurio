@@ -40,6 +40,8 @@ data class KeyBarKey(
     val enter: Boolean = false,
     /** What a screen reader says: the label, or the whole text of a text key. */
     val description: String = label,
+    /** How many of a page's [KeyBarLayout.MAX_KEYS_PER_PAGE] slots the key is wide. */
+    val span: Int = 1,
 )
 
 /** What a tap on the key does: send [KeyBarKey.sequence], work the Ctrl or Alt state, or run an action. */
@@ -124,6 +126,7 @@ object KeyBarCatalog {
         KeyBarKey("dash", "-", "-"),
         KeyBarKey("pipe", "|", "|"),
         KeyBarKey("tilde", "~", "~"),
+        KeyBarKey("space", "Space", " ", repeats = true, span = 2),
         KeyBarKey("ctrl", "Ctrl", "", kind = KeyKind.CTRL),
         KeyBarKey("alt", "Alt", "", kind = KeyKind.ALT),
         KeyBarKey("arrows", "Arrows", "", kind = KeyKind.ARROWS),
@@ -180,8 +183,17 @@ data class KeyBarLayout(val pages: List<List<String>>) {
 
     fun add(page: Int, id: String): KeyBarLayout {
         val keys = pages.getOrNull(page) ?: return this
-        if (KeyBarCatalog.byId(id) == null || keys.size >= MAX_KEYS_PER_PAGE) return this
+        if (!fits(page, id)) return this
         return replace(page, keys + id)
+    }
+
+    /** The slots [page]'s keys take: one each, two for a wide key like Space. */
+    fun slots(page: Int): Int = pages.getOrNull(page).orEmpty().sumOf { KeyBarCatalog.byId(it)?.span ?: 1 }
+
+    /** Whether the key [id] still fits on [page]: a page holds [MAX_KEYS_PER_PAGE] slots. */
+    fun fits(page: Int, id: String): Boolean {
+        val key = KeyBarCatalog.byId(id) ?: return false
+        return page in pages.indices && slots(page) + key.span <= MAX_KEYS_PER_PAGE
     }
 
     fun remove(page: Int, index: Int): KeyBarLayout {
@@ -220,13 +232,13 @@ data class KeyBarLayout(val pages: List<List<String>>) {
         /** A saved page may hold more than the editor now lets him add (a six-key page from before). */
         private const val MAX_KEYS_WHEN_READING = 8
 
-        /** The bar he sees until he edits it: the Herdr app's 18 keys in its order, five to a page. */
+        /** The bar he sees until he edits it: the Herdr app's 18 keys in its order, five to a page, then Space. */
         val DEFAULT: KeyBarLayout = KeyBarLayout(
             listOf(
                 listOf("esc", "ctrl", "alt", "tab", "shift-tab"),
                 listOf("arrows", "ctrl-c", "ctrl-d", "ctrl-z", "ctrl-l"),
                 listOf("pipe", "tilde", "slash", "dash", "home"),
-                listOf("end", "pgup", "pgdn"),
+                listOf("end", "pgup", "pgdn", "space"),
             ),
         )
 
@@ -241,10 +253,13 @@ data class KeyBarLayout(val pages: List<List<String>>) {
     }
 }
 
-/** The key bar setting (off) and his layout, in the app's default preferences. */
+/**
+ * The key bar setting (on until he turns it off: the bar opens on the bottom row he knows, and a
+ * swipe shows the rest) and his layout, in the app's default preferences.
+ */
 class KeyBarStore(private val prefs: SharedPreferences) {
     var enabled: Boolean
-        get() = prefs.getBoolean(PreferenceConstants.KEY_BAR_CUSTOM, false)
+        get() = prefs.getBoolean(PreferenceConstants.KEY_BAR_CUSTOM, true)
         set(value) = prefs.edit { putBoolean(PreferenceConstants.KEY_BAR_CUSTOM, value) }
 
     var layout: KeyBarLayout

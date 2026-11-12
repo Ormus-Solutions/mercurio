@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -292,6 +293,21 @@ private fun RepeatingControlKey(
 }
 
 /**
+ * ↑ or ↓ on the bottom row. Alone, it sends on press ([RepeatingControlKey]); as a page of the
+ * swipe bar ([paged]), on release or hold ([HoldKey]), so a swipe that starts on it sends nothing.
+ */
+@Composable
+private fun PageKey(label: String, sequence: String, onSend: (String) -> Unit, paged: Boolean, description: String, modifier: Modifier = Modifier) {
+    if (paged) {
+        HoldKey(resolve = { _, _ -> sequence }, activate = { sequence }, send = onSend, description = description, modifier = modifier) {
+            KeyLabel(label, 20.sp)
+        }
+    } else {
+        RepeatingControlKey(label, sequence, onSend, modifier, symbolSize = 20.sp, description = description)
+    }
+}
+
+/**
  * The one ⏎ key, at the end of row 2. With text in the field it sends that text, then
  * Enter; with an empty field it is a bare Enter for the terminal. It reads as the gold
  * accent key, and its description says which of the two a tap does.
@@ -330,7 +346,8 @@ internal const val KEY_BAR_TEST_TAG = "key_bar"
 
 /**
  * His key bar, as the Herdr app's: five keys to a page, swipe to turn the page, a dot per page
- * under the keys. Ctrl and Alt arm the next key (a tap), or stay on until tapped (a long press);
+ * under the keys. [firstPage], the bar's own bottom row, is the page it opens on; his pages follow.
+ * Ctrl and Alt arm the next key (a tap), or stay on until tapped (a long press);
  * [KeyBarModifiers] holds that state across the pages. The row keeps its height on an empty page.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -340,9 +357,11 @@ private fun PagedKeyRow(
     onSend: (String) -> Unit,
     onPaste: () -> Unit,
     onCompose: () -> Unit,
+    firstPage: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val pager = rememberPagerState { layout.pages.size }
+    val pageCount = layout.pages.size + 1
+    val pager = rememberPagerState { pageCount }
     val scope = rememberCoroutineScope()
     var mods by remember { mutableStateOf(KeyBarModifiers()) }
 
@@ -366,10 +385,14 @@ private fun PagedKeyRow(
 
     Column(modifier = modifier.fillMaxWidth().testTag(KEY_BAR_TEST_TAG)) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth().heightIn(min = KEY_HEIGHT)) { index ->
-            val keys = layout.pages[index].mapNotNull { KeyBarCatalog.byId(it) }
+            if (index == 0) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_GAP), content = firstPage)
+                return@HorizontalPager
+            }
+            val keys = layout.pages[index - 1].mapNotNull { KeyBarCatalog.byId(it) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
                 keys.forEach { key ->
-                    val weight = Modifier.weight(1f)
+                    val weight = Modifier.weight(key.span.toFloat())
                     when (key.kind) {
                         KeyKind.CTRL -> ModifierKey(key.label, mods.ctrl, { mods = mods.tap(BarModifier.CTRL) }, { mods = mods.longPress(BarModifier.CTRL) }, weight)
 
@@ -397,12 +420,10 @@ private fun PagedKeyRow(
                     }
                 }
                 // Empty slots keep every page's keys the same width.
-                repeat((KeyBarLayout.MAX_KEYS_PER_PAGE - keys.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
+                repeat((KeyBarLayout.MAX_KEYS_PER_PAGE - keys.sumOf { it.span }).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
             }
         }
-        if (layout.pages.size > 1) {
-            PageDots(layout.pages.size, pager.currentPage) { page -> scope.launch { pager.animateScrollToPage(page) } }
-        }
+        PageDots(pageCount, pager.currentPage) { page -> scope.launch { pager.animateScrollToPage(page) } }
     }
 }
 
@@ -1230,85 +1251,83 @@ fun TerminalComposeBar(
                     }
                 }
 
-                // The key bar: its own pill row (two with his editable row on), apart from the
-                // compose box above it, bottom-most.
+                // The key bar: one pill row, apart from the compose box above it, bottom-most.
+                // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎. With his key bar on,
+                // this row is the bar's first page and a swipe turns to his pages.
+                val bottomRow: @Composable RowScope.() -> Unit = {
+                    // ↑ and ↓ page: Page Up and Page Down, the way he scrolls. The arrow keys
+                    // themselves are in the tray. On the paged bar they send on release or hold,
+                    // so a swipe that starts on them turns the page and scrolls nothing.
+                    PageKey("↑", PAGE_UP, sendKey, paged = keyBar != null, stringResource(R.string.herdr_key_page_up), Modifier.weight(1f))
+                    PageKey("↓", PAGE_DOWN, sendKey, paged = keyBar != null, stringResource(R.string.herdr_key_page_down), Modifier.weight(1f))
+                    // On every host. Dimmed, not hidden, until Herdr answers, so the row never
+                    // shifts under the thumb. Gold-tinted while the panel is open. Held, it opens
+                    // the pane search (Jump to) with the keyboard up: the panel's own Jump to key
+                    // was never tapped in 5,000 console actions, so the search gets a gesture here.
+                    if (!coreView) {
+                        OrmusKey(
+                            label = stringResource(R.string.herdr_key_commands),
+                            onClick = { toggleHerdrPanel() },
+                            modifier = Modifier.weight(1.2f),
+                            tone = if (herdrPanel) KeyTone.ACCENT else KeyTone.PLAIN,
+                            enabled = herdrSession && onHerdrPanelChange != null,
+                            description = stringResource(R.string.herdr_key_commands_description),
+                            onLongClick = { openHerdrJump(UsageActions.HERDR_JUMP_KEY) },
+                        )
+                    }
+                    MoreKey(
+                        open = trayOpen,
+                        onClick = { if (trayOpen) closeTray() else openTray(UsageActions.BAR_TRAY_OPEN) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    // Chat: the pane under the thumb as a conversation (an agent pane opens Chat
+                    // View on it; any other pane its output reader), one tap from Needs you. Chat
+                    // View was reached only through the Agents board before (board:chat 16,
+                    // chat:open 0 in about 5,000 console actions). Dimmed, like Herdr, until the
+                    // session runs Herdr, so the row never shifts.
+                    if (!coreView) {
+                        OrmusKey(
+                            label = stringResource(R.string.chat_key),
+                            onClick = {
+                                usage.log(UsageActions.CHAT_KEY)
+                                onRead?.invoke()
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = herdrSession && onRead != null,
+                            description = stringResource(R.string.chat_key_description),
+                        )
+                    }
+                    // Where the tab arrows were: swipes switch tabs now. Dimmed, like Herdr,
+                    // until the session runs Herdr, so the row never shifts.
+                    if (!coreView) {
+                        NeedsYouKey(
+                            waiting = needsYou,
+                            onClick = { jumpToNeedsYou() },
+                            onLongClick = { openInboxOrBoard() },
+                            enabled = herdrSession && bridge.herd != null,
+                            modifier = Modifier.weight(2f),
+                        )
+                    }
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG),
                     verticalArrangement = Arrangement.spacedBy(KEY_PILL_GAP),
                 ) {
-                    if (keyBar != null) KeyPill { PagedKeyRow(if (coreView) CoreView.keyBar(keyBar, herdrKeys) else keyBar, sendKey, onPaste = { pasteClipboard() }, onCompose = { draft.requestFocus() }) }
                     KeyPill {
-                        // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎.
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
-                        ) {
-                            // ↑ and ↓ page: Page Up and Page Down, the way he scrolls. The arrow keys
-                            // themselves are in the tray.
-                            RepeatingControlKey(
-                                "↑",
-                                PAGE_UP,
+                        if (keyBar != null) {
+                            PagedKeyRow(
+                                if (coreView) CoreView.keyBar(keyBar, herdrKeys) else keyBar,
                                 sendKey,
-                                Modifier.weight(1f),
-                                symbolSize = 20.sp,
-                                description = stringResource(R.string.herdr_key_page_up),
+                                onPaste = { pasteClipboard() },
+                                onCompose = { draft.requestFocus() },
+                                firstPage = bottomRow,
                             )
-                            RepeatingControlKey(
-                                "↓",
-                                PAGE_DOWN,
-                                sendKey,
-                                Modifier.weight(1f),
-                                symbolSize = 20.sp,
-                                description = stringResource(R.string.herdr_key_page_down),
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                                content = bottomRow,
                             )
-                            // On every host. Dimmed, not hidden, until Herdr answers, so the row never
-                            // shifts under the thumb. Gold-tinted while the panel is open. Held, it opens
-                            // the pane search (Jump to) with the keyboard up: the panel's own Jump to key
-                            // was never tapped in 5,000 console actions, so the search gets a gesture here.
-                            if (!coreView) {
-                                OrmusKey(
-                                    label = stringResource(R.string.herdr_key_commands),
-                                    onClick = { toggleHerdrPanel() },
-                                    modifier = Modifier.weight(1.2f),
-                                    tone = if (herdrPanel) KeyTone.ACCENT else KeyTone.PLAIN,
-                                    enabled = herdrSession && onHerdrPanelChange != null,
-                                    description = stringResource(R.string.herdr_key_commands_description),
-                                    onLongClick = { openHerdrJump(UsageActions.HERDR_JUMP_KEY) },
-                                )
-                            }
-                            MoreKey(
-                                open = trayOpen,
-                                onClick = { if (trayOpen) closeTray() else openTray(UsageActions.BAR_TRAY_OPEN) },
-                                modifier = Modifier.weight(1f),
-                            )
-                            // Chat: the pane under the thumb as a conversation (an agent pane opens Chat
-                            // View on it; any other pane its output reader), one tap from Needs you. Chat
-                            // View was reached only through the Agents board before (board:chat 16,
-                            // chat:open 0 in about 5,000 console actions). Dimmed, like Herdr, until the
-                            // session runs Herdr, so the row never shifts.
-                            if (!coreView) {
-                                OrmusKey(
-                                    label = stringResource(R.string.chat_key),
-                                    onClick = {
-                                        usage.log(UsageActions.CHAT_KEY)
-                                        onRead?.invoke()
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    enabled = herdrSession && onRead != null,
-                                    description = stringResource(R.string.chat_key_description),
-                                )
-                            }
-                            // Where the tab arrows were: swipes switch tabs now. Dimmed, like Herdr,
-                            // until the session runs Herdr, so the row never shifts.
-                            if (!coreView) {
-                                NeedsYouKey(
-                                    waiting = needsYou,
-                                    onClick = { jumpToNeedsYou() },
-                                    onLongClick = { openInboxOrBoard() },
-                                    enabled = herdrSession && bridge.herd != null,
-                                    modifier = Modifier.weight(2f),
-                                )
-                            }
                         }
                     }
                 }

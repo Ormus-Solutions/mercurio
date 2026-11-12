@@ -220,7 +220,7 @@ private fun KeyBarEditor(
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(stringResource(R.string.key_bar_add_key), style = MaterialTheme.typography.labelLarge)
-                if (keys.size >= KeyBarLayout.MAX_KEYS_PER_PAGE) {
+                if (layout.slots(page) >= KeyBarLayout.MAX_KEYS_PER_PAGE) {
                     Text(stringResource(R.string.key_bar_page_full), style = MaterialTheme.typography.bodyMedium)
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -228,7 +228,7 @@ private fun KeyBarEditor(
                         AssistChip(
                             onClick = { onChange(layout.add(page, key.id)) },
                             label = { Text(key.label) },
-                            enabled = keys.size < KeyBarLayout.MAX_KEYS_PER_PAGE,
+                            enabled = layout.fits(page, key.id),
                             modifier = Modifier.testTag("key_bar_add_${key.id}"),
                         )
                     }
@@ -236,7 +236,7 @@ private fun KeyBarEditor(
                 AssistChip(
                     onClick = { customOpen = true },
                     label = { Text(stringResource(R.string.key_bar_custom_key)) },
-                    enabled = keys.size < KeyBarLayout.MAX_KEYS_PER_PAGE,
+                    enabled = layout.slots(page) < KeyBarLayout.MAX_KEYS_PER_PAGE,
                     modifier = Modifier.testTag(KEY_BAR_CUSTOM_KEY_TAG),
                 )
                 if (layout.pages.size > 1) {
