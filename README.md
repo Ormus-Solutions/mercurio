@@ -14,19 +14,28 @@ management come from ConnectBot. Mercurio is maintained by
 
 ### Terminal and input
 
-- **Compose bar.** Two rows of keys under the terminal: paging PgUp and PgDn, Herdr,
-  Needs you, Esc, Tab, a text field for the keyboard or the phone's voice
-  input, and one ⏎ key that sends the field's text and then Enter, or Enter
-  alone when the field is empty. Needs you shows how many agents wait for you
-  in every Herdr session, in gold while any does; a tap jumps to the next one,
-  cycling, and a long press (or a tap with none waiting) opens the Agents board.
-  Unsent text stays with its terminal: leave the console and open the same
-  terminal again and the field still holds it. It is kept in memory only, so
-  closing the app drops it.
-- **Tray.** ⋯ or a swipe up on the bar opens more keys: arrows, jump to the
+- **Compose bar.** A box under the terminal with Esc, Tab, a text field for the
+  keyboard or the phone's voice input, and one ⏎ key that sends the field's text
+  and then Enter, or Enter alone when the field is empty. Unsent text stays
+  with its terminal: leave the console and open the same terminal again and
+  the field still holds it. It is kept in memory only, so closing the app
+  drops it.
+- **Key bar.** One row at the bottom, paged: swipe it to turn the page, one dot
+  per page. Page 0 is the bar's own: PgUp, PgDn (hold to repeat), Herdr, ⋯, Chat
+  and Needs you. Needs you shows how many agents wait for you in every Herdr
+  session, in gold while any does; a tap jumps to the next one, cycling, and a
+  long press (or a tap with none waiting) opens the Inbox, or the Agents board
+  when the Inbox is off or this session is not on Herdr. The pages after it are your own keys: five to a page,
+  the Herdr app's set by default (Esc, Ctrl, Alt, Tab, S-Tab, arrows with a
+  swipe for one arrow per step, Ctrl+C, Home, End and more) and a Space key. Ctrl and Alt arm
+  the next key, or stay on with a long press; a gold mark at the end of the dots
+  shows them on every page. Edit the pages in the console's Settings panel
+  (gear), under Key bar, or turn the pages off there and the bar keeps its single
+  row; Compose bar there holds Enter starts a new line.
+- **Tray.** ⋯ or a swipe up on the bar opens more keys above it: arrows, jump to the
   latest output, Mode, clear the typed line, the read view, copy the latest
   URL (hold it to open the URL instead, whole even when it wrapped at the screen
-  edge), copy the agent's last reply, paste a screenshot, Herdr's sidebar and
+  edge), copy the agent's last reply, paste a photo, Herdr's sidebar and
   the slash menu.
 - **Read view.** Recent output in a full-screen view you can scroll and select.
   On a Herdr host it reads the focused pane with `herdr pane read`.
@@ -119,6 +128,29 @@ management come from ConnectBot. Mercurio is maintained by
 - **Reattach.** When the Herdr client drops with `lost connection to server`,
   Mercurio runs `herdr` again and the session comes back.
 
+### Inbox and Spaces
+
+- **Inbox.** Every agent of every host in one list, in sections by state (Needs
+  you, Done, Working, Idle, Unknown) with a search field. A dot marks output you
+  have not seen. Helper terminals fold under their parent row, which shows how
+  many there are; a tap opens them (they start open while one needs you). Each
+  section shows three rows and a Show more key. On a herdr-core row, a swipe marks it read,
+  pins it or sends Esc (after a confirmation). The list shows "Loading…" until
+  each machine has answered once, and "No agents yet" only after a read that
+  came back empty. A machine whose read fails, or gives no answer, shows its own
+  line until its next good read. The Inbox and Include herdr-core agents are
+  both on by default, and the console's Settings panel switches them. The
+  home's bottom bar shows the Inbox while it is on and Spaces while Include
+  herdr-core agents is on.
+- **herdr-core.** With Include herdr-core agents on, the Inbox and Spaces also
+  read herdr-core on the machine of each saved host. A terminal there opens on
+  the machine's one shared SSH link when it has one, instead of a login of its
+  own; a link that has been quiet is probed first, and a new login is made only
+  if the probe fails.
+- **Spaces.** The herdr-core spaces of each machine, one tile per tab. A tile
+  carries the tab's name and, when an agent in it has a known state, its color
+  and a mark in the corner (a different shape for each state).
+
 ### Notifications and approvals
 
 - **Needs you.** A notification when an agent is blocked on you, and one when
@@ -131,8 +163,14 @@ management come from ConnectBot. Mercurio is maintained by
   the terminal's own idle and bell guesses stay quiet for every console of
   that host, including a shell there that runs an agent outside Herdr.
 - **Approve or deny.** Answer a blocked Claude Code or Codex agent from its
-  notification. This works with no session open: Mercurio logs in with the
-  host's saved key, sends the answer and logs out. Other agents get the
+  notification, on Android 12 or newer. This works with no session open: Mercurio
+  logs in with the host's saved key, sends the answer and logs out. The buttons
+  show only for a yes-or-no prompt that Mercurio read from the agent's pane, and
+  an answer goes only to that prompt: if the agent has moved on, nothing is sent
+  and the notification says "Nothing was sent." A notification from an older
+  build carries no mark of its prompt, so its answer sends nothing and says
+  "Open Mercurio to answer." A notification raised by a push gets its buttons
+  when its pane read comes in. Other agents get the
   notification without the buttons.
 - **Push.** While Android has the app frozen, a watcher on the host can wake
   it through [UnifiedPush][unifiedpush] and an [ntfy][ntfy] server you run.
@@ -225,10 +263,18 @@ change on an emulator, follow
   usernames, keys or passwords. It is stored in the app's private files.
   Recording is on by default. Turn off Record my usage in Settings, Usage and
   wish list, and nothing is recorded.
+- **Voice key sends audio to your voice server.** With the voice key on, a
+  take is recorded in the app's cache and sent over HTTP or HTTPS to the voice
+  server set in the console's Settings panel (empty means the session's host),
+  which returns the text. Plain http goes only to a tailnet, LAN or loopback
+  address; any other host must use https. A take whose send fails stays in the
+  cache until the next take replaces it, and a failure that can be retried (not
+  bad audio, a take too large or a bad request) offers a retry.
+  With the key off, no audio is recorded or sent.
 - **Upload only over your own SSH.** The log and the wish list leave the phone
   only over an SSH session to a host named in that same settings section, and
   only when the session's host key matches the key pinned there. There is no
-  HTTP endpoint and no third party.
+  HTTP endpoint for them and no third party.
 - **Diagnostics on request.** A fix prompt is built on the phone with private
   keys and saved passwords removed. It goes to the clipboard only when you tap
   Copy fix prompt, and into the wish list only when you tap Send to wish list.

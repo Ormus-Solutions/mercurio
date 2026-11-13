@@ -2,6 +2,29 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Mercurio (unreleased)
+
+The seals of one kintsugi pass, by pull request number. The entries below are upstream ConnectBot's.
+
+### Added
+- Inbox: helper terminals fold under their parent row (#290)
+- Spaces: each tab tile shows its name and its agent's state (#294)
+
+### Fixed
+- Free the slash refresh guard on cancel or an unexpected failure (#284)
+- Lint errors fixed, and lint now fails on any error (#285)
+- Probe a host without herdr-core only every 5 minutes, not on every read; say the Inbox logs in to saved hosts (#286)
+- A herdr-core Needs you notification opens that agent's terminal (#287)
+- Probe a stale shared link before a console logs in again (#288)
+- An agent console opens with the keyboard down (#289)
+- An armed Ctrl or Alt is spent on every key but a text macro, and shows on every page (#291)
+- Paste a photo: pick any photo, stage it in a private folder, scale it to fit, show failures (#292)
+- Key bar: PgUp, PgDn and S-Tab labels, a slot-wide decode that never drops a key, larger dot hit boxes (#293)
+- Inbox: show Loading until each machine answers, a line for a failed or silent read, and keep a write's change when a late poll lands (#295)
+- The compose field keeps its unsent text per terminal (#296)
+- Inbox, Spaces and the bottom bar log a usage id for each action (#297)
+- Approve and Deny answer only the yes-or-no prompt the notification showed, and refuse otherwise (#298)
+
 ## [1.10.9][1.10.9]
 
 ### Fixed

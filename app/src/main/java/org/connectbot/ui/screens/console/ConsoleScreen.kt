@@ -348,7 +348,8 @@ fun ConsoleScreen(
     val keyboardAlwaysVisible = remember { prefs.getBoolean(PreferenceConstants.KEY_ALWAYS_VISIBLE, false) }
     var fullscreen by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.FULLSCREEN, false)) }
     var titleBarHide by remember { mutableStateOf(prefs.getBoolean(PreferenceConstants.TITLEBARHIDE, false)) }
-    // Read again each time the console comes back from the settings panel.
+    // Read when the console enters composition. The settings panel is its own route, so the console
+    // leaves composition while it is open and these reads run again on the way back.
     val enterNewLine = remember { prefs.getBoolean(PreferenceConstants.ENTER_NEW_LINE, false) }
     val inboxOn = HomeStart.inboxOn(prefs)
     val keyBar = remember { KeyBarStore(prefs).takeIf { it.enabled }?.layout }

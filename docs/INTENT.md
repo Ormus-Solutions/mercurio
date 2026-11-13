@@ -41,13 +41,13 @@ Known limits: it is line-oriented, so a full-screen TUI that redraws in place
 (rather than streaming lines) will show whatever last rendered, not a semantic
 summary. It does not understand any specific agent's output.
 
-Where this is headed:
+Per-agent state now comes from Herdr, not from the output. On a Herdr host the
+app reads each agent's state (blocked, done, working, idle) and shows it in the
+Inbox, in the Spaces tiles, in the Needs you count and in the Needs you
+notification, which can carry Approve and Deny for Claude Code and Codex. The
+drawer's preview above is unchanged.
 
-- Per-agent awareness: detect Claude/Codex/Grok and surface real state —
-  running vs awaiting input vs finished, the current tool or command, token or
-  cost counters when the agent prints them.
-- A "needs you" signal on rows where an agent is blocked on a prompt, so the
-  operator knows which session to open next.
+Not built: the current tool or command, and token or cost counters.
 
 ## Agent-attention notifications
 
@@ -65,8 +65,8 @@ stay closed.
 
 Known limits: the idle heuristic is timing-based, not semantic — a long pause
 mid-stream can read as "finished", and a chatty log can ping more than you'd
-like. Bell depends on the agent/shell actually ringing it. The semantic
-per-agent detection above is the path to precision.
+like. Bell depends on the agent/shell actually ringing it. On a Herdr host the
+agent's own state replaces both guesses (see above).
 
 ## Non-goals
 
