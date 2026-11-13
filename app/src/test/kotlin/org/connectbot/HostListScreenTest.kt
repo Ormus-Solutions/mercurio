@@ -27,7 +27,12 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
+import androidx.preference.PreferenceManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -41,6 +46,8 @@ import org.connectbot.ui.screens.hostlist.HostListTestTags
 import org.connectbot.ui.screens.hostlist.HostListUiState
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.workspaces.WorkspacesSection
+import org.connectbot.util.PreferenceConstants
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -612,4 +619,56 @@ class HostListScreenTest {
         port = if (protocol == "telnet") 23 else 22,
         color = color,
     )
+
+    private val needsLogged = mutableListOf<String>()
+
+    private fun homeWithNeeds(opened: MutableList<Unit>) {
+        composeTestRule.setContent {
+            ConnectBotTheme {
+                androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { needsLogged += it }) {
+                    HostListScreen(
+                        onNavigateToConsole = {},
+                        onNavigateToEditHost = {},
+                        onNavigateToSettings = {},
+                        onNavigateToPubkeys = {},
+                        onNavigateToPortForwards = {},
+                        onNavigateToProfiles = {},
+                        onNavigateToHelp = {},
+                        onNavigateToNeeds = { opened += Unit },
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aSwipeRightToLeft_withNoQuestionsStore_opensNothing() {
+        PreferenceManager.getDefaultSharedPreferences(composeTestRule.activity).edit().remove(PreferenceConstants.NEEDS_STORE_URL).commit()
+        val opened = mutableListOf<Unit>()
+        homeWithNeeds(opened)
+
+        composeTestRule.onRoot().performTouchInput { swipeLeft() }
+
+        assertTrue(opened.isEmpty())
+        assertTrue("nothing opened, nothing logged", needsLogged.isEmpty())
+    }
+
+    @Test
+    fun aSwipeRightToLeft_withAQuestionsStore_opensTheUnblockView() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(composeTestRule.activity)
+        prefs.edit().putString(PreferenceConstants.NEEDS_STORE_URL, "http://127.0.0.1:9").commit()
+        try {
+            val opened = mutableListOf<Unit>()
+            homeWithNeeds(opened)
+
+            composeTestRule.onRoot().performTouchInput { swipeLeft() }
+            assertEquals(1, opened.size)
+            assertEquals(listOf(org.connectbot.usage.UsageActions.NEEDS_OPEN), needsLogged)
+            // Left to right on the home is not a view change.
+            composeTestRule.onRoot().performTouchInput { swipeRight(startX = width * 0.3f, endX = right) }
+            assertEquals(1, opened.size)
+        } finally {
+            prefs.edit().remove(PreferenceConstants.NEEDS_STORE_URL).commit()
+        }
+    }
 }

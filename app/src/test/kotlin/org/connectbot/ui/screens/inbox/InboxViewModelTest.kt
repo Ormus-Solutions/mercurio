@@ -37,6 +37,7 @@ import org.connectbot.transport.HeadlessSsh
 import org.connectbot.util.PreferenceConstants
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -53,6 +54,7 @@ import solutions.ormus.logos.herd.CoreSource
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentStatus
+import solutions.ormus.logos.herd.HerdrHosts
 import solutions.ormus.logos.herd.HerdrSessionSnapshot
 import solutions.ormus.logos.herd.HerdrTabInfo
 import solutions.ormus.logos.herd.HerdrWorkspaceInfo
@@ -117,7 +119,7 @@ class InboxViewModelTest {
         return p
     }
 
-    private fun bridge(id: Long, nickname: String, coreRead: CoreRead? = null, hostname: String = "box$id", exec: (String) -> CommandOutput?): Pair<TerminalBridge, HerdSession> {
+    private fun bridge(id: Long, nickname: String, coreRead: CoreRead? = null, hostname: String = "box$id", herdrAnswered: Boolean = true, exec: (String) -> CommandOutput?): Pair<TerminalBridge, HerdSession> {
         val snapshot = HerdrSessionSnapshot(
             workspaces = listOf(HerdrWorkspaceInfo("w1", label = "alpha · $nickname", number = 1)),
             tabs = listOf(HerdrTabInfo("w1:t1", workspaceId = "w1", label = "main", number = 1)),
@@ -129,6 +131,7 @@ class InboxViewModelTest {
         `when`(herd.others).thenReturn(MutableStateFlow(emptyMap()))
         `when`(herd.since).thenReturn(AgentSince(clock = { 0L }))
         `when`(herd.coreRead).thenReturn(MutableStateFlow(coreRead))
+        `when`(herd.herdrAnswered).thenReturn(herdrAnswered)
         `when`(herd.exec(org.mockito.kotlin.any())).thenAnswer { exec(it.getArgument(0)) }
         val bridge = mock(TerminalBridge::class.java)
         `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname, hostname = hostname, username = "u"))
@@ -140,7 +143,7 @@ class InboxViewModelTest {
     private val closed = AtomicInteger(0)
 
     /** A login that always works and runs [exec]: nothing here reaches a network. */
-    private fun fakeLinks(saved: List<Host>, exec: (String) -> CommandOutput?, skip: String? = null, live: (() -> List<Host>)? = null) = CoreLinks(
+    private fun fakeLinks(saved: List<Host>, exec: (String) -> CommandOutput?, skip: String? = null, live: (() -> List<Host>)? = null, learned: HerdrHosts = HerdrHosts.inMemory()) = CoreLinks(
         hosts = live ?: { saved },
         login = {
             logins.incrementAndGet()
@@ -160,6 +163,7 @@ class InboxViewModelTest {
                 )
             }
         },
+        learned = learned,
     )
 
     private fun viewModel(core: Boolean, vararg bridges: TerminalBridge, links: CoreLinks = fakeLinks(bridges.map { it.host }, { null })): InboxViewModel {
@@ -195,7 +199,7 @@ class InboxViewModelTest {
         verify(herd, never()).exec(org.mockito.kotlin.any())
     }
 
-    private fun saved(id: Long, nickname: String, hostname: String = "box", post: String? = null) = Host(id = id, nickname = nickname, hostname = hostname, username = "u", postLogin = post)
+    private fun saved(id: Long, nickname: String, hostname: String = "box", post: String? = "herdr") = Host(id = id, nickname = nickname, hostname = hostname, username = "u", postLogin = post)
 
     private val core = solutions.ormus.logos.herd.AgentEngine.CORE
 
@@ -208,8 +212,137 @@ class InboxViewModelTest {
     }
 
     @Test
+    fun aSavedHostThatIsNotHerdr_getsNoLogin_andNoRows() = runTest {
+        val links = fakeLinks(listOf(saved(1, "client", "client.example", post = null), saved(2, "lab", "lab.example", post = "herdr")), { answers(it) })
+        val vm = viewModel(true, links = links)
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core && it.host == "lab" } }
+        Thread.sleep(100)
+        assertEquals(1, logins.get())
+        assertTrue(vm.state.value.rows.none { it.host == "client" })
+    }
+
+    @Test
+    fun aConsoleThatAnsweredHerdr_isLearned_andTheMachineIsStillReadWhenItCloses() = runTest {
+        val links = fakeLinks(listOf(saved(1, "plain", "box1", post = null)), { answers(it) })
+        val (b, _) = bridge(1L, "plain") { answers(it) }
+        val open = viewModel(true, b, links = links)
+        open.refresh()
+        awaitState(open) { s -> s.rows.any { it.agent.engine == core } }
+        assertEquals(0, logins.get())
+
+        val closed = viewModel(true, links = links)
+        closed.refresh()
+        awaitState(closed) { s -> s.rows.any { it.agent.engine == core && it.host == "plain" } }
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun aConsoleThatFoundNoHerdr_isNotLearned_andNoLoginFollowsItsClose() = runTest {
+        val learned = HerdrHosts.inMemory()
+        val links = fakeLinks(listOf(saved(1, "client", "box1", post = null)), { answers(it) }, learned = learned)
+        val (b, _) = bridge(1L, "client", herdrAnswered = false) { answers(it) }
+        val open = viewModel(true, b, links = links)
+        open.refresh()
+        Thread.sleep(100)
+        assertEquals(emptySet<String>(), learned.learned())
+        assertEquals(0, logins.get())
+
+        val closed = viewModel(true, links = links)
+        closed.refresh()
+        Thread.sleep(100)
+        assertEquals(0, logins.get())
+        assertTrue(closed.state.value.rows.none { it.agent.engine == core })
+    }
+
+    @Test
+    fun aHostWithHerdrCoreAndNoHerdrTui_comesBackAfterOneOpen_throughTheSessionsRead() = runTest {
+        val learned = HerdrHosts.inMemory()
+        val links = fakeLinks(listOf(saved(1, "core", "box1", post = null)), { answers(it) }, learned = learned)
+        val (b, _) = bridge(1L, "core", coreRead = sessionRead("core"), herdrAnswered = false) { answers(it) }
+        val open = viewModel(true, b, links = links)
+        open.refresh()
+        awaitState(open) { s -> s.rows.any { it.agent.engine == core } }
+        assertEquals(setOf("box1:22:u"), learned.learned())
+
+        val closed = viewModel(true, links = links)
+        closed.refresh()
+        awaitState(closed) { s -> s.rows.any { it.agent.engine == core && it.host == "core" } }
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun aSessionReadThatIsNotAgents_learnsNothing() = runTest {
+        val learned = HerdrHosts.inMemory()
+        val none = CoreRead(CoreSource.Result.Unavailable("could not reach the host"), System.currentTimeMillis())
+        val (b, _) = bridge(1L, "client", coreRead = none, herdrAnswered = false) { answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "client", "box1", post = null)), { answers(it) }, learned = learned))
+        vm.refresh()
+        Thread.sleep(100)
+        assertEquals(emptySet<String>(), learned.learned())
+    }
+
+    @Test
+    fun aMachineWithALiveConsoleAndNoHerdrCore_isNotLearnedAndForgottenOnEachRefresh() = runTest {
+        val writes = AtomicInteger(0)
+        var held = emptySet<String>()
+        val learned = HerdrHosts({ held }, {
+            held = it
+            writes.incrementAndGet()
+        })
+        val (b, _) = bridge(1L, "tui") { if ("--version" in it) CommandOutput("", "", 127) else answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "tui", "box1", post = null)), { answers(it) }, learned = learned))
+        repeat(3) {
+            vm.refresh()
+            awaitState(vm) { s -> s.notes.any { CoreSource.NOT_INSTALLED in it } }
+            Thread.sleep(50)
+        }
+        assertEquals("learned once, never forgotten while its console is open", 1, writes.get())
+        assertEquals(setOf("box1:22:u"), held)
+    }
+
+    @Test
+    fun aVersionProbeThatFailsWithAnotherExit_doesNotForgetALearnedMachine() = runTest {
+        val learned = HerdrHosts.inMemory(setOf("box1:22:u"))
+        val links = fakeLinks(listOf(saved(1, "flaky", "box1", post = null)), { if ("--version" in it) CommandOutput("", "boom", 1) else CommandOutput("", "", 0) }, learned = learned)
+        val vm = viewModel(true, links = links)
+        vm.refresh()
+        awaitState(vm) { s -> s.notes.any { "failed" in it } }
+        assertEquals(setOf("box1:22:u"), learned.learned())
+        assertTrue(vm.state.value.notes.none { CoreSource.NOT_INSTALLED in it })
+    }
+
+    @Test
+    fun anInboxWithNoHerdrMachine_saysWhy_andNotWhenOneIsKnown() = runTest {
+        val none = viewModel(true, links = fakeLinks(listOf(saved(1, "client", "box1", post = null)), { answers(it) }))
+        none.refresh()
+        awaitState(none) { s -> s.loaded }
+        assertTrue(none.state.value.noHerdrMachine)
+
+        val known = viewModel(true, links = fakeLinks(listOf(saved(1, "lab", "box1", post = "herdr")), { answers(it) }))
+        known.refresh()
+        awaitState(known) { s -> s.rows.any { it.agent.engine == core } }
+        assertFalse(known.state.value.noHerdrMachine)
+    }
+
+    @Test
+    fun aLearnedMachineThatSaysNotInstalled_isForgotten_andNotLoggedInToAgain() = runTest {
+        val learned = HerdrHosts.inMemory(setOf("box1:22:u"))
+        val links = fakeLinks(listOf(saved(1, "gone", "box1", post = null)), { if ("--version" in it) CommandOutput("", "", 127) else CommandOutput("", "", 0) }, learned = learned)
+        val vm = viewModel(true, links = links)
+        vm.refresh()
+        awaitState(vm) { s -> s.notes.any { CoreSource.NOT_INSTALLED in it } }
+        assertEquals(1, logins.get())
+        assertEquals(emptySet<String>(), learned.learned())
+
+        vm.refresh()
+        Thread.sleep(100)
+        assertEquals(1, logins.get())
+    }
+
+    @Test
     fun fiveSavedRowsOfOneMachine_areOneLogin_andOneSetOfRows() = runTest {
-        val hosts = listOf(saved(1, "shell"), saved(2, "plain", post = "herdr"), saved(3, "a", post = "herdr session attach 'x'"), saved(4, "b", post = "herdr session attach 'y'"), saved(5, "c", post = "herdr session attach 'z'"))
+        val hosts = listOf(saved(1, "shell", post = null), saved(2, "plain", post = "herdr"), saved(3, "a", post = "herdr session attach 'x'"), saved(4, "b", post = "herdr session attach 'y'"), saved(5, "c", post = "herdr session attach 'z'"))
         val vm = viewModel(true, links = fakeLinks(hosts, { answers(it) }))
         vm.refresh()
         awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }

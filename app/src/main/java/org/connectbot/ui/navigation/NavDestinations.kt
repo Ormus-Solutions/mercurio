@@ -47,6 +47,9 @@ object NavDestinations {
     /** The Inbox: every agent of every connected host, sorted by what it needs. */
     const val INBOX = "inbox"
 
+    /** The Unblock view: the questions store's open asks, one at a time, opened by a swipe on the home. */
+    const val NEEDS = "needs"
+
     /** The Spaces list: the herdr-core spaces of every connected host, a box per tab. */
     const val SPACES = "spaces"
 

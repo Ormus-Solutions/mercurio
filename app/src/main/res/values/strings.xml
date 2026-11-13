@@ -1972,6 +1972,36 @@
 	<string name="pref_home_feed_read">Workboards: %1$d, read %2$s.</string>
 	<!-- Settings: under the feed URL after a read that failed. %1$s is the reason -->
 	<string name="pref_home_feed_failed">Not read: %1$s</string>
+	<!-- Settings: item holding the address of the questions store the Unblock view reads its asks from -->
+	<string name="pref_needs_store_title">Questions store</string>
+	<!-- Settings: shown under "Questions store" when no address is set -->
+	<string name="pref_needs_store_none">None. With the address of a questions store, a swipe on the home opens its questions one at a time.</string>
+	<!-- Settings: placeholder in the "Questions store" editor; leaving it empty clears the address -->
+	<string name="pref_needs_store_hint">https://…/needs (empty clears it)</string>
+	<!-- Unblock view: where the question on screen stands in the pass. %1$d is its place, %2$d how many there are -->
+	<string name="needs_position">%1$d of %2$d</string>
+	<!-- Unblock view: key that puts the question off to the end of the pass; the store is not told -->
+	<string name="needs_later">Later</string>
+	<!-- Unblock view: key that goes back to the home -->
+	<string name="needs_home">Home</string>
+	<!-- Unblock view: one line after an answer to a question that was closed before it -->
+	<string name="needs_closed">That question is already closed.</string>
+	<!-- Unblock view: one line when the questions store does not let this phone in -->
+	<string name="needs_refused">The questions store refused this phone.</string>
+	<!-- Unblock view: one line after a call to the questions store that failed. %1$s is the reason -->
+	<string name="needs_failed">Not reached: %1$s</string>
+	<!-- Unblock view: shown before the first read of the questions store came back -->
+	<string name="needs_reading">Reading the questions</string>
+	<!-- Unblock view: shown when no open question is left in this pass -->
+	<string name="needs_none">No open question left in this pass.</string>
+	<!-- Unblock view: one line under a question that has no option to tap -->
+	<string name="needs_no_options">This question has no options. Answer it on the page.</string>
+	<!-- Inbox: one line when no Herdr machine is known yet, so the list may be empty -->
+	<string name="inbox_no_herdr_machine">No Herdr machine known yet: open a Herdr host once.</string>
+	<!-- Inbox: key that opens the Unblock view. %1$d is how many questions of the questions store are open -->
+	<string name="inbox_unblock">Unblock (%1$d)</string>
+	<!-- Unblock view: one line when open questions take several answers; this view leaves them out and the page answers them -->
+	<string name="needs_on_page">Some questions take several answers. Answer them on the page.</string>
 	<!-- Settings: item that opens the wish list -->
 	<string name="pref_wishes_title">Wish list</string>
 	<!-- Settings: status under "Wish list". %1$d is how many entries are open, %2$d how many changes wait to upload to the usage host -->
@@ -2215,7 +2245,7 @@
 	<string name="settings_panel_inbox_on">The home has an Inbox key, and a long press on Needs you opens it.</string>
 	<string name="settings_panel_inbox_off">The Needs you key opens the Agents board on a long press.</string>
 	<string name="settings_panel_core_switch">Include herdr-core agents</string>
-	<string name="settings_panel_core_on">While the Inbox shows, Mercurio logs in in the background to the machine of each saved host and reads herdr-core there.</string>
+	<string name="settings_panel_core_on">While the Inbox or Spaces shows, Mercurio logs in in the background only to Herdr machines: a saved host that starts Herdr at login, or a machine where a Herdr session was opened or herdr-core agents were read. It reads herdr-core there. No other saved host is touched.</string>
 	<string name="settings_panel_core_off">The Inbox lists Herdr agents only.</string>
 	<!-- Spaces: the herdr-core spaces of a host, a box per tab -->
 	<!-- Title of the Spaces screen -->

@@ -180,6 +180,24 @@ object UsageActions {
     const val PLACES_SPACES = "places:spaces"
     const val PLACES_HOSTS = "places:hosts"
 
+    // Settings: the questions store address was saved or cleared (never the address itself).
+    const val NEEDS_STORE_SET = "needs:store-set"
+
+    // The Unblock view, opened by a swipe on the home: one ask of the questions store at a time.
+    const val NEEDS_OPEN = "needs:open"
+
+    // An option of a single-choice ask was tapped: its answer was sent (never the label).
+    const val NEEDS_ANSWER = "needs:answer"
+
+    // Later: the ask goes to the end of the pass; the store is not told.
+    const val NEEDS_LATER = "needs:later"
+
+    // The Home key of the Unblock view, or its swipe from left to right: back to where it was opened.
+    const val NEEDS_HOME = "needs:home"
+
+    // The Unblock key on the Inbox: it opens the Unblock view.
+    const val NEEDS_INBOX_KEY = "needs:inbox-key"
+
     // Console top bar, overflow menu and the disconnected overlay.
     const val CONSOLE_BACK = "console:back"
     const val CONSOLE_TEXT_INPUT = "console:text-input"
@@ -457,6 +475,7 @@ object UsageActions {
         WORKSPACES_OPEN, HOME_FEED_SET, WORKBOARDS_OPEN, WORKBOARDS_SAVE_HOST,
         INBOX_OPEN, INBOX_SEARCH, INBOX_PIN, INBOX_UNPIN, INBOX_MARK_READ, INBOX_ESC, INBOX_FOLD, INBOX_HELPERS,
         SPACES_OPEN_TAB, PLACES_INBOX, PLACES_SPACES, PLACES_HOSTS,
+        NEEDS_STORE_SET, NEEDS_OPEN, NEEDS_ANSWER, NEEDS_LATER, NEEDS_HOME, NEEDS_INBOX_KEY,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,
         MENU_RECONNECT, MENU_DISCONNECT, MENU_URL_SCAN, MENU_RESIZE, MENU_PORT_FORWARDS,
         MENU_FULLSCREEN, MENU_TITLE_BAR, MENU_WISH, MENU_COPY_DETAILS, MENU_SEND_ERROR,

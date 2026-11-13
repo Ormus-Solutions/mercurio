@@ -94,6 +94,7 @@ import org.connectbot.ui.components.FontDownloadProgressDialog
 import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.home.HomeFeedSetting
 import org.connectbot.ui.machines.MachineUsernamesSetting
+import org.connectbot.ui.needs.NeedsStoreSetting
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.util.LanguageDownloadState
@@ -215,7 +216,13 @@ fun SettingsScreen(
         onBellVibrateChange = viewModel::updateBellVibrate,
         onBellNotificationChange = viewModel::updateBellNotification,
         modifier = modifier,
-        homeSection = { HomeFeedSetting() },
+        homeSection = {
+            // One lazy item: a column, so the two rows stack instead of sharing a spot.
+            Column {
+                HomeFeedSetting()
+                NeedsStoreSetting()
+            }
+        },
         machinesSection = { MachineUsernamesSetting() },
         usageSection = { UsageSettingsSection() },
     )

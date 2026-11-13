@@ -85,9 +85,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import org.connectbot.R
 import org.connectbot.ui.LocalTerminalManager
+import org.connectbot.ui.components.KeyTone
 import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.WORD_KEY_PADDING
+import org.connectbot.ui.needs.NeedsCountViewModel
 import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusTokens
@@ -99,6 +101,9 @@ import solutions.ormus.logos.herd.RowAction
 
 /** Test tag of the search field. */
 const val INBOX_SEARCH_TAG = "inbox_search"
+
+/** Test tag of the Unblock key on the Inbox. */
+const val INBOX_UNBLOCK_TAG = "inbox_unblock"
 
 /** Test tag of every agent row. */
 const val INBOX_ROW_TAG = "inbox_row"
@@ -134,7 +139,9 @@ fun InboxScreen(
     onOpen: (InboxRow) -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigateToNeeds: () -> Unit = {},
     viewModel: InboxViewModel = hiltViewModel(),
+    needsViewModel: NeedsCountViewModel = hiltViewModel(),
 ) {
     val terminalManager = LocalTerminalManager.current
     LaunchedEffect(terminalManager) { terminalManager?.let { viewModel.setTerminalManager(it) } }
@@ -142,6 +149,11 @@ fun InboxScreen(
     LaunchedEffect(viewModel, lifecycleOwner, terminalManager) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.watch() }
     }
+    // The Unblock key counts the questions store's open asks while the Inbox shows.
+    LaunchedEffect(needsViewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { needsViewModel.watch() }
+    }
+    val unblock by needsViewModel.count.collectAsState()
     val state by viewModel.state.collectAsState()
     val now by produceState(System.currentTimeMillis()) {
         while (true) {
@@ -149,7 +161,7 @@ fun InboxScreen(
             value = System.currentTimeMillis()
         }
     }
-    InboxContent(rows = state.rows, notes = state.notes, loading = !state.loaded, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, modifier = modifier)
+    InboxContent(rows = state.rows, notes = state.notes + listOfNotNull(stringResource(R.string.inbox_no_herdr_machine).takeIf { state.noHerdrMachine }), loading = !state.loaded, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, unblock = unblock, onUnblock = onNavigateToNeeds, modifier = modifier)
 }
 
 /** The Inbox on [rows]: a search field, then one group per state, each folded after three rows. */
@@ -164,6 +176,9 @@ fun InboxContent(
     modifier: Modifier = Modifier,
     onAction: (InboxRow, RowAction) -> Unit = { _, _ -> },
     loading: Boolean = false,
+    /** The open questions of the questions store, or null with no store address: then there is no Unblock key. */
+    unblock: Int? = null,
+    onUnblock: () -> Unit = {},
 ) {
     val usage = LocalUsageLog.current
     // Each log is the id of the action alone; the row is passed on untouched.
@@ -225,6 +240,20 @@ fun InboxContent(
             contentPadding = PaddingValues(Ormus.spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Ormus.spacing.lg),
         ) {
+            unblock?.let { count ->
+                item(key = "unblock") {
+                    OrmusKey(
+                        label = stringResource(R.string.inbox_unblock, count),
+                        onClick = {
+                            usage.log(UsageActions.NEEDS_INBOX_KEY)
+                            onUnblock()
+                        },
+                        tone = if (count > 0) KeyTone.ON else KeyTone.PLAIN,
+                        contentPadding = WORD_KEY_PADDING,
+                        modifier = Modifier.fillMaxWidth().testTag(INBOX_UNBLOCK_TAG),
+                    )
+                }
+            }
             item(key = "search") {
                 SearchField(query = query, onChange = {
                     // One id when a search starts, not one per key.

@@ -7,8 +7,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 The seals of one kintsugi pass, by pull request number. The entries below are upstream ConnectBot's.
 
 ### Added
+- Unblock: the Inbox key Unblock (N) and a swipe on the home open the questions store's open asks one at a time, and one tap answers a single-choice ask (#266)
 - Inbox: helper terminals fold under their parent row (#290)
 - Spaces: each tab tile shows its name and its agent's state (#294)
+
+### Changed
+- The Inbox and Spaces log in in the background only to Herdr machines (a saved host that starts Herdr at login, or a machine where a console found Herdr), not to every saved host (#305)
 
 ### Fixed
 - Inbox: while a console to a machine is open, show the Herd session's fresh herdr-core agents read instead of polling the host a second time (#303)

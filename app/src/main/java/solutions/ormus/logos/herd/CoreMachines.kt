@@ -24,6 +24,7 @@ import org.connectbot.data.HostRepository
 import org.connectbot.data.PubkeyRepository
 import org.connectbot.data.entity.Host
 import org.connectbot.service.HerdOfflineAnswer
+import org.connectbot.service.TerminalBridge
 import org.connectbot.transport.CommandOutput
 import org.connectbot.transport.HeadlessSession
 import org.connectbot.transport.HeadlessSsh
@@ -38,7 +39,7 @@ import kotlin.concurrent.thread
 /**
  * The machines behind the saved hosts. The Herdr app keeps one connection per machine and shows
  * all of them at once; Mercurio saves one host per login (`herdr`, `herdr session attach 'x'`, a
- * plain shell), so five rows can be one machine. The Inbox and Spaces read herdr-core per machine.
+ * plain shell), so five rows can be one machine. The Inbox and Spaces read herdr-core per Herdr machine only.
  */
 object CoreMachines {
     /** One machine: [hosts] are its saved logins, [primary] first. */
@@ -56,6 +57,22 @@ object CoreMachines {
         .distinctBy { it.id }
         .groupBy { keyOf(it) }
         .map { (key, same) -> Machine(key, same.sortedBy { if (it.postLogin?.trim() == PLAIN_HERDR) 0 else 1 }) }
+
+    /** Whether a saved host of [machine] starts Herdr at login: its post-login command is `herdr`, after `exec` or not. */
+    fun marked(machine: Machine): Boolean = machine.hosts.any { startsHerdr(it.postLogin) }
+
+    // The command is herdr (a path to it, or after exec): `cd ~/herdr && claude`, `tail -f /var/log/herdr` and `ssh m herdr` are not.
+    private val STARTS_HERDR = Regex("""^(exec\s+)?(\S*/)?herdr(?=[\s;&|)]|$)""")
+
+    internal fun startsHerdr(postLogin: String?): Boolean {
+        val command = postLogin?.trim().orEmpty()
+        return STARTS_HERDR.containsMatchIn(command) && HerdrOpen.attached(command) != null
+    }
+
+    /** The hosts of the consoles that found Herdr: the Herd session saw a Herdr snapshot, or its herdr-core read returned agents. */
+    fun liveHosts(bridges: List<TerminalBridge>): List<Host> = bridges
+        .filter { b -> b.herd?.let { it.herdrAnswered || it.coreRead.value?.result is CoreSource.Result.Agents } == true }
+        .map { it.host }
 
     /** The machine [host] logs in to: hostname, port and user. */
     fun keyOf(host: Host) = "${host.hostname.trim().lowercase(Locale.ROOT)}:${host.port}:${host.username.trim()}"
@@ -77,10 +94,11 @@ class CoreLinks internal constructor(
     private val login: suspend (CoreMachines.Machine) -> Opened,
     private val clock: () -> Long = System::currentTimeMillis,
     private val pool: CoreConnections = CoreConnections(lingerMs = 0),
+    private val learned: HerdrHosts = HerdrHosts.inMemory(),
 ) : AutoCloseable {
     @Inject
-    constructor(hostRepository: HostRepository, pubkeyRepository: PubkeyRepository, pool: CoreConnections) :
-        this({ hostRepository.getHosts() }, { openHeadless(it, hostRepository, pubkeyRepository) }, pool = pool)
+    constructor(hostRepository: HostRepository, pubkeyRepository: PubkeyRepository, pool: CoreConnections, learned: HerdrHosts) :
+        this({ hostRepository.getHosts() }, { openHeadless(it, hostRepository, pubkeyRepository) }, pool = pool, learned = learned)
 
     /** What a login came to. */
     sealed interface Opened {
@@ -104,8 +122,24 @@ class CoreLinks internal constructor(
     private var generation = 0
     private var open = true
 
-    /** The saved hosts, and [open] (hosts with a console that may not be saved), as machines. */
-    suspend fun machines(open: List<Host> = emptyList()): List<CoreMachines.Machine> = CoreMachines.group(hosts() + open)
+    /**
+     * The Herdr machines among the saved hosts and [live] (hosts with a console that found Herdr, saved or not):
+     * a machine a saved host marks, one in [HerdrHosts], or one of [live], which is added to the list so it
+     * is still looked at when its console closes. Any other saved host gets no background login. The list is
+     * tidied here too ([HerdrHosts.reconcile]): the key of a deleted host goes, and so does the key of a machine
+     * whose saved host was edited to stop starting Herdr.
+     */
+    suspend fun machines(live: List<Host> = emptyList()): List<CoreMachines.Machine> {
+        val all = CoreMachines.group(hosts() + live)
+        val keys = all.map { it.key }.toSet()
+        val marked = all.filter(CoreMachines::marked).map { it.key }.toSet()
+        val liveKeys = live.map(CoreMachines::keyOf).filter { it in keys }.toSet()
+        val known = learned.reconcile(keys, marked, liveKeys)
+        return all.filter { it.key in marked || it.key in known }
+    }
+
+    /** Herdr is not on [machine]: it is not looked at again until a console to it finds Herdr. A marked machine stays marked. */
+    fun forget(machine: CoreMachines.Machine) = learned.forget(machine.key)
 
     /** Links can be made again: the screen shows. */
     fun reopen() {

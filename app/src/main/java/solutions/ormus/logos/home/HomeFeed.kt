@@ -202,7 +202,7 @@ class HomeFeed(
             }
         }
 
-        private fun readCapped(stream: InputStream): String {
+        internal fun readCapped(stream: InputStream): String {
             val out = ByteArrayOutputStream()
             val buffer = ByteArray(8192)
             while (true) {

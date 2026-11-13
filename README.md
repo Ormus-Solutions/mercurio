@@ -131,7 +131,7 @@ management come from ConnectBot. Mercurio is maintained by
 
 ### Inbox and Spaces
 
-- **Inbox.** Every agent of every host in one list, in sections by state (Needs
+- **Inbox.** Every agent of every Herdr machine in one list, in sections by state (Needs
   you, Done, Working, Idle, Unknown) with a search field. A dot marks output you
   have not seen. Helper terminals fold under their parent row, which shows how
   many there are; a tap opens them (they start open while one needs you). Each
@@ -144,10 +144,29 @@ management come from ConnectBot. Mercurio is maintained by
   home's bottom bar shows the Inbox while it is on and Spaces while Include
   herdr-core agents is on.
 - **herdr-core.** With Include herdr-core agents on, the Inbox and Spaces also
-  read herdr-core on the machine of each saved host. A terminal there opens on
+  read herdr-core on each Herdr machine. A machine is a Herdr machine when a
+  saved host of it starts Herdr at login (a post-login whose command is `herdr`,
+  after `exec` or not, or a path to it, with or without `session attach`: a
+  command that only has the word herdr in it does not count), or when a console
+  to it found Herdr or its Herd session read herdr-core agents: Mercurio then
+  remembers the machine in its preferences. It forgets it when herdr-core there
+  says it is not installed (command not found), when its saved host is edited
+  to start something else, or when its host is deleted. A saved host with a
+  plain shell login is not read until you open it once and Herdr or herdr-core
+  answers, and the Inbox says so when no Herdr machine is known. A terminal there opens on
   the machine's one shared SSH link when it has one, instead of a login of its
   own; a link that has been quiet is probed first, and a new login is made only
   if the probe fails.
+- **Unblock.** With the address of a questions store set in Settings (Home,
+  "Questions store"), the Inbox has an Unblock (N) key, N being the open
+  questions the view walks, and a swipe from right to left on the home does the
+  same: both open a view that shows the questions one at a time. One tap on an
+  option answers a single-choice question; Later puts one off. A question that
+  takes several answers is answered on the store's page and is not counted. A
+  question with no option is counted and shown, with a line that sends you to
+  the page. With no address set, the key is not there, the swipe opens nothing
+  and no call is made; the key also waits for the store's first answer and goes
+  when the store refuses this phone.
 - **Spaces.** The herdr-core spaces of each machine, one tile per tab. A tile
   carries the tab's name and, when an agent in it has a known state, its color
   and a mark in the corner (a different shape for each state).
@@ -256,9 +275,16 @@ change on an emulator, follow
   and labels, never pane text, prompts or secrets. Mercurio reads the pane over
   SSH after it wakes.
 - **Background logins for the Inbox.** With Include herdr-core agents on,
-  the Inbox logs in to the machine of each saved host while it shows, to read
-  herdr-core there. A machine that has no herdr-core is asked again only every
-  few minutes, or when the Inbox opens. Turn the setting off and no login is made.
+  the Inbox and Spaces log in, while they show, only to Herdr machines: a
+  saved host that starts Herdr at login, or a machine where a console found
+  Herdr or herdr-core. No other saved host gets a login. A machine that has no herdr-core is
+  asked again only every few minutes, or when the Inbox opens, and a remembered
+  machine that has none is dropped from the list. Turn the setting off and no
+  login is made.
+- **Questions store.** With a store address set in Settings, the Unblock view
+  and the Inbox's Unblock key call that address only: they read its open
+  questions and send the option you tap as the answer. Nothing else is sent, no
+  other address is called, and with no address set no call is made.
 - **Usage log.** Mercurio keeps a log of which controls you use, to guide
   design. It records action ids, never typed text, terminal output, hostnames,
   usernames, keys or passwords. It is stored in the app's private files.

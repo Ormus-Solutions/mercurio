@@ -119,6 +119,7 @@ import org.connectbot.ui.home.HomeBoardsViewModel
 import org.connectbot.ui.home.WorkboardsSection
 import org.connectbot.ui.machines.MachinesSection
 import org.connectbot.ui.machines.MachinesViewModel
+import org.connectbot.ui.needs.viewSwipe
 import org.connectbot.ui.screens.inbox.InboxEntry
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.connectbot.ui.theme.Ormus
@@ -139,6 +140,7 @@ import solutions.ormus.logos.home.HomeHosts
 import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.home.HomeWorkboards
 import solutions.ormus.logos.home.HostPlace
+import solutions.ormus.logos.home.NeedsStore
 
 internal object HostListTestTags {
     fun itemRow(hostId: Long): String = "host_item_${hostId}_row"
@@ -157,6 +159,7 @@ fun HostListScreen(
     onNavigateToHelp: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigateToInbox: () -> Unit = {},
+    onNavigateToNeeds: () -> Unit = {},
     onNavigateToSettingsHighlightConnPersist: () -> Unit = {},
     makingShortcut: Boolean = false,
     onSelectShortcut: (Host, String?, IconStyle) -> Unit = { _, _, _ -> },
@@ -174,6 +177,21 @@ fun HostListScreen(
     val terminalManager = LocalTerminalManager.current
     val workspaces by workspacesViewModel.workspaces.collectAsState()
     val inboxOn = remember(context) { HomeStart.inboxOn(PreferenceManager.getDefaultSharedPreferences(context)) }
+    // Right to left on the home: the Unblock view, once a questions store is set; with none the swipe does nothing.
+    val homeUsage = LocalUsageLog.current
+    val toNeeds by rememberUpdatedState(onNavigateToNeeds)
+    val swipeToNeeds = remember(context, makingShortcut, homeUsage) {
+        if (makingShortcut) {
+            null
+        } else {
+            {
+                if (NeedsStore.addressOf(PreferenceManager.getDefaultSharedPreferences(context)).isNotEmpty()) {
+                    homeUsage.log(UsageActions.NEEDS_OPEN)
+                    toNeeds()
+                }
+            }
+        }
+    }
 
     LaunchedEffect(terminalManager) {
         terminalManager?.let { viewModel.setTerminalManager(it) }
@@ -347,6 +365,7 @@ fun HostListScreen(
         shouldShowNotificationWarning = shouldShowNotificationWarning,
         onNotificationSnackbarFinish = onNotificationSnackbarFinish,
         modifier = modifier,
+        onSwipeToNeeds = swipeToNeeds,
         // The feed's workboards first; no item at all while the feed has none. A board's Save key
         // saves the row the board lacks; the row then shows under Hosts and the key goes.
         workboards = if (!makingShortcut && blocks.isNotEmpty()) {
@@ -421,6 +440,7 @@ fun HostListScreenContent(
     workboards: (@Composable () -> Unit)? = null,
     places: Map<Long, HostPlace> = emptyMap(),
     sortedByPlace: Boolean = false,
+    onSwipeToNeeds: (() -> Unit)? = null,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectAllDialog by remember { mutableStateOf(false) }
@@ -578,7 +598,7 @@ fun HostListScreenContent(
                 }
             }
         },
-        modifier = modifier,
+        modifier = modifier.viewSwipe(onLeft = onSwipeToNeeds),
     ) { padding ->
         Box(
             modifier = Modifier

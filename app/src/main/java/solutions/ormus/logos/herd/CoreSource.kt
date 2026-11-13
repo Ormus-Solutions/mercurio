@@ -64,6 +64,9 @@ class CoreSource {
     // and a read that started before it does not store its answer.
     @Volatile private var missingAt: Long? = null
 
+    // What that answer said (not installed, or why the probe failed otherwise); read with [missingAt].
+    @Volatile private var missingWhy: String = NOT_INSTALLED
+
     @Volatile private var generation = 0
 
     /** Forget a "not installed" answer so the next read asks the host again: the Inbox calls it when it opens. */
@@ -95,15 +98,24 @@ class CoreSource {
 
         if (!installed) {
             val missing = missingAt
-            if (missing != null && now - missing in 0 until RECHECK_MS) return Result.Unavailable(NOT_INSTALLED)
+            if (missing != null && now - missing in 0 until RECHECK_MS) return Result.Unavailable(missingWhy)
             val asked = generation
             val answer = run(HerdrApi.loginShell(VERSION_CMD))
                 ?: return Result.Unavailable("could not reach the host")
             // A channel closed with no exit status says nothing: it is asked again like an unreachable host.
             if (answer.exitCode == null) return Result.Unavailable("could not reach the host")
             if (answer.exitCode != 0 || answer.stdout.isBlank()) {
-                if (generation == asked) missingAt = now
-                return Result.Unavailable(NOT_INSTALLED)
+                // Only "command not found" says herdr-core is not there; any other failure is a probe that failed.
+                val why = when (answer.exitCode) {
+                    COMMAND_NOT_FOUND -> NOT_INSTALLED
+                    0 -> "herdr-core --version printed nothing"
+                    else -> "herdr-core --version failed (exit ${answer.exitCode})"
+                }
+                if (generation == asked) {
+                    missingWhy = why
+                    missingAt = now
+                }
+                return Result.Unavailable(why)
             }
             missingAt = null
             version = answer.stdout.lineSequence().firstOrNull()?.trim()
@@ -291,6 +303,9 @@ class CoreSource {
 
         /** The reason of [Result.Unavailable] for a host whose `--version` did not answer. */
         const val NOT_INSTALLED = "herdr-core is not installed on this host"
+
+        /** The exit status of a shell that did not find the command. */
+        private const val COMMAND_NOT_FOUND = 127
 
         /** How long a "not installed" answer stands before the host is asked again, milliseconds. */
         const val RECHECK_MS = 5 * 60 * 1000L

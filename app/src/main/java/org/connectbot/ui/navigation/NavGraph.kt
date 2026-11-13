@@ -29,6 +29,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import org.connectbot.data.entity.Host
+import org.connectbot.ui.needs.NeedsScreen
 import org.connectbot.ui.screens.colors.ColorsScreen
 import org.connectbot.ui.screens.colors.PaletteEditorScreen
 import org.connectbot.ui.screens.console.ConsoleScreen
@@ -103,6 +104,7 @@ fun ConnectBotNavHost(
                     navController.navigateSafely(NavDestinations.HELP)
                 },
                 onNavigateToInbox = { navController.navigateSafely(NavDestinations.INBOX) },
+                onNavigateToNeeds = { navController.navigateSafely(NavDestinations.NEEDS) },
                 shouldShowNotificationWarning = shouldShowNotificationWarning,
                 onNotificationSnackbarFinish = onNotificationSnackbarFinish,
             )
@@ -188,7 +190,12 @@ fun ConnectBotNavHost(
                     }
                 },
                 onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() },
+                onNavigateToNeeds = { navController.navigateSafely(NavDestinations.NEEDS) },
             )
+        }
+
+        composable(NavDestinations.NEEDS) {
+            NeedsScreen(onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() })
         }
 
         composable(NavDestinations.SPACES) {

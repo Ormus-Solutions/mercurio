@@ -24,6 +24,7 @@ import org.connectbot.transport.CommandOutput
 import org.connectbot.transport.HeadlessSession
 import org.connectbot.transport.HeadlessSsh
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,6 +46,142 @@ class CoreMachinesTest {
     fun anotherPortUserOrMachine_isAnotherMachine_andOnlySshCounts() {
         val machines = CoreMachines.group(listOf(host(1, "a"), host(2, "b", port = 2222), host(3, "c", user = "v"), host(4, "d", hostname = "other.example"), host(5, "t", protocol = "telnet"), host(6, "e", hostname = " ")))
         assertEquals(listOf(1L, 2L, 3L, 4L), machines.map { it.primary.id })
+    }
+
+    @Test
+    fun aMachineIsMarkedHerdr_whenAHostOfItStartsHerdrAtLogin() {
+        fun marked(post: String?) = CoreMachines.marked(CoreMachines.group(listOf(host(1, "h", post = post))).single())
+        assertTrue(marked("herdr"))
+        assertTrue(marked("exec herdr"))
+        assertTrue(marked("herdr session attach 'work'"))
+        assertTrue(marked("/usr/local/bin/herdr"))
+        assertTrue(marked("exec ~/.local/bin/herdr session attach 'work'"))
+        assertFalse(marked(null))
+        assertFalse(marked(""))
+        assertFalse(marked("bash"))
+        // The word herdr somewhere in a command is not a start of Herdr.
+        assertFalse(marked("cd ~/projects/herdr && claude"))
+        assertFalse(marked("tail -f /var/log/herdr"))
+        assertFalse(marked("ssh other herdr"))
+        // It attaches another machine's Herdr: this host is only the way there.
+        assertFalse(marked("herdr --remote other"))
+    }
+
+    @Test
+    fun machines_leavesOutAHostThatIsNotHerdr_andKeepsAMarkedOne() = runBlocking {
+        val links = CoreLinks({ listOf(host(1, "client", hostname = "client.example"), host(2, "lab", hostname = "lab.example", post = "herdr")) }, { error("no login") })
+        assertEquals(listOf(2L), links.machines().map { it.primary.id })
+    }
+
+    @Test
+    fun aMachineWithALiveHerdrConsole_isKept_andLearnedForWhenTheConsoleCloses() = runBlocking {
+        val learned = HerdrHosts.inMemory()
+        val plain = host(1, "plain", hostname = "plain.example")
+        val links = CoreLinks({ listOf(plain) }, { error("no login") }, learned = learned)
+        assertEquals(emptyList<Long>(), links.machines().map { it.primary.id })
+        assertEquals(listOf(1L), links.machines(live = listOf(plain)).map { it.primary.id })
+        assertEquals(listOf(1L), links.machines().map { it.primary.id })
+        assertEquals(setOf("plain.example:22:u"), learned.learned())
+    }
+
+    @Test
+    fun aLiveHerdrHostThatIsNotSaved_isRead_too() = runBlocking {
+        val links = CoreLinks({ emptyList() }, { error("no login") })
+        assertEquals(listOf(7L), links.machines(live = listOf(host(7, "temp", hostname = "temp.example"))).map { it.primary.id })
+    }
+
+    @Test
+    fun forget_dropsALearnedMachine_butNeverAMarkedOne() = runBlocking {
+        val marked = host(1, "lab", hostname = "lab.example", post = "herdr")
+        val learnedOnly = host(2, "box", hostname = "box.example")
+        val learned = HerdrHosts.inMemory(setOf("lab.example:22:u", "box.example:22:u"))
+        val links = CoreLinks({ listOf(marked, learnedOnly) }, { error("no login") }, learned = learned)
+        links.machines().forEach { links.forget(it) }
+        assertEquals(listOf(1L), links.machines().map { it.primary.id })
+        assertEquals(emptySet<String>(), learned.learned())
+    }
+
+    @Test
+    fun aHostEditedToAPlainShell_forgetsTheMachine_evenWhenAConsoleLearnedItBefore() = runBlocking {
+        val lab = host(1, "lab", hostname = "lab.example", post = "herdr")
+        var saved = listOf(lab)
+        val learned = HerdrHosts.inMemory()
+        val links = CoreLinks({ saved }, { error("no login") }, learned = learned)
+        // A console found Herdr there: the machine is marked and learned.
+        assertEquals(listOf(1L), links.machines(live = listOf(lab)).map { it.primary.id })
+        assertEquals(setOf("lab.example:22:u"), learned.learned())
+
+        saved = listOf(lab.copy(postLogin = null))
+
+        assertEquals("edited to a plain shell: no longer a Herdr machine", emptyList<Long>(), links.machines().map { it.primary.id })
+        assertEquals(emptySet<String>(), learned.learned())
+    }
+
+    @Test
+    fun aHostEditedToAPlainShell_whileItsConsoleIsOpen_isReadWhileOpen_andForgottenWhenItCloses() = runBlocking {
+        val lab = host(1, "lab", hostname = "lab.example", post = "herdr")
+        var saved = listOf(lab)
+        val learned = HerdrHosts.inMemory()
+        val links = CoreLinks({ saved }, { error("no login") }, learned = learned)
+        links.machines(live = listOf(lab))
+
+        saved = listOf(lab.copy(postLogin = null))
+        val edited = saved.single()
+
+        // The console is still open: the machine is read, as long as it stays open, and the edit is not learned over.
+        repeat(3) { assertEquals(listOf(1L), links.machines(live = listOf(edited)).map { it.primary.id }) }
+        assertEquals(emptySet<String>(), learned.learned())
+
+        // The console closes: the edit wins.
+        assertEquals(emptyList<Long>(), links.machines().map { it.primary.id })
+        assertEquals(emptySet<String>(), learned.learned())
+    }
+
+    @Test
+    fun aDeletedHost_dropsItsKeyFromTheList_andAKeyNoHostHasIsDropped() = runBlocking {
+        val gone = host(1, "gone", hostname = "gone.example")
+        val kept = host(2, "kept", hostname = "kept.example")
+        var saved = listOf(gone, kept)
+        val learned = HerdrHosts.inMemory(setOf("gone.example:22:u", "kept.example:22:u", "never-saved.example:22:u"))
+        val links = CoreLinks({ saved }, { error("no login") }, learned = learned)
+
+        assertEquals(setOf(1L, 2L), links.machines().map { it.primary.id }.toSet())
+        assertEquals("a key no saved or live host has is dropped", setOf("gone.example:22:u", "kept.example:22:u"), learned.learned())
+
+        saved = listOf(kept)
+
+        assertEquals(listOf(2L), links.machines().map { it.primary.id })
+        assertEquals(setOf("kept.example:22:u"), learned.learned())
+    }
+
+    @Test
+    fun aMachineWithALiveConsole_writesTheListOnce_notOnEachCall() = runBlocking {
+        var writes = 0
+        var held = emptySet<String>()
+        val learned = HerdrHosts({ held }, {
+            held = it
+            writes++
+        })
+        val live = host(1, "lab", hostname = "lab.example")
+        val links = CoreLinks({ listOf(live) }, { error("no login") }, learned = learned)
+
+        repeat(5) { links.machines(live = listOf(live)) }
+
+        assertEquals(1, writes)
+    }
+
+    @Test
+    fun theInjectConstructor_keepsTheSavedListItWasGiven() = runBlocking {
+        val live = host(1, "lab", hostname = "lab.example")
+        val hosts = org.mockito.Mockito.mock(org.connectbot.data.HostRepository::class.java)
+        org.mockito.kotlin.whenever(hosts.getHosts()).thenReturn(listOf(live))
+        val pubkeys = org.mockito.Mockito.mock(org.connectbot.data.PubkeyRepository::class.java)
+        val learned = HerdrHosts.inMemory()
+
+        val links = CoreLinks(hosts, pubkeys, CoreConnections(lingerMs = 0), learned)
+        links.machines(live = listOf(live))
+
+        assertEquals("the app's own links write to the list it was given", setOf("lab.example:22:u"), learned.learned())
     }
 
     private class Fake(val onExec: (String) -> CommandOutput) : HeadlessSession {

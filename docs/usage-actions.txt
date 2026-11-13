@@ -97,6 +97,12 @@ spaces:open-tab
 places:inbox
 places:spaces
 places:hosts
+needs:store-set
+needs:open
+needs:answer
+needs:later
+needs:home
+needs:inbox-key
 console:back
 console:text-input
 console:paste

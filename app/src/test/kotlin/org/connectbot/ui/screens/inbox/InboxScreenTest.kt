@@ -37,6 +37,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.doSuspendableAnswer
 import solutions.ormus.logos.herd.Agent
 import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.AgentState
@@ -68,6 +69,85 @@ class InboxScreenTest {
                 InboxContent(rows = rows, notes = notes, loading = loading, now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
             }
         }
+    }
+
+    private val keyLogged = mutableListOf<String>()
+    private var unblockTaps = 0
+
+    private fun showWithKey(unblock: Int?) {
+        composeTestRule.setContent {
+            ConnectBotTheme {
+                androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { keyLogged += it }) {
+                    InboxContent(rows = emptyList(), notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {}, unblock = unblock, onUnblock = { unblockTaps++ })
+                }
+            }
+        }
+    }
+
+    @Test
+    fun theUnblockKey_showsTheCountOfOpenQuestions_opensTheView_andLogsItsId() {
+        showWithKey(unblock = 3)
+
+        composeTestRule.onNodeWithText("Unblock (3)").assertIsDisplayed().performClick()
+
+        assertEquals(1, unblockTaps)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.NEEDS_INBOX_KEY), keyLogged)
+    }
+
+    @Test
+    fun noUnblockKey_withNoQuestionsStore() {
+        showWithKey(unblock = null)
+
+        composeTestRule.onNodeWithText("Unblock", substring = true).assertDoesNotExist()
+        assertEquals(0, unblockTaps)
+    }
+
+    private val countStarted = java.util.concurrent.atomic.AtomicInteger(0)
+    private val countCancelled = java.util.concurrent.atomic.AtomicInteger(0)
+
+    @Test
+    fun anInboxWithNoHerdrMachine_readsTheLineFromTheStringResource() {
+        val inbox = org.mockito.Mockito.mock(InboxViewModel::class.java)
+        org.mockito.Mockito.`when`(inbox.state).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(InboxViewModel.State(loaded = true, noHerdrMachine = true)))
+        val needs = org.mockito.Mockito.mock(org.connectbot.ui.needs.NeedsCountViewModel::class.java)
+        org.mockito.Mockito.`when`(needs.count).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(null))
+        kotlinx.coroutines.runBlocking {
+            org.mockito.kotlin.whenever(inbox.watch()).doSuspendableAnswer { kotlinx.coroutines.awaitCancellation() }
+            org.mockito.kotlin.whenever(needs.watch()).doSuspendableAnswer { kotlinx.coroutines.awaitCancellation() }
+        }
+        composeTestRule.setContent { ConnectBotTheme { InboxScreen(onOpen = {}, onNavigateBack = {}, viewModel = inbox, needsViewModel = needs) } }
+
+        composeTestRule.onNodeWithText(composeTestRule.activity.getString(org.connectbot.R.string.inbox_no_herdr_machine)).assertIsDisplayed()
+    }
+
+    @Test
+    fun theInboxCountsTheStoresQuestions_onlyWhileItShows() {
+        val inbox = org.mockito.Mockito.mock(InboxViewModel::class.java)
+        org.mockito.Mockito.`when`(inbox.state).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(InboxViewModel.State(loaded = true)))
+        val needs = org.mockito.Mockito.mock(org.connectbot.ui.needs.NeedsCountViewModel::class.java)
+        org.mockito.Mockito.`when`(needs.count).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(null))
+        kotlinx.coroutines.runBlocking {
+            org.mockito.kotlin.whenever(inbox.watch()).doSuspendableAnswer { kotlinx.coroutines.awaitCancellation() }
+            org.mockito.kotlin.whenever(needs.watch()).doSuspendableAnswer {
+                countStarted.incrementAndGet()
+                try {
+                    kotlinx.coroutines.awaitCancellation()
+                } finally {
+                    countCancelled.incrementAndGet()
+                }
+            }
+        }
+        composeTestRule.setContent { ConnectBotTheme { InboxScreen(onOpen = {}, onNavigateBack = {}, viewModel = inbox, needsViewModel = needs) } }
+        composeTestRule.waitForIdle()
+        assertEquals(1 to 0, countStarted.get() to countCancelled.get())
+
+        composeTestRule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        composeTestRule.waitForIdle()
+        assertEquals("the count stopped when the Inbox stopped", 1 to 1, countStarted.get() to countCancelled.get())
+
+        composeTestRule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        composeTestRule.waitForIdle()
+        assertEquals(2 to 1, countStarted.get() to countCancelled.get())
     }
 
     @Test

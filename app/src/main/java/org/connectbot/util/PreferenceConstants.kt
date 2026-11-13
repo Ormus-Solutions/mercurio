@@ -110,6 +110,9 @@ object PreferenceConstants {
     /** The URL of the sessions feed the home reads its workboards from; absent when none is set. */
     const val HOME_FEED_URL: String = "homeFeedUrl"
 
+    /** The address of the questions store the Unblock view reads its asks from; absent when none is set. */
+    const val NEEDS_STORE_URL: String = "needsStoreUrl"
+
     /** Read herdr-core agents on a host (boolean, on unless saved off); the Inbox adds them to its rows, and the notices read it (Needs you, Finished, Approve and Deny). */
     const val HERDR_CORE: String = "herdrCore"
 

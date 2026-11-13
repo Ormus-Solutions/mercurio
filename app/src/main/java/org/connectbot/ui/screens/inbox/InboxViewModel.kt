@@ -67,7 +67,13 @@ class InboxViewModel @Inject constructor(
      * [loaded] is false until every machine has answered once, with rows or with a failure; an empty
      * Inbox that is not loaded is still loading, not empty.
      */
-    data class State(val rows: List<InboxRow> = emptyList(), val notes: List<String> = emptyList(), val loaded: Boolean = false)
+    data class State(
+        val rows: List<InboxRow> = emptyList(),
+        val notes: List<String> = emptyList(),
+        val loaded: Boolean = false,
+        /** Core reads are on and no Herdr machine is known: the screen says why the Inbox may be empty. */
+        val noHerdrMachine: Boolean = false,
+    )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -137,6 +143,9 @@ class InboxViewModel @Inject constructor(
         links.close()
     }
 
+    // True when core reads are on and no Herdr machine is known: why the Inbox may be empty.
+    private var noHerdrMachine = false
+
     // The machines of the last poll, by primary host id.
     private var machines: List<CoreMachines.Machine> = emptyList()
 
@@ -169,12 +178,16 @@ class InboxViewModel @Inject constructor(
             probes.clear()
             links.close()
             machines = emptyList()
+            noHerdrMachine = false
             listed = true
             dropFailureUnless(emptySet())
             publish()
             return
         }
-        val all = withContext(dispatchers.io) { links.machines(bridges.map { it.host }) }
+        val liveHosts = CoreMachines.liveHosts(bridges)
+        val liveKeys = liveHosts.map(CoreMachines::keyOf).toSet()
+        val all = withContext(dispatchers.io) { links.machines(liveHosts) }
+        noHerdrMachine = all.isEmpty() && herdrRows.isEmpty()
         machines = all
         listed = true
         val ids = all.map { it.primary.id }.toSet()
@@ -216,6 +229,8 @@ class InboxViewModel @Inject constructor(
                         val read = withContext(dispatchers.io) { withTimeoutOrNull(readTimeoutMs) { work.await() } }
                             ?: return@launch timedOut(id, machine.name, startedIn)
                         probes[id] = read
+                        // A machine with a console that found Herdr is not forgotten: it would be learned again at the next refresh.
+                        if (read is CoreSource.Result.Unavailable && read.reason == CoreSource.NOT_INSTALLED && machine.key !in liveKeys) links.forget(machine)
                         HomeStart.noteProbes(prefs, probes.values)
                         noteVersion(source.version)
                         Inbox.fromCore(id, machine.name, read)
@@ -325,7 +340,7 @@ class InboxViewModel @Inject constructor(
 
     private fun publish() {
         val loaded = listed && machines.all { it.primary.id in coreRows }
-        _state.value = State(herdrRows + coreRows.values.flatMap { it.rows }, coreRows.values.mapNotNull { it.note } + listOfNotNull(failure, unboundNote), loaded)
+        _state.value = State(herdrRows + coreRows.values.flatMap { it.rows }, coreRows.values.mapNotNull { it.note } + listOfNotNull(failure, unboundNote), loaded, noHerdrMachine)
     }
 
     companion object {

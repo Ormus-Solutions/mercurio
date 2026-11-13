@@ -34,6 +34,7 @@ import org.connectbot.transport.CommandOutput
 import org.connectbot.util.PreferenceConstants
 import solutions.ormus.logos.herd.AgentState
 import solutions.ormus.logos.herd.CoreLinks
+import solutions.ormus.logos.herd.CoreMachines
 import solutions.ormus.logos.herd.CoreSource
 import solutions.ormus.logos.herd.CoreSpaces
 import solutions.ormus.logos.home.HomeStart
@@ -104,7 +105,7 @@ class SpacesViewModel @Inject constructor(
             _sections.value = emptyList()
             return
         }
-        val machines = withContext(dispatchers.io) { links.machines(bridges.map { it.host }) }
+        val machines = withContext(dispatchers.io) { links.machines(CoreMachines.liveHosts(bridges)) }
         current = machines.map { it.primary.id }.toSet()
         read.keys.retainAll(current)
         lastStates.keys.retainAll(current)

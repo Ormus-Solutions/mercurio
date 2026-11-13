@@ -254,6 +254,28 @@ class CoreSourceTest {
     private fun probes(log: List<String>) = log.count { "--version" in it }
 
     @Test
+    fun `only command not found, exit 127, is a not-installed answer`() {
+        for ((exit, out) in listOf(1 to "", 2 to "usage", 126 to "", 0 to "")) {
+            val u = assertIs<CoreSource.Result.Unavailable>(CoreSource().read(true, "box", 1L, host(versionOut = CommandOutput(out, "", exit), lsOut = ls())))
+            assertTrue(u.reason != CoreSource.NOT_INSTALLED, "exit $exit: ${u.reason}")
+            assertTrue(u.reason.contains("herdr-core --version"), "exit $exit: ${u.reason}")
+        }
+        val gone = assertIs<CoreSource.Result.Unavailable>(CoreSource().read(true, "box", 1L, host(versionOut = CommandOutput("", "not found", 127), lsOut = ls())))
+        assertEquals(CoreSource.NOT_INSTALLED, gone.reason)
+    }
+
+    @Test
+    fun `a failed probe that is not not-installed is not asked again at once either, and keeps its own reason`() {
+        val log = mutableListOf<String>()
+        val failing = host(versionOut = CommandOutput("", "boom", 1), lsOut = ls(), log = log)
+        val source = CoreSource()
+        val first = assertIs<CoreSource.Result.Unavailable>(source.read(true, "box", 1_000L, failing))
+        val again = assertIs<CoreSource.Result.Unavailable>(source.read(true, "box", 5_000L, failing))
+        assertEquals(first.reason, again.reason)
+        assertEquals(1, probes(log))
+    }
+
+    @Test
     fun `a host without herdr-core is not probed again on the next polls`() {
         val log = mutableListOf<String>()
         val missing = host(versionOut = CommandOutput("", "not found", 127), lsOut = ls(), log = log)
