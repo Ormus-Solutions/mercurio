@@ -64,7 +64,7 @@ spotless {
         target("app/src/**/*.kt")
         targetExclude(termishCopies)
         ktlint("1.8.0")
-            .customRuleSets(listOf("io.nlopez.compose.rules:ktlint:0.6.0"))
+            .customRuleSets(listOf("io.nlopez.compose.rules:ktlint:0.6.7"))
         licenseHeaderFile("spotless/license-header.txt")
     }
 
