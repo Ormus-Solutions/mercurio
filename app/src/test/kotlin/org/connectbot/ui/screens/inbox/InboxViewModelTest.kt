@@ -40,6 +40,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
@@ -47,6 +48,8 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import solutions.ormus.logos.herd.AgentSince
 import solutions.ormus.logos.herd.CoreLinks
+import solutions.ormus.logos.herd.CoreRead
+import solutions.ormus.logos.herd.CoreSource
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAgentInfo
 import solutions.ormus.logos.herd.HerdrAgentStatus
@@ -94,12 +97,19 @@ class InboxViewModelTest {
         Dispatchers.resetMain()
     }
 
+    // What the Inbox wrote with putString, by key.
+    private val written = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     private fun prefs(core: Boolean): SharedPreferences {
         val p = mock(SharedPreferences::class.java)
         `when`(p.getBoolean(PreferenceConstants.HERDR_CORE, PreferenceConstants.HERDR_CORE_DEFAULT)).thenReturn(core)
         `when`(p.getBoolean(PreferenceConstants.HERDR_CORE_SEEN, false)).thenReturn(seen.get())
         val editor = mock(SharedPreferences.Editor::class.java)
         `when`(p.edit()).thenReturn(editor)
+        `when`(editor.putString(org.mockito.kotlin.any(), org.mockito.kotlin.any())).thenAnswer {
+            written[it.getArgument(0)] = it.getArgument(1)
+            editor
+        }
         `when`(editor.putBoolean(org.mockito.kotlin.any(), org.mockito.kotlin.any())).thenAnswer {
             if (it.getArgument<String>(0) == PreferenceConstants.HERDR_CORE_SEEN) seen.set(it.getArgument(1))
             editor
@@ -107,7 +117,7 @@ class InboxViewModelTest {
         return p
     }
 
-    private fun bridge(id: Long, nickname: String, exec: (String) -> CommandOutput?): Pair<TerminalBridge, HerdSession> {
+    private fun bridge(id: Long, nickname: String, coreRead: CoreRead? = null, hostname: String = "box$id", exec: (String) -> CommandOutput?): Pair<TerminalBridge, HerdSession> {
         val snapshot = HerdrSessionSnapshot(
             workspaces = listOf(HerdrWorkspaceInfo("w1", label = "alpha · $nickname", number = 1)),
             tabs = listOf(HerdrTabInfo("w1:t1", workspaceId = "w1", label = "main", number = 1)),
@@ -118,9 +128,10 @@ class InboxViewModelTest {
         `when`(herd.sessions).thenReturn(MutableStateFlow(listOf("default")))
         `when`(herd.others).thenReturn(MutableStateFlow(emptyMap()))
         `when`(herd.since).thenReturn(AgentSince(clock = { 0L }))
+        `when`(herd.coreRead).thenReturn(MutableStateFlow(coreRead))
         `when`(herd.exec(org.mockito.kotlin.any())).thenAnswer { exec(it.getArgument(0)) }
         val bridge = mock(TerminalBridge::class.java)
-        `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname, hostname = "box$id", username = "u"))
+        `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname, hostname = hostname, username = "u"))
         `when`(bridge.herd).thenReturn(herd)
         return bridge to herd
     }
@@ -324,6 +335,137 @@ class InboxViewModelTest {
         awaitState(vm) { it.notes.isNotEmpty() }
         assertEquals(listOf("bad: boom"), vm.state.value.notes)
         assertEquals(1, vm.state.value.rows.size)
+    }
+
+    // The herdr-core read the Herd session of the host took (the Inbox reads the same host: one poll, not two).
+    private fun sessionRead(name: String, ageMs: Long = 0L) = CoreRead(CoreSource().read(true, name, System.currentTimeMillis()) { answers(it) }, System.currentTimeMillis() - ageMs)
+
+    @Test
+    fun aFreshReadOfTheHerdSession_isTheInboxsRead_andNoCommandRuns() = runTest {
+        val (b, herd) = bridge(1L, "one", coreRead = sessionRead("one")) { answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core && it.host == "one" } }
+        Thread.sleep(100)
+        assertEquals(1, vm.state.value.rows.count { it.agent.engine == core })
+        verify(herd, never()).exec(org.mockito.kotlin.any())
+        assertEquals(0, logins.get())
+    }
+
+    @Test
+    fun aReadOfTheHerdSessionThatIsTooOld_isNotUsed_theInboxReadsTheHostItself() = runTest {
+        val (b, herd) = bridge(1L, "one", coreRead = sessionRead("one", ageMs = InboxViewModel.SESSION_READ_FRESH_MS + 1_000)) { answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        verify(herd, atLeastOnce()).exec(org.mockito.kotlin.any())
+    }
+
+    @Test
+    fun aSessionReadThatIsNotAgents_isNotUsed_soAnInstallShowsAtOnce() = runTest {
+        // The session cached "not installed" and keeps storing that answer; the host has herdr-core now.
+        val answers = listOf(CoreSource.NOT_INSTALLED, "could not reach the host", "herdr-core did not answer", "herdr-core is not running (hc ls exit 1)")
+        for (why in answers) {
+            val unavailable = CoreRead(CoreSource.Result.Unavailable(why), System.currentTimeMillis())
+            val (b, herd) = bridge(1L, "one", coreRead = unavailable) { answers(it) }
+            val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+            vm.refresh()
+            awaitState(vm) { s -> s.rows.any { it.agent.engine == core && it.host == "one" } }
+            verify(herd, atLeastOnce()).exec(org.mockito.kotlin.any())
+            assertTrue(why, vm.state.value.notes.none { why in it })
+        }
+    }
+
+    @Test
+    fun aReadOfTheHerdSessionDatedInTheFuture_isNotUsed() = runTest {
+        val (b, herd) = bridge(1L, "one", coreRead = sessionRead("one", ageMs = -60_000)) { answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        verify(herd, atLeastOnce()).exec(org.mockito.kotlin.any())
+    }
+
+    // A read of one terminal at [address], as the Herd session of a host would have taken it [ageMs] ago.
+    private fun terminalRead(name: String, address: String, ageMs: Long = 0L) = CoreRead(
+        CoreSource().read(true, name, System.currentTimeMillis()) { cmd ->
+            when {
+                "--version" in cmd -> version
+                CoreSource.PINNED_CMD in cmd -> CommandOutput("", "", 0)
+                else -> CommandOutput("""{"terminals":[{"address":"$address","agent":"codex","status":"idle","where":"beta · TWO / main"}]}""", "", 0)
+            }
+        },
+        System.currentTimeMillis() - ageMs,
+    )
+
+    private fun addressesOf(vm: InboxViewModel, host: String) = vm.state.value.rows.filter { it.agent.engine == core && it.host == host }.map { it.agent.address }
+
+    @Test
+    fun twoMachinesWithOneSessionEach_keepEachOthersTerminalsApart() = runTest {
+        val (a, _) = bridge(1L, "one", coreRead = terminalRead("one", "t1")) { answers(it) }
+        val (b, _) = bridge(2L, "two", coreRead = terminalRead("two", "t2")) { answers(it) }
+        val vm = viewModel(true, a, b, links = fakeLinks(listOf(saved(1, "one", "box1"), saved(2, "two", "box2")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.count { it.agent.engine == core } == 2 }
+        assertEquals(listOf("t1"), addressesOf(vm, "one"))
+        assertEquals(listOf("t2"), addressesOf(vm, "two"))
+    }
+
+    @Test
+    fun ofTwoSessionReadsOfOneMachine_theNewestIsTaken() = runTest {
+        val (older, _) = bridge(1L, "one", coreRead = terminalRead("one", "t1", ageMs = 3_000), hostname = "shared") { answers(it) }
+        val (newer, _) = bridge(2L, "two", coreRead = terminalRead("two", "t2"), hostname = "shared") { answers(it) }
+        val vm = viewModel(true, older, newer, links = fakeLinks(listOf(saved(1, "one", "shared")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        assertEquals(listOf("t2"), addressesOf(vm, "one"))
+    }
+
+    @Test
+    fun aSharedRead_writesTheProbeAndTheVersionNotes() = runTest {
+        val (b, herd) = bridge(1L, "one", coreRead = sessionRead("one")) { answers(it) }
+        `when`(herd.coreVersion).thenReturn("herdr-core 0.1.0")
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        assertTrue("the probe says herdr-core was seen", seen.get())
+        assertEquals("0.1.0", written[PreferenceConstants.HERDR_CORE_VERSION])
+    }
+
+    @Test
+    fun aGoodSharedRead_clearsTheFailedWriteLine() = runTest {
+        val (b, herd) = bridge(1L, "one") { if ("hc label" in it) CommandOutput("", "no", 1) else answers(it) }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { s -> s.notes.any { "could not write" in it } }
+        Thread.sleep(5)
+        (herd.coreRead as MutableStateFlow<CoreRead?>).value = sessionRead("one")
+        vm.refresh()
+        awaitState(vm) { s -> s.notes.none { "could not write" in it } }
+    }
+
+    @Test
+    fun aReadOfTheHerdSessionTakenBeforeAWrite_isNotUsed_soThePatchStays() = runTest {
+        val old = sessionRead("one", ageMs = 1_000)
+        val pinned = java.util.concurrent.atomic.AtomicBoolean(false)
+        // The host keeps the label once written, as the real one does; the session's read predates it.
+        val (b, _) = bridge(1L, "one", coreRead = old) { cmd ->
+            when {
+                "hc label" in cmd -> CommandOutput("", "", 0).also { pinned.set(true) }
+                CoreSource.PINNED_CMD in cmd -> CommandOutput(if (pinned.get()) """{"terminals":[{"address":"t1"}]}""" else "", "", 0)
+                else -> answers(cmd)
+            }
+        }
+        val vm = viewModel(true, b, links = fakeLinks(listOf(saved(1, "one", "box1")), { answers(it) }))
+        vm.refresh()
+        awaitState(vm) { s -> s.rows.any { it.agent.engine == core } }
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { s -> s.rows.first { it.agent.engine == core }.agent.pinned }
+        // The session's read still says "not pinned" and is older than the write: the next refresh must not use it.
+        vm.refresh()
+        Thread.sleep(100)
+        assertTrue(vm.state.value.rows.first { it.agent.engine == core }.agent.pinned)
     }
 
     private fun coreRow(vm: InboxViewModel) = vm.state.value.rows.first { it.agent.engine == solutions.ormus.logos.herd.AgentEngine.CORE }

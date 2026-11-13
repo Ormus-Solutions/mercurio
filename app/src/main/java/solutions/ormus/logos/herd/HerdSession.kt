@@ -68,6 +68,9 @@ data class HerdrFailure(
 // Esc leaves Herdr's prefix mode and is swallowed there.
 private val ESC: String = 27.toChar().toString()
 
+/** One herdr-core read of a host: what it said, and when it began (epoch milliseconds, the session's clock). */
+data class CoreRead(val result: CoreSource.Result, val at: Long)
+
 /**
  * The live Herdr side of one SSH session whose host runs Herdr: polls the
  * snapshot with [HerdrMonitor] while the session is up, and runs the command
@@ -229,6 +232,29 @@ class HerdSession(
     private val coreAttention = HerdAttention(clock)
     private var corePoll: Job? = null
 
+    private val _coreRead = MutableStateFlow<CoreRead?>(null)
+
+    // A read in flight when the session stops or starts again ends after the clear: it is of the old connection and stores nothing.
+    private val coreLock = Any()
+    private var coreGeneration = 0
+
+    private fun clearCoreRead() = synchronized(coreLock) {
+        coreGeneration++
+        _coreRead.value = null
+    }
+
+    /**
+     * The last herdr-core read of this host's poll, whatever it said (agents, or why there are none), with the time
+     * it began. The Inbox takes it instead of polling the same host again only when it is an agents read, is
+     * fresh and began after the last write; any other answer it asks the host for itself. Null before the first
+     * read, after [start] or [stop], and with the setting off.
+     */
+    val coreRead: StateFlow<CoreRead?> = _coreRead.asStateFlow()
+
+    /** What the last `herdr-core --version` of this host said, first line; null before one did. */
+    val coreVersion: String?
+        get() = coreSource.version
+
     // The loop asks the setting each round, so switching it takes effect without a reconnect; off runs nothing.
     private fun watchCore() {
         corePoll?.cancel()
@@ -241,7 +267,11 @@ class HerdSession(
     }
 
     private fun pollCore() {
-        val result = coreSource.read(true, hostName, clock(), ::runQuiet) as? CoreSource.Result.Agents ?: return
+        val began = clock()
+        val generation = synchronized(coreLock) { coreGeneration }
+        val read = coreSource.read(true, hostName, began, ::runQuiet)
+        synchronized(coreLock) { if (generation == coreGeneration) _coreRead.value = CoreRead(read, began) }
+        val result = read as? CoreSource.Result.Agents ?: return
         // The console shows a TUI session: no core terminal is what he looks at yet.
         val notices = coreAttention.onSnapshot(CoreNotices.snapshot(result.agents), sessionOnScreen = false)
         if (notices.isNotEmpty()) onNotices(notices.map { withCoreScreen(it.inSession(CoreNotices.SESSION)) })
@@ -270,6 +300,7 @@ class HerdSession(
         synchronized(attentions) { attentions.values.forEach { it.reset() } }
         coreAttention.reset()
         coreSource.recheck()
+        clearCoreRead()
         monitor.stop()
         monitor.start()
         watchAttached()
@@ -285,6 +316,7 @@ class HerdSession(
         monitor.stop()
         attachedPoll?.cancel()
         corePoll?.cancel()
+        clearCoreRead()
     }
 
     /** Fetch [session]'s snapshot now, outside the poll rhythm (after an action, or on opening a screen). */

@@ -40,7 +40,9 @@ import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.AgentsBoard
 import solutions.ormus.logos.herd.CoreLinks
 import solutions.ormus.logos.herd.CoreMachines
+import solutions.ormus.logos.herd.CoreRead
 import solutions.ormus.logos.herd.CoreSource
+import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
 import solutions.ormus.logos.herd.RowAction
@@ -185,6 +187,19 @@ class InboxViewModel @Inject constructor(
             val id = machine.primary.id
             if (!reading.add(id)) continue
             val source = cores.getOrPut(id) { CoreSource() }
+            // A console to the machine is open and its Herd session just read herdr-core: that is the read, not a second poll.
+            val shared = sessionRead(machine, bridges)
+            if (shared != null) {
+                val (herd, read) = shared
+                probes[id] = read.result
+                HomeStart.noteProbes(prefs, probes.values)
+                noteVersion(herd.coreVersion)
+                coreRows[id] = Inbox.fromCore(id, machine.name, read.result)
+                if (failureHost == id) failure = null
+                reading.remove(id)
+                publish()
+                continue
+            }
             val open = openExec(machine, bridges)
             val startedAt = writes
             val startedIn = visit
@@ -202,9 +217,7 @@ class InboxViewModel @Inject constructor(
                             ?: return@launch timedOut(id, machine.name, startedIn)
                         probes[id] = read
                         HomeStart.noteProbes(prefs, probes.values)
-                        FeedbackText.coreVersionOf(source.version.orEmpty())?.let { v ->
-                            if (prefs.getString(PreferenceConstants.HERDR_CORE_VERSION, null) != v) prefs.edit { putString(PreferenceConstants.HERDR_CORE_VERSION, v) }
-                        }
+                        noteVersion(source.version)
                         Inbox.fromCore(id, machine.name, read)
                     } catch (e: CancellationException) {
                         throw e
@@ -227,6 +240,27 @@ class InboxViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The herdr-core agents read of the Herd session of a console open to [machine], when it began after the last
+     * write (a read that began before one may predate it) and no longer ago than [SESSION_READ_FRESH_MS]; else null.
+     * Any other answer of the session (not installed, no reach, no answer) is not used: its own source may hold
+     * a "not installed" for minutes, and the Inbox asks the host again when it opens.
+     */
+    private fun sessionRead(machine: CoreMachines.Machine, bridges: List<org.connectbot.service.TerminalBridge>): Pair<HerdSession, CoreRead>? {
+        val now = System.currentTimeMillis()
+        return bridges.asSequence()
+            .filter { b -> machine.hosts.any { it.id == b.host.id } }
+            .mapNotNull { b -> b.herd?.let { herd -> herd.coreRead.value?.let { herd to it } } }
+            .filter { (_, read) -> read.result is CoreSource.Result.Agents && now - read.at in 0..SESSION_READ_FRESH_MS && read.at > lastWriteAt }
+            .maxByOrNull { (_, read) -> read.at }
+    }
+
+    private fun noteVersion(version: String?) {
+        FeedbackText.coreVersionOf(version.orEmpty())?.let { v ->
+            if (prefs.getString(PreferenceConstants.HERDR_CORE_VERSION, null) != v) prefs.edit { putString(PreferenceConstants.HERDR_CORE_VERSION, v) }
+        }
+    }
+
     /** A read past its deadline counts as an answer: a note for the machine, so the Inbox is no longer loading. */
     private fun timedOut(id: Long, name: String, startedIn: Int) {
         if (startedIn == visit && id in cores) coreRows[id] = Inbox.CoreRows(emptyList(), "$name: no answer")
@@ -243,6 +277,9 @@ class InboxViewModel @Inject constructor(
     /** The exec of a console already open to [machine], or null: that connection is used before a login is made. */
     private fun openExec(machine: CoreMachines.Machine, bridges: List<org.connectbot.service.TerminalBridge>): ((String) -> org.connectbot.transport.CommandOutput?)? = bridges
         .firstOrNull { b -> b.herd != null && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
+
+    // When the last write ended: a Herd session read that began before it is not the Inbox's read.
+    @Volatile private var lastWriteAt = 0L
 
     // The last write that failed, as a line for the user, and the machine it was for; the next write,
     // the next visit or the next good read of that machine clears it.
@@ -274,6 +311,7 @@ class InboxViewModel @Inject constructor(
             failureHost = row.hostId
             // A read already out may hold the row as it was; it must neither undo the patch nor clear the line.
             writes++
+            lastWriteAt = System.currentTimeMillis()
             if (ok) {
                 coreRows[row.hostId]?.let { held ->
                     coreRows[row.hostId] = held.copy(rows = Inbox.patched(held.rows, agent, action))
@@ -293,6 +331,12 @@ class InboxViewModel @Inject constructor(
     companion object {
         /** How long the Inbox waits between two reads while it shows. */
         const val PERIOD_MS = 5_000L
+
+        /**
+         * How long a read of a Herd session serves the Inbox: a little over its 4 s poll, so each of the Inbox's 5 s
+         * refreshes finds one while a console is open and its session polls.
+         */
+        const val SESSION_READ_FRESH_MS = 6_000L
 
         /** How long one machine's read may take: the exec timeout of a command, with room for a login. */
         const val READ_TIMEOUT_MS = 15_000L

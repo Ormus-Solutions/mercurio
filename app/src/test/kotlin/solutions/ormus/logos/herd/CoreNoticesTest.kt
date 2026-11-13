@@ -21,7 +21,9 @@ package solutions.ormus.logos.herd
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.connectbot.data.entity.Host
@@ -278,6 +280,117 @@ class CoreNoticesTest {
         advanceTimeBy(6_000)
         s.stop()
         assertTrue(core.ran.none { "hc " in it || "herdr-core" in it }, core.ran.toString())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `each poll leaves its read in coreRead with the time it was taken`() = runTest {
+        val core = Core("working")
+        val s = session(core, enabled = true)
+        assertNull(s.coreRead.value)
+        s.start()
+        advanceTimeBy(100)
+        val first = s.coreRead.value
+        assertTrue(first?.result is CoreSource.Result.Agents, first.toString())
+        assertEquals(0L, first?.at)
+        clockMs = 2_500
+        advanceTimeBy(2_500)
+        assertEquals(2_500L, s.coreRead.value?.at)
+        s.stop()
+        assertNull(s.coreRead.value, "a stopped session serves no read")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `the read carries the time it began, not the time it ended`() = runTest {
+        val core = Core("working")
+        // The clock moves while the read runs: a read that began before a write and ended after it must not look newer than the write.
+        val run = { cmd: String ->
+            if (CoreSource.LIST_CMD in cmd) clockMs += 800
+            core.run(cmd)
+        }
+        val s = HerdSession("box", run, {}, backgroundScope, coroutineContext[CoroutineDispatcher]!!, pollIntervalMs = 2_500, clock = { clockMs }, coreEnabled = { true })
+        s.start()
+        advanceTimeBy(100)
+        assertEquals(800L, clockMs)
+        assertEquals(0L, s.coreRead.value?.at)
+        s.stop()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `start clears the read of the session before it`() = runTest {
+        val s = session(Core("working"), enabled = true)
+        s.start()
+        advanceTimeBy(100)
+        assertTrue(s.coreRead.value != null)
+        s.start()
+        assertNull(s.coreRead.value)
+        s.stop()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a read in flight while the session stops is not kept`() = runTest {
+        val core = Core("working")
+        lateinit var s: HerdSession
+        var stopping = true
+        val run = { cmd: String ->
+            if ("hc ls" in cmd && stopping) {
+                stopping = false
+                s.stop()
+            }
+            core.run(cmd)
+        }
+        s = HerdSession("box", run, {}, backgroundScope, coroutineContext[CoroutineDispatcher]!!, pollIntervalMs = 2_500, clock = { clockMs }, coreEnabled = { true })
+        s.start()
+        advanceTimeBy(100)
+        assertNull(s.coreRead.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a read in flight while the session restarts does not outlive the restart`() = runTest {
+        val core = Core("working")
+        lateinit var s: HerdSession
+        var restarting = true
+        val run = { cmd: String ->
+            if ("hc ls" in cmd && restarting) {
+                restarting = false
+                clockMs = 1_000
+                s.start()
+            }
+            core.run(cmd)
+        }
+        s = HerdSession("box", run, {}, backgroundScope, coroutineContext[CoroutineDispatcher]!!, pollIntervalMs = 2_500, clock = { clockMs }, coreEnabled = { true })
+        val seen = mutableListOf<Long?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { s.coreRead.collect { seen += it?.at } }
+        s.start()
+        advanceTimeBy(100)
+        s.stop()
+        assertFalse(0L in seen, "the read begun before the restart was stored: $seen")
+        assertTrue(1_000L in seen, "the read after the restart was stored: $seen")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a read that found no herdr-core is kept too, so a reader shows its note`() = runTest {
+        val run = { cmd: String -> if ("--version" in cmd) CommandOutput("", "", 127) else CommandOutput("", "", 0) }
+        val s = HerdSession("box", run, {}, backgroundScope, coroutineContext[CoroutineDispatcher]!!, pollIntervalMs = 2_500, clock = { clockMs }, coreEnabled = { true })
+        s.start()
+        advanceTimeBy(100)
+        assertEquals(CoreSource.Result.Unavailable(CoreSource.NOT_INSTALLED), s.coreRead.value?.result)
+        s.stop()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `setting off leaves no read`() = runTest {
+        val s = session(Core("working"), enabled = false)
+        s.start()
+        advanceTimeBy(10_000)
+        s.stop()
+        assertNull(s.coreRead.value)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

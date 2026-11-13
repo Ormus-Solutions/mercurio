@@ -72,7 +72,8 @@ class CoreSource {
         missingAt = null
     }
 
-    /** What the last `--version` answer said, first line, or null before one did. */
+    /** What the last `--version` answer said, first line, or null before one did. Read by the Inbox from another thread. */
+    @Volatile
     var version: String? = null
         private set
 

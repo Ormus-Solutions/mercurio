@@ -11,6 +11,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Spaces: each tab tile shows its name and its agent's state (#294)
 
 ### Fixed
+- Inbox: while a console to a machine is open, show the Herd session's fresh herdr-core agents read instead of polling the host a second time (#303)
 - Free the slash refresh guard on cancel or an unexpected failure (#284)
 - Lint errors fixed, and lint now fails on any error (#285)
 - Probe a host without herdr-core only every 5 minutes, not on every read; say the Inbox logs in to saved hosts (#286)
