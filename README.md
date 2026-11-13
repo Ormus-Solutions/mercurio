@@ -48,8 +48,9 @@ management come from ConnectBot. Mercurio is maintained by
   a private folder on the host (`~/.cache/mercurio-pastes`, owned by you, mode
   700) over SFTP and puts its path in the text field. On a Herdr-core terminal
   the path is the one `hc put` prints; if that fails, the bar says so. A photo
-  over the limit (8 MB for a core terminal) is scaled down and sent as JPEG,
-  and one that still does not fit is refused before any upload. It needs a
+  over the limit (8 MB for a core terminal) is scaled down and sent as JPEG
+  (turned upright by its EXIF orientation), and one that still does not fit
+  is refused before any upload. It needs a
   POSIX host with bash: Windows and busybox-only hosts get a message instead.
   The uploaded file is not deleted.
 - **Session drawer.** Every open session on every host, with its state and the

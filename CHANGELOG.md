@@ -24,6 +24,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - The compose field keeps its unsent text per terminal (#296)
 - Inbox, Spaces and the bottom bar log a usage id for each action (#297)
 - Approve and Deny answer only the yes-or-no prompt the notification showed, and refuse otherwise (#298)
+- A pasted photo that is scaled down keeps its EXIF orientation: a sideways camera photo no longer arrives sideways
 
 ## [1.10.9][1.10.9]
 
