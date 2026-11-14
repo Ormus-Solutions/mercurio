@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 The seals of one kintsugi pass, by pull request number. The entries below are upstream ConnectBot's.
 
 ### Added
+- Inbox: a Settings gear on the top bar opens the app's Settings, so Settings is no longer reached only from the Hosts screen
 - Unblock: the Inbox key Unblock (N) and a swipe on the home open the questions store's open asks one at a time, and one tap answers a single-choice ask (#266)
 - Inbox: helper terminals fold under their parent row (#290)
 - Spaces: each tab tile shows its name and its agent's state (#294)
@@ -31,6 +32,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Approve and Deny answer only the yes-or-no prompt the notification showed, and refuse otherwise (#298)
 - A pasted photo that is scaled down keeps its EXIF orientation: a sideways camera photo no longer arrives sideways
 - Removed the unused READ_MEDIA_IMAGES and READ_EXTERNAL_STORAGE permissions: the photo picker needs none
+- Key bar: a slow, short swipe from a key turns the page (a fifth of the bar is enough; it took half)
 
 ## [1.10.9][1.10.9]
 

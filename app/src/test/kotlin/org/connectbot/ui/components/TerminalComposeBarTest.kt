@@ -952,6 +952,93 @@ class TerminalComposeBarTest {
         verify(bridge).injectString("\u001a")
     }
 
+    /**
+     * A slow, deliberate swipe: the finger goes down on [startKey], drags by [fraction] of the bar's width over
+     * [durationMs] (to the left, or to the right when [toRight]), and rests 300 ms before it lifts, so the pager
+     * sees no fling and only the distance counts.
+     */
+    private fun slowSwipeFromKey(startKey: String, fraction: Float, durationMs: Long, toRight: Boolean = false) {
+        val barWidth = bounds(KEY_BAR_TEST_TAG).width
+        val steps = 30
+        val sign = if (toRight) 1f else -1f
+        key(startKey).performTouchInput {
+            down(center)
+            repeat(steps) { moveBy(androidx.compose.ui.geometry.Offset(sign * barWidth * fraction / steps, 0f), delayMillis = durationMs / steps) }
+            advanceEventTime(300)
+            up()
+        }
+        composeTestRule.waitForIdle()
+    }
+
+    private fun slowSwipeLeftFromKey(startKey: String, fraction: Float, durationMs: Long) = slowSwipeFromKey(startKey, fraction, durationMs)
+
+    /** The page dot that is selected (what TalkBack reads as the current page) is [page]'s. */
+    private fun assertOnPage(page: Int, of: Int) {
+        (0 until of).forEach {
+            composeTestRule.onNodeWithTag("key_bar_dot_$it").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, it == page))
+        }
+    }
+
+    @Test
+    fun keyBar_aSlowSwipeOfAThirdOfTheBarFromAKeyTurnsThePage() {
+        // Measured on the phone and the emulator: 30 percent of the bar over 900 ms left the page where it was.
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        slowSwipeLeftFromKey(MORE, fraction = 0.30f, durationMs = 900)
+
+        assertOnPage(1, of = 2)
+    }
+
+    @Test
+    fun keyBar_aSlowSwipeOfTwoFifthsOfTheBarFromAKeyTurnsThePage() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        slowSwipeLeftFromKey(MORE, fraction = 0.38f, durationMs = 900)
+
+        assertOnPage(1, of = 2)
+    }
+
+    // The two tests below pin the turn threshold (PAGE_TURN_THRESHOLD, 20 percent): 15 stays, 25 turns.
+    @Test
+    fun keyBar_aSlowDragOfThreeTwentiethsOfTheBarLeavesThePage() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        slowSwipeLeftFromKey(MORE, fraction = 0.15f, durationMs = 900)
+
+        assertOnPage(0, of = 2)
+    }
+
+    @Test
+    fun keyBar_aSlowSwipeOfAQuarterOfTheBarFromAKeyTurnsThePage() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        slowSwipeLeftFromKey(MORE, fraction = 0.25f, durationMs = 900)
+
+        assertOnPage(1, of = 2)
+    }
+
+    @Test
+    fun keyBar_aSlowSwipeToTheRightFromTheSecondPageTurnsBack() {
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+        toPage(1)
+        assertOnPage(1, of = 2)
+
+        slowSwipeFromKey("Ctrl+C", fraction = 0.30f, durationMs = 900, toRight = true)
+
+        assertOnPage(0, of = 2)
+        key(PAGE_UP).assertExists()
+    }
+
+    @Test
+    fun keyBar_aSlowDragOfATenthOfTheBarLeavesThePage() {
+        // A thumb that drifts a little while it rests on a key is not a swipe.
+        setBar(bridgeWithPostLogin(null), keyBar = KeyBarLayout(listOf(listOf("ctrl-c"))), hisKeys = false)
+
+        slowSwipeLeftFromKey(MORE, fraction = 0.10f, durationMs = 900)
+
+        assertOnPage(0, of = 2)
+    }
+
     @Test
     fun keyBar_aTappedCtrlIsArmedForTheNextKeyOnly() {
         val bridge = bridgeWithPostLogin(null)

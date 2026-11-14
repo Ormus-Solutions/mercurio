@@ -24,6 +24,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -148,6 +149,25 @@ class InboxScreenTest {
         composeTestRule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
         composeTestRule.waitForIdle()
         assertEquals(2 to 1, countStarted.get() to countCancelled.get())
+    }
+
+    @Test
+    fun theTopBarHasASettingsGear_withADescription_thatOpensSettings_andLogsItsId() {
+        val settingsLogged = mutableListOf<String>()
+        var settingsTaps = 0
+        composeTestRule.setContent {
+            ConnectBotTheme {
+                androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { settingsLogged += it }) {
+                    InboxContent(rows = emptyList(), notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {}, onSettings = { settingsTaps++ })
+                }
+            }
+        }
+
+        val gear = composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(org.connectbot.R.string.title_settings))
+        gear.assertIsDisplayed().performClick()
+
+        assertEquals(1, settingsTaps)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.INBOX_SETTINGS), settingsLogged)
     }
 
     @Test

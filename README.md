@@ -20,8 +20,8 @@ management come from ConnectBot. Mercurio is maintained by
   with its terminal: leave the console and open the same terminal again and
   the field still holds it. It is kept in memory only, so closing the app
   drops it.
-- **Key bar.** One row at the bottom, paged: swipe it to turn the page, one dot
-  per page. Page 0 is the bar's own: PgUp, PgDn (hold to repeat), Herdr, ⋯, Chat
+- **Key bar.** One row at the bottom, paged: swipe it to turn the page (a slow
+  swipe needs a fifth of the bar), one dot per page. Page 0 is the bar's own: PgUp, PgDn (hold to repeat), Herdr, ⋯, Chat
   and Needs you. Needs you shows how many agents wait for you in every Herdr
   session, in gold while any does; a tap jumps to the next one, cycling, and a
   long press (or a tap with none waiting) opens the Inbox, or the Agents board
@@ -142,7 +142,8 @@ management come from ConnectBot. Mercurio is maintained by
   line until its next good read. The Inbox and Include herdr-core agents are
   both on by default, and the console's Settings panel switches them. The
   home's bottom bar shows the Inbox while it is on and Spaces while Include
-  herdr-core agents is on.
+  herdr-core agents is on. A gear on the Inbox's top bar opens the app's
+  Settings, the screen the Hosts screen opens too.
 - **herdr-core.** With Include herdr-core agents on, the Inbox and Spaces also
   read herdr-core on each Herdr machine. A machine is a Herdr machine when a
   saved host of it starts Herdr at login (a post-login whose command is `herdr`,

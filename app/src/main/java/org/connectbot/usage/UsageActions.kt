@@ -172,6 +172,9 @@ object UsageActions {
     /** The helper-count control on a row: its helper terminals shown or folded away. */
     const val INBOX_HELPERS = "inbox:helpers"
 
+    /** The gear on the Inbox top bar: opens the app's Settings. */
+    const val INBOX_SETTINGS = "inbox:settings"
+
     // Spaces: a tab's box opened in a console that watches its first terminal.
     const val SPACES_OPEN_TAB = "spaces:open-tab"
 
@@ -473,7 +476,7 @@ object UsageActions {
         TITLE_PULL_DRAWER, TITLE_PULL_DISCONNECT,
         MACHINES_CONNECT, MACHINES_REFRESH, MACHINES_FIX_PROMPT, MACHINES_API_SECRET,
         WORKSPACES_OPEN, HOME_FEED_SET, WORKBOARDS_OPEN, WORKBOARDS_SAVE_HOST,
-        INBOX_OPEN, INBOX_SEARCH, INBOX_PIN, INBOX_UNPIN, INBOX_MARK_READ, INBOX_ESC, INBOX_FOLD, INBOX_HELPERS,
+        INBOX_OPEN, INBOX_SEARCH, INBOX_PIN, INBOX_UNPIN, INBOX_MARK_READ, INBOX_ESC, INBOX_FOLD, INBOX_HELPERS, INBOX_SETTINGS,
         SPACES_OPEN_TAB, PLACES_INBOX, PLACES_SPACES, PLACES_HOSTS,
         NEEDS_STORE_SET, NEEDS_OPEN, NEEDS_ANSWER, NEEDS_LATER, NEEDS_HOME, NEEDS_INBOX_KEY,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,

@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -105,6 +106,9 @@ const val INBOX_SEARCH_TAG = "inbox_search"
 /** Test tag of the Unblock key on the Inbox. */
 const val INBOX_UNBLOCK_TAG = "inbox_unblock"
 
+/** Test tag of the Settings gear on the Inbox top bar. */
+const val INBOX_SETTINGS_TAG = "inbox_settings"
+
 /** Test tag of every agent row. */
 const val INBOX_ROW_TAG = "inbox_row"
 
@@ -140,6 +144,7 @@ fun InboxScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigateToNeeds: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     viewModel: InboxViewModel = hiltViewModel(),
     needsViewModel: NeedsCountViewModel = hiltViewModel(),
 ) {
@@ -161,7 +166,7 @@ fun InboxScreen(
             value = System.currentTimeMillis()
         }
     }
-    InboxContent(rows = state.rows, notes = state.notes + listOfNotNull(stringResource(R.string.inbox_no_herdr_machine).takeIf { state.noHerdrMachine }), loading = !state.loaded, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, unblock = unblock, onUnblock = onNavigateToNeeds, modifier = modifier)
+    InboxContent(rows = state.rows, notes = state.notes + listOfNotNull(stringResource(R.string.inbox_no_herdr_machine).takeIf { state.noHerdrMachine }), loading = !state.loaded, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, unblock = unblock, onUnblock = onNavigateToNeeds, onSettings = onNavigateToSettings, modifier = modifier)
 }
 
 /** The Inbox on [rows]: a search field, then one group per state, each folded after three rows. */
@@ -179,6 +184,8 @@ fun InboxContent(
     /** The open questions of the questions store, or null with no store address: then there is no Unblock key. */
     unblock: Int? = null,
     onUnblock: () -> Unit = {},
+    /** The gear on the top bar: open the app's Settings. */
+    onSettings: () -> Unit = {},
 ) {
     val usage = LocalUsageLog.current
     // Each log is the id of the action alone; the row is passed on untouched.
@@ -228,6 +235,17 @@ fun InboxContent(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.button_back))
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            usage.log(UsageActions.INBOX_SETTINGS)
+                            onSettings()
+                        },
+                        modifier = Modifier.testTag(INBOX_SETTINGS_TAG),
+                    ) {
+                        Icon(Icons.Default.Settings, stringResource(R.string.title_settings))
                     }
                 },
             )

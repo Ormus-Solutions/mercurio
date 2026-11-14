@@ -191,6 +191,7 @@ fun ConnectBotNavHost(
                 },
                 onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() },
                 onNavigateToNeeds = { navController.navigateSafely(NavDestinations.NEEDS) },
+                onNavigateToSettings = { navController.openSettings() },
             )
         }
 

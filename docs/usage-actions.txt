@@ -93,6 +93,7 @@ inbox:mark-read
 inbox:esc
 inbox:fold
 inbox:helpers
+inbox:settings
 spaces:open-tab
 places:inbox
 places:spaces

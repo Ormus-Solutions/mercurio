@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -399,7 +400,11 @@ private fun PagedKeyRow(
     }
 
     Column(modifier = modifier.fillMaxWidth().testTag(KEY_BAR_TEST_TAG)) {
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth().heightIn(min = KEY_HEIGHT)) { index ->
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.fillMaxWidth().heightIn(min = KEY_HEIGHT),
+            flingBehavior = PagerDefaults.flingBehavior(state = pager, snapPositionalThreshold = PAGE_TURN_THRESHOLD),
+        ) { index ->
             if (index == 0) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_GAP), content = firstPage)
                 return@HorizontalPager
@@ -444,6 +449,12 @@ private fun PagedKeyRow(
         }
     }
 }
+
+/**
+ * How far, as a part of the bar's width, a finger must drag before the page turns when it lifts too slowly to fling.
+ * The pager's own 0.5 left a slow deliberate swipe of 30 to 40 percent of the bar on the page it started on.
+ */
+private const val PAGE_TURN_THRESHOLD = 0.2f
 
 /**
  * Ctrl and Alt state for every page, at the end of the dot row: the bottom page has no Ctrl or

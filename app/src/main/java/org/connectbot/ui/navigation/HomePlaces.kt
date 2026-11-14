@@ -123,6 +123,9 @@ fun NavController.backOrHosts(): Boolean {
     return true
 }
 
+/** Open the app's Settings screen: the route the Hosts screen and the Inbox gear both use. */
+fun NavController.openSettings() = navigateSafely(NavDestinations.SETTINGS)
+
 /**
  * Open the console at [route] over the start destination, dropping any console above it. The
  * start is the hosts home or the Inbox, whichever the app opened on.
