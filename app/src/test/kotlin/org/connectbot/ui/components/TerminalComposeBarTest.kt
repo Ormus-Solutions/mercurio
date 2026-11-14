@@ -17,6 +17,8 @@
 
 package org.connectbot.ui.components
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -78,6 +80,7 @@ import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.usage.UsageLog
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -92,6 +95,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.stub
+import org.robolectric.annotation.GraphicsMode
 import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdSession
 import solutions.ormus.logos.herd.HerdrAgentInfo
@@ -1697,6 +1701,76 @@ class TerminalComposeBarTest {
         val box = bounds(COMPOSE_BOX_TEST_TAG)
         assertTrue("the editable row is inside the key group", row.top >= keys.top - 0.5f && row.bottom <= keys.bottom + 0.5f)
         assertTrue("the compose box sits above the key group without overlap", box.bottom <= keys.top)
+    }
+
+    // The key row has no pill of its own: the keys sit on the bar, flush with the key group.
+
+    private fun assertKeysFlushWithTheKeyGroup(first: String, last: String) {
+        val group = bounds(KEY_GROUP_TEST_TAG)
+        val start = key(first).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val end = key(last).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val density = composeTestRule.density.density
+        assertEquals("'$first' starts at the left edge of the key group (no pill padding), ${(start.left - group.left) / density} dp in", group.left, start.left, 0.5f)
+        assertEquals("'$last' ends at the right edge of the key group (no pill padding), ${(group.right - end.right) / density} dp short", group.right, end.right, 0.5f)
+        assertEquals("the keys start at the top of the key group (no pill padding), ${(start.top - group.top) / density} dp down", group.top, start.top, 0.5f)
+    }
+
+    @Test
+    fun keyRow_hasNoPillAroundIt_theKeysReachBothEndsOfTheKeyGroup() {
+        setBar(bridgeWithPostLogin("herdr\n"))
+
+        assertKeysFlushWithTheKeyGroup(PAGE_UP, NEEDS_YOU)
+        val group = bounds(KEY_GROUP_TEST_TAG)
+        val bottom = key(PAGE_UP).fetchSemanticsNode().boundsInRoot.bottom
+        assertEquals("the key group ends where the keys end (no pill padding)", group.bottom, bottom, 0.5f)
+    }
+
+    @Test
+    fun keyBar_hasNoPillAroundIt_theKeysReachBothEndsOfTheKeyGroup_andTheDotsStayUnderThem() {
+        setBar(bridgeWithPostLogin("herdr\n"), keyBar = KeyBarLayout(listOf(listOf("ctrl-c", "up"))), hisKeys = false)
+
+        assertKeysFlushWithTheKeyGroup(PAGE_UP, NEEDS_YOU)
+        val group = bounds(KEY_GROUP_TEST_TAG)
+        val keysBottom = key(PAGE_UP).fetchSemanticsNode().boundsInRoot.bottom
+        val dots = bounds("key_bar_dot_0")
+        assertEquals("the page dots sit right under the keys", keysBottom, dots.top, 0.5f)
+        assertEquals("the key group ends where the dots end (no pill padding)", group.bottom, dots.bottom, 0.5f)
+    }
+
+    @Test
+    fun keyRow_theKeysKeepTheirHeight_andTheSpaceBetweenTheGroupsStays() {
+        setBar(bridgeWithPostLogin("herdr\n"))
+
+        val density = composeTestRule.density.density
+        listOf(PAGE_UP, PAGE_DOWN, "Herdr", MORE, CHAT, NEEDS_YOU).forEach {
+            assertEquals("'$it' is 46 dp tall", 46f, key(it).fetchSemanticsNode().boundsInRoot.height / density, 0.5f)
+        }
+        val gap = (bounds(KEY_GROUP_TEST_TAG).top - bounds(COMPOSE_BOX_TEST_TAG).bottom) / density
+        assertEquals("the gap between the compose box and the key group", 10f, gap, 0.5f)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun keyRow_aGapBetweenTwoKeysShowsTheBar_notAPillFill() {
+        setBar(bridgeWithPostLogin("herdr\n"))
+
+        val left = key(PAGE_UP).fetchSemanticsNode().boundsInWindow
+        val right = key(PAGE_DOWN).fetchSemanticsNode().boundsInWindow
+        val box = composeTestRule.onNodeWithTag(COMPOSE_BOX_TEST_TAG).fetchSemanticsNode().boundsInWindow
+        val group = composeTestRule.onNodeWithTag(KEY_GROUP_TEST_TAG).fetchSemanticsNode().boundsInWindow
+        val view = composeTestRule.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        view.draw(Canvas(bitmap))
+        // The bar itself: the clear space between the compose box and the key group.
+        val bar = bitmap.getPixel(box.center.x.toInt(), ((box.bottom + group.top) / 2).toInt())
+        // The space between two keys on the key row: it showed the pill's fill before.
+        val between = bitmap.getPixel(((left.right + right.left) / 2).toInt(), left.center.y.toInt())
+        assertEquals("between two keys: #${Integer.toHexString(between)}, the bar is #${Integer.toHexString(bar)}", bar, between)
+        // The draw is real: a blank bitmap would give the bar and the gap the same pixel (0) and pass
+        // the check above with nothing drawn. A key paints its own fill, so a pixel just inside the
+        // first key (left of its label) must differ from the bar.
+        val insideKey = bitmap.getPixel(left.left.toInt() + 4, left.center.y.toInt())
+        assertNotEquals("inside a key: #${Integer.toHexString(insideKey)}, the bar is #${Integer.toHexString(bar)}", bar, insideKey)
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteractionCollection.assertCountEquals0() {

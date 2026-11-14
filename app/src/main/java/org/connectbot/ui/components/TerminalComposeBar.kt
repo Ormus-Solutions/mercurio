@@ -137,7 +137,6 @@ import org.connectbot.ui.theme.Ormus
 import org.connectbot.ui.theme.OrmusContainerShape
 import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusMono
-import org.connectbot.ui.theme.OrmusPillShape
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
 import org.connectbot.util.LatestUrl
@@ -1349,7 +1348,7 @@ fun TerminalComposeBar(
                     }
                 }
 
-                // The key bar: one pill row, apart from the compose box above it, bottom-most.
+                // The key bar: one row of keys on the bar, with no pill of its own, apart from the compose box above it, bottom-most.
                 // Row 1: the page keys, Herdr, ⋯, Chat, then Needs you under ⏎. With his key bar on,
                 // this row is the bar's first page and a swipe turns to his pages.
                 val bottomRow: @Composable RowScope.() -> Unit = {
@@ -1407,27 +1406,22 @@ fun TerminalComposeBar(
                         )
                     }
                 }
-                Column(
-                    modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG),
-                    verticalArrangement = Arrangement.spacedBy(KEY_PILL_GAP),
-                ) {
-                    KeyPill {
-                        if (keyBar != null) {
-                            PagedKeyRow(
-                                if (coreView) CoreView.keyBar(keyBar, herdrKeys) else keyBar,
-                                sendKey,
-                                onPaste = { pasteClipboard() },
-                                onCompose = { draft.requestFocus() },
-                                firstPage = bottomRow,
-                                resetKey = bridge,
-                            )
-                        } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
-                                content = bottomRow,
-                            )
-                        }
+                Column(modifier = Modifier.fillMaxWidth().testTag(KEY_GROUP_TEST_TAG)) {
+                    if (keyBar != null) {
+                        PagedKeyRow(
+                            if (coreView) CoreView.keyBar(keyBar, herdrKeys) else keyBar,
+                            sendKey,
+                            onPaste = { pasteClipboard() },
+                            onCompose = { draft.requestFocus() },
+                            firstPage = bottomRow,
+                            resetKey = bridge,
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                            content = bottomRow,
+                        )
                     }
                 }
             }
@@ -1437,24 +1431,7 @@ fun TerminalComposeBar(
 
 /** Clear space between the compose box and the key bar. */
 private val GROUP_GAP = 10.dp
-private val KEY_PILL_GAP = 4.dp
 private val COMPOSE_BOX_PADDING = 6.dp
-
-/**
- * One key row in its own pill. The side padding keeps the first and last key's corners inside the
- * pill's curve.
- */
-@Composable
-private fun KeyPill(content: @Composable () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = OrmusPillShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, Ormus.extras.hairline),
-    ) {
-        Box(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) { content() }
-    }
-}
 
 /** Stands in for a missing Herdr side: no snapshot, ever. */
 private val NO_HERDR_SNAPSHOT: StateFlow<HerdrSessionSnapshot?> = MutableStateFlow(null)

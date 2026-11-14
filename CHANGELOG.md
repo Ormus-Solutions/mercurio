@@ -13,6 +13,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Spaces: each tab tile shows its name and its agent's state (#294)
 
 ### Changed
+- Console: no pill around the key row; the keys sit on the bar, each in its own box, and the compose box keeps its own group
 - The Inbox and Spaces log in in the background only to Herdr machines (a saved host that starts Herdr at login, or a machine where a console found Herdr), not to every saved host (#305)
 
 ### Fixed
