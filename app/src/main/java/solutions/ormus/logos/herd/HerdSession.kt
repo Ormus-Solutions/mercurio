@@ -83,7 +83,7 @@ data class CoreRead(val result: CoreSource.Result, val at: Long)
  * another session ([attached]), each poll fetches that one too.
  *
  * [runner] runs one command over an exec channel beside the PTY and blocks
- * (SSH.execDetailed); null means it never ran. [sendKeys] writes client
+ * (SSH.execDetailed); null means no answer (it may never have run, or it ran and its answer did not come). [sendKeys] writes client
  * keystrokes to the PTY; [sendKey] presses a key there through the terminal, which
  * encodes it in the host's modes (DECCKM for arrows) and writes it after what was sent
  * before. Blocking work runs on [io].
@@ -608,7 +608,8 @@ class HerdSession(
 
     /**
      * Run [command] on the host's connection without touching the Herdr failure state: for readers
-     * that are not Herdr, such as the Inbox's herdr-core read. Null when it never ran.
+     * that are not Herdr, such as the Inbox's herdr-core read. Null when it did not answer: it may never have run, or it ran and
+     * its answer did not come (a timeout after the host took the command).
      */
     fun exec(command: String): CommandOutput? = try {
         runner(command)
@@ -623,7 +624,7 @@ class HerdSession(
         val out = try {
             runner(command)
         } catch (e: Exception) {
-            // Timeouts, a dropped connection: report it as "never ran", not a crash.
+            // Timeouts, a dropped connection: report it as "no answer" (the command may have run), not a crash.
             Timber.w(e, "Herdr command failed on %s", hostName)
             _failure.value = HerdrFailure(command, exitCode = null, stderr = e.toString(), stdout = "", sessionUp = true)
             return null

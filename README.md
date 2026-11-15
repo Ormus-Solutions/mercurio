@@ -171,7 +171,11 @@ management come from ConnectBot. Mercurio is maintained by
   answers, and the Inbox says so when no Herdr machine is known. A terminal there opens on
   the machine's one shared SSH link when it has one, instead of a login of its
   own; a link that has been quiet is probed first, and a new login is made only
-  if the probe fails.
+  if the probe fails. The Inbox reads through an open console only while that
+  console's SSH session is open and has not dropped; a console that is still
+  connecting, or that runs nothing, is passed over, and the Inbox reads on a login
+  of its own. A pin or a mark read that the console gave no answer for is written
+  again on that login; an Esc is not, so it cannot reach the agent twice.
 - **Unblock.** With the address of a questions store set in Settings (Home,
   "Questions store"), the Inbox has an Unblock (N) key, N being the open
   questions the view walks, and a swipe from right to left on the home does the

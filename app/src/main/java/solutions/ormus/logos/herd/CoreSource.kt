@@ -98,7 +98,7 @@ class CoreSource {
      * @param enabled the setting; off runs nothing
      * @param machine the host's name, put on every agent
      * @param now the clock, epoch milliseconds
-     * @param run runs one command on the host's connection; null when it never ran
+     * @param run runs one command on the host's connection; null when it gave no answer (it may never have run, or it ran and its answer did not come)
      */
     fun read(
         enabled: Boolean,

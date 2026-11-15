@@ -47,14 +47,16 @@ import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
 import solutions.ormus.logos.herd.RowAction
 import solutions.ormus.logos.home.HomeStart
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 /**
  * Backs the Inbox: the Herdr agents of every connected host, and, when the herdr-core setting is
  * on, the herdr-core terminals of every saved machine (hosts of one hostname, port and user are one
- * machine), with or without a console open: a machine with a console open is read over it, any other
- * over one held headless login that closes when the Inbox leaves. A machine has one read at a time;
- * a poll that finds one still running leaves it be. Keys below are the machine's primary host id.
+ * machine), with or without a console open: a machine with a console open and signed in is read over it,
+ * any other over one held headless login that closes when the Inbox leaves. A command the console gave no
+ * answer for goes again on that login (a read, or a label write; never an Esc). A machine has one read at a
+ * time; a poll that finds one still running leaves it be. Keys below are the machine's primary host id.
  */
 @HiltViewModel
 class InboxViewModel @Inject constructor(
@@ -221,9 +223,23 @@ class InboxViewModel @Inject constructor(
                     val result = try {
                         // The read runs on its own, so a deadline can leave it behind; its late answer is dropped.
                         val work = viewModelScope.async(dispatchers.io) {
-                            when (val link = links.link(machine, open)) {
-                                is CoreLinks.Link.Down -> CoreSource.Result.Unavailable(link.reason)
-                                is CoreLinks.Link.Up -> source.read(true, machine.name, System.currentTimeMillis(), link.run)
+                            val silent = AtomicBoolean(false)
+                            val first = readVia(links.link(machine, open?.let { noting(it, silent) }), source, machine.name)
+                            if (!silent.get()) {
+                                first
+                            } else {
+                                // The console gave no answer for a command (its link dropped, or the server refused its channel). A read changes nothing on the host: ask again on the Inbox's own login.
+                                val second = try {
+                                    readVia(links.link(machine, null), source, machine.name)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    // That login failed on its command: the rows the console read stay. With none to keep, the failure is the answer.
+                                    if (first !is CoreSource.Result.Agents) throw e
+                                    first
+                                }
+                                // Rows the console did read stay when that login gives none (it may need the user).
+                                if (second is CoreSource.Result.Agents || first !is CoreSource.Result.Agents) second else first
                             }
                         }
                         val read = withContext(dispatchers.io) { withTimeoutOrNull(readTimeoutMs) { work.await() } }
@@ -289,9 +305,27 @@ class InboxViewModel @Inject constructor(
         }
     }
 
-    /** The exec of a console already open to [machine], or null: that connection is used before a login is made. */
+    /**
+     * The exec of a console already open to [machine], or null: that connection is used before a login is made. A console is
+     * listed from the moment it starts to connect, and until its SSH session is open it can run nothing: it is not taken.
+     * `isSessionOpen` is never set back after a drop, so a console that dropped is told by `isDisconnected`.
+     */
     private fun openExec(machine: CoreMachines.Machine, bridges: List<org.connectbot.service.TerminalBridge>): ((String) -> org.connectbot.transport.CommandOutput?)? = bridges
-        .firstOrNull { b -> b.herd != null && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
+        .firstOrNull { b -> b.herd != null && b.isSessionOpen && !b.isDisconnected && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
+
+    /**
+     * [exec] that sets [silent] when it gives null. Null does not say the command never ran: the session's exec also gives it
+     * when the command was taken and its answer did not come (the 15 s timeout of the SSH exec). So only a command that is safe to
+     * send twice (a read, a label set to a fixed value) goes again after a null.
+     */
+    private fun noting(exec: (String) -> org.connectbot.transport.CommandOutput?, silent: AtomicBoolean): (String) -> org.connectbot.transport.CommandOutput? = { command ->
+        exec(command).also { if (it == null) silent.set(true) }
+    }
+
+    private fun readVia(link: CoreLinks.Link, source: CoreSource, name: String): CoreSource.Result = when (link) {
+        is CoreLinks.Link.Down -> CoreSource.Result.Unavailable(link.reason)
+        is CoreLinks.Link.Up -> source.read(true, name, System.currentTimeMillis(), link.run)
+    }
 
     // When the last write ended: a Herd session read that began before it is not the Inbox's read.
     @Volatile private var lastWriteAt = 0L
@@ -315,7 +349,11 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             val ok = try {
                 withContext(dispatchers.io) {
-                    (links.link(machine, open) as? CoreLinks.Link.Up)?.let { CoreSource.write(action, agent.address, agent.turn, it.run) } ?: false
+                    val silent = AtomicBoolean(false)
+                    val done = (links.link(machine, open?.let { noting(it, silent) }) as? CoreLinks.Link.Up)?.let { CoreSource.write(action, agent.address, agent.turn, it.run) } ?: false
+                    // A label goes again on the Inbox's own login (the same value twice is the same as once). An Esc does not: the console may
+                    // have sent it before its answer was lost, and a second one is a second key press in the agent's terminal.
+                    if (!done && silent.get() && action != RowAction.INTERRUPT) (links.link(machine, null) as? CoreLinks.Link.Up)?.let { CoreSource.write(action, agent.address, agent.turn, it.run) } ?: false else done
                 }
             } catch (e: CancellationException) {
                 throw e

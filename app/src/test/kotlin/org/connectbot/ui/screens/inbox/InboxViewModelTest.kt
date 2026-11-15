@@ -19,6 +19,7 @@ package org.connectbot.ui.screens.inbox
 
 import android.content.SharedPreferences
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -119,7 +120,7 @@ class InboxViewModelTest {
         return p
     }
 
-    private fun bridge(id: Long, nickname: String, coreRead: CoreRead? = null, hostname: String = "box$id", herdrAnswered: Boolean = true, exec: (String) -> CommandOutput?): Pair<TerminalBridge, HerdSession> {
+    private fun bridge(id: Long, nickname: String, coreRead: CoreRead? = null, hostname: String = "box$id", herdrAnswered: Boolean = true, signedIn: Boolean = true, exec: (String) -> CommandOutput?): Pair<TerminalBridge, HerdSession> {
         val snapshot = HerdrSessionSnapshot(
             workspaces = listOf(HerdrWorkspaceInfo("w1", label = "alpha · $nickname", number = 1)),
             tabs = listOf(HerdrTabInfo("w1:t1", workspaceId = "w1", label = "main", number = 1)),
@@ -136,6 +137,8 @@ class InboxViewModelTest {
         val bridge = mock(TerminalBridge::class.java)
         `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname, hostname = hostname, username = "u"))
         `when`(bridge.herd).thenReturn(herd)
+        // A console is listed from the moment it starts to connect; only one with its SSH session open can run a command.
+        `when`(bridge.isSessionOpen).thenReturn(signedIn)
         return bridge to herd
     }
 
@@ -817,5 +820,247 @@ class InboxViewModelTest {
         repeat(InboxViewModel.UNBOUND_POLLS) { vm.refresh() }
         assertEquals(true, vm.state.value.loaded)
         assertEquals(1, vm.state.value.notes.size)
+    }
+
+    // --- A console that is listed but cannot run a command must not shut out the Inbox's own login (herd-inbox-reach/MEASURE.md, H3). ---
+
+    private fun loginsOf(saved: List<Host>, login: (Int) -> CoreLinks.Opened) = CoreLinks(hosts = { saved }, login = { login(logins.incrementAndGet()) }, learned = HerdrHosts.inMemory())
+
+    private fun session(exec: (String) -> CommandOutput?) = CoreLinks.Opened.Session(
+        object : HeadlessSession {
+            override fun login(keys: List<java.security.KeyPair>) = HeadlessSsh.Login.Ok
+
+            override fun exec(command: String) = exec(command) ?: CommandOutput("", "", 1)
+
+            override fun close() {
+                closed.incrementAndGet()
+            }
+        },
+    )
+
+    /** Poll like the screen does until [done], at most [seconds]. */
+    private suspend fun pollUntil(vm: InboxViewModel, seconds: Long = 6, done: () -> Boolean): Boolean {
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds)
+        while (!done() && System.nanoTime() < end) {
+            vm.refresh()
+            Thread.sleep(40)
+        }
+        return done()
+    }
+
+    private fun coreRowsOf(vm: InboxViewModel) = vm.state.value.rows.count { it.agent.engine == core }
+
+    @Test
+    fun aConsoleThatIsNotSignedInYet_isNotUsed_andTheInboxLogsInItself() = runTest {
+        val (connecting, herd) = bridge(1L, "one", signedIn = false) { null }
+        val vm = viewModel(true, connecting, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { answers(it) } })
+        assertTrue("no rows: logins=${logins.get()}, notes=${vm.state.value.notes}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+        assertEquals(1, logins.get())
+        verify(herd, never()).exec(org.mockito.kotlin.any())
+    }
+
+    @Test
+    fun aConsoleThatIsSignedInButRunsNothing_fallsBackToTheInboxsOwnLogin() = runTest {
+        // Its exec gives null when the transport dropped, when the server refused the channel (the command never ran), or when the command was taken and its answer did not come.
+        val (silent, _) = bridge(1L, "one") { null }
+        val vm = viewModel(true, silent, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { answers(it) } })
+        vm.readTimeoutMs = 2_000L
+        assertTrue("no rows: logins=${logins.get()}, notes=${vm.state.value.notes}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+        assertEquals(1, logins.get())
+        assertTrue(vm.state.value.notes.isEmpty())
+    }
+
+    @Test
+    fun aSignedInConsoleThatAnswers_isStillUsedInsteadOfALogin() = runTest {
+        val (b, herd) = bridge(1L, "one") { answers(it) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { answers(it) } })
+        assertTrue(pollUntil(vm) { coreRowsOf(vm) > 0 })
+        assertEquals(0, logins.get())
+        verify(herd, atLeastOnce()).exec(org.mockito.kotlin.any())
+    }
+
+    @Test
+    fun aWriteThatTheConsoleCouldNotRun_isWrittenThroughTheInboxsOwnLogin() = runTest {
+        val labels = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val (silent, _) = bridge(1L, "one") { if ("hc label" in it) null else answers(it) }
+        val vm = viewModel(true, silent, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { if ("hc label" in it) CommandOutput("", "", 0).also { _ -> labels += it } else answers(it) } })
+        assertTrue(pollUntil(vm) { coreRowsOf(vm) > 0 })
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        assertTrue("written through the own login: ${labels.toList()}", pollUntil(vm) { labels.size == 1 })
+        assertEquals(1, labels.size)
+        assertTrue(vm.state.value.notes.none { it.contains("could not write") })
+    }
+
+    @Test
+    fun aWriteThatRanAndFailedOnTheConsole_isNotSentAgain() = runTest {
+        // A command that ran and answered with a failure is not tried again: an Esc must not go out twice.
+        val sent = AtomicInteger(0)
+        val (b, _) = bridge(1L, "one") { if ("hc label" in it) CommandOutput("", "no", 1).also { sent.incrementAndGet() } else answers(it) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { answers(it) } })
+        assertTrue(pollUntil(vm) { coreRowsOf(vm) > 0 })
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        awaitState(vm) { it.notes.any { n -> n.contains("could not write") } }
+        assertEquals(1, sent.get())
+        assertEquals(0, logins.get())
+    }
+
+    // --- The review of H3 (gate lane, ~/work/.b2-tmp/gate-reach-h3/REPORT.md): M1 an Esc must not go out twice, L1 rows must not be lost. ---
+
+    /** A console with the app's real [HerdSession], so its exec does what the app's does when the command throws: it gives null. */
+    private fun realConsole(id: Long, nickname: String, disconnected: Boolean = false, runner: (String) -> CommandOutput?): TerminalBridge {
+        val herd = HerdSession(hostName = nickname, runner = runner, sendKeys = {}, scope = CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
+        val bridge = mock(TerminalBridge::class.java)
+        `when`(bridge.host).thenReturn(Host(id = id, nickname = nickname, hostname = "box$id", username = "u"))
+        `when`(bridge.herd).thenReturn(herd)
+        `when`(bridge.isSessionOpen).thenReturn(true)
+        `when`(bridge.isDisconnected).thenReturn(disconnected)
+        return bridge
+    }
+
+    private fun isEsc(command: String) = "hc keys t1 esc" in command
+
+    private fun waitFor(seconds: Long = 4, done: () -> Boolean): Boolean {
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds)
+        while (!done() && System.nanoTime() < end) Thread.sleep(20)
+        return done()
+    }
+
+    @Test
+    fun anEscTheConsoleTookAndThenTimedOutOn_reachesTheHostOnce_andALineSaysItWasNotConfirmed() = runTest {
+        // SSH.execDetailed throws "Timed out" after the host took the command: the Esc is on the host, HerdSession.exec gives null.
+        val onHost = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val b = realConsole(1L, "one") { cmd ->
+            if (isEsc(cmd)) {
+                onHost += "console"
+                throw java.io.IOException("Timed out after 15000ms: $cmd")
+            }
+            answers(cmd)
+        }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { cmd -> if (isEsc(cmd)) CommandOutput("", "", 0).also { onHost += "inbox-login" } else answers(cmd) } })
+        assertTrue("no rows: notes=${vm.state.value.notes}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+        assertEquals("the reads went through the console", 0, logins.get())
+
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.INTERRUPT)
+        assertTrue("no line: ${vm.state.value.notes}", waitFor { vm.state.value.notes.any { it.contains("could not write") } })
+        Thread.sleep(300)
+        assertEquals("Esc commands that reached the host (logins=${logins.get()}): $onHost", listOf("console"), onHost.toList())
+    }
+
+    @Test
+    fun anEscTheConsoleGaveNoAnswerFor_isNotSentAgain_andALineSaysSo() = runTest {
+        // Null may mean the command never ran, or that it ran and no answer came: an Esc is not told apart, so it is not sent again.
+        val onHost = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val b = realConsole(1L, "one") { cmd -> if (isEsc(cmd)) null else answers(cmd) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { cmd -> if (isEsc(cmd)) CommandOutput("", "", 0).also { onHost += "inbox-login" } else answers(cmd) } })
+        assertTrue("no rows: notes=${vm.state.value.notes}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.INTERRUPT)
+        assertTrue("no line: ${vm.state.value.notes}", waitFor { vm.state.value.notes.any { it.contains("could not write") } })
+        Thread.sleep(300)
+        assertEquals(emptyList<String>(), onHost.toList())
+    }
+
+    @Test
+    fun aLabelTheConsoleGaveNoAnswerFor_isStillWrittenAgainOnTheInboxsLogin() = runTest {
+        // A label is set to a fixed value: sending it twice is the same as once, so the fallback stays for it.
+        val labels = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val b = realConsole(1L, "one") { cmd -> if ("hc label" in cmd) throw java.io.IOException("Timed out after 15000ms: $cmd") else answers(cmd) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { cmd -> if ("hc label" in cmd) CommandOutput("", "", 0).also { labels += cmd } else answers(cmd) } })
+        assertTrue(pollUntil(vm) { coreRowsOf(vm) > 0 })
+
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.PIN)
+        assertTrue("not written through the own login: ${labels.toList()}", waitFor { labels.size == 1 })
+        assertTrue(vm.state.value.notes.none { it.contains("could not write") })
+    }
+
+    @Test
+    fun aConsoleThatIsDisconnected_isNotUsedForAnything_andAnEscGoesOnceThroughTheInboxsLogin() = runTest {
+        // isSessionOpen is never set back after a drop, so only isDisconnected tells a dead console from a live one.
+        val asked = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val onHost = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val b = realConsole(1L, "one", disconnected = true) { cmd -> null.also { asked += cmd } }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { cmd -> if (isEsc(cmd)) CommandOutput("", "", 0).also { onHost += "inbox-login" } else answers(cmd) } })
+        assertTrue("no rows: notes=${vm.state.value.notes}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+        assertEquals(1, logins.get())
+
+        vm.act(coreRow(vm), solutions.ormus.logos.herd.RowAction.INTERRUPT)
+        assertTrue("Esc did not reach the host: notes=${vm.state.value.notes}", waitFor { onHost.isNotEmpty() })
+        Thread.sleep(300)
+        assertEquals(listOf("inbox-login"), onHost.toList())
+        assertEquals("the dead console was asked: $asked", emptyList<String>(), asked.toList())
+        assertTrue(vm.state.value.notes.none { it.contains("could not write") })
+    }
+
+    @Test
+    fun rowsTheConsoleRead_stayWhenOnlyItsLabelsCommandWasRefused_andTheInboxCannotLogInItself() = runTest {
+        // The terminals came; the labels command gave null (a refused channel). The Inbox's own login needs the user: the fallback gives no rows.
+        val b = realConsole(1L, "one") { cmd -> if (CoreSource.PINNED_CMD in cmd) throw java.io.IOException("Could not open channel (The server refused to open the channel)") else answers(cmd) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { CoreLinks.Opened.Skipped("its login asks for something Mercurio cannot answer alone") })
+        assertTrue("rows=${coreRowsOf(vm)}, notes=${vm.state.value.notes}", pollUntil(vm, seconds = 3) { coreRowsOf(vm) > 0 })
+        assertEquals(emptyList<String>(), vm.state.value.notes)
+    }
+
+    @Test
+    fun rowsTheInboxsLoginReadAfterARefusedLabelsCommand_replaceTheConsolesRows_withTheirPins() = runTest {
+        // When the fallback does give rows, they win: they carry the pins the console could not read.
+        val b = realConsole(1L, "one") { cmd -> if (CoreSource.PINNED_CMD in cmd) throw java.io.IOException("Could not open channel (The server refused to open the channel)") else answers(cmd) }
+        val pinnedAnswers = { cmd: String -> if (CoreSource.PINNED_CMD in cmd) CommandOutput("""{"terminals":[{"address":"t1"}]}""", "", 0) else answers(cmd) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { pinnedAnswers(it) } })
+        assertTrue("not pinned: notes=${vm.state.value.notes}", pollUntil(vm) { vm.state.value.rows.any { it.agent.engine == core && it.agent.pinned } })
+    }
+
+    // --- Round 2 of the gate lane's review (REPORT-r2.md): L3 rows the console read must stay when the Inbox's own login throws. ---
+
+    private fun refused() = java.io.IOException("Could not open channel (The server refused to open the channel)")
+
+    @Test
+    fun rowsTheConsoleRead_stayWhenTheInboxsOwnLoginThrowsOnItsCommand() = runTest {
+        // The terminals came through the console; its labels command was refused. The Inbox's own login is made, and its command throws.
+        val b = realConsole(1L, "one") { cmd -> if (CoreSource.PINNED_CMD in cmd) throw refused() else answers(cmd) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { throw refused() } })
+        val notesSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val shown = pollUntil(vm, seconds = 3) {
+            notesSeen.addAllAbsent(vm.state.value.notes)
+            coreRowsOf(vm) > 0
+        }
+        assertTrue("rows=${coreRowsOf(vm)}, notes=$notesSeen, logins=${logins.get()}", shown)
+        assertEquals("a line showed: $notesSeen", emptyList<String>(), notesSeen.toList())
+    }
+
+    @Test
+    fun rowsThatShow_doNotGoAwayWhenOneLabelsCommandIsRefusedAndTheFallbackThrowsOnce() = runTest {
+        val refuseLabels = java.util.concurrent.atomic.AtomicBoolean(false)
+        val b = realConsole(1L, "one") { cmd -> if (refuseLabels.get() && CoreSource.PINNED_CMD in cmd) throw refused() else answers(cmd) }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { n -> if (n == 1) session { throw refused() } else session { answers(it) } })
+        assertTrue("no core row: ${vm.state.value}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+        assertEquals("the reads went through the console", 0, logins.get())
+
+        refuseLabels.set(true)
+        var minRows = Int.MAX_VALUE
+        val notesSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(1500)
+        while (System.nanoTime() < end) {
+            vm.refresh()
+            Thread.sleep(40)
+            minRows = minOf(minRows, coreRowsOf(vm))
+            notesSeen.addAllAbsent(vm.state.value.notes)
+        }
+        assertEquals("the rows went away: notes seen $notesSeen, logins=${logins.get()}", 1, minRows)
+    }
+
+    @Test
+    fun whenTheConsoleReadNothing_aFailureOfTheInboxsOwnLoginIsTheAnswer() = runTest {
+        // Nothing to keep: the console read no rows either, so the failure of the second link shows as before.
+        val b = realConsole(1L, "one") { throw refused() }
+        val vm = viewModel(true, b, links = loginsOf(listOf(saved(1, "one", "box1"))) { session { throw refused() } })
+        val notesSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
+        assertTrue(
+            "no line: ${vm.state.value}",
+            pollUntil(vm, seconds = 3) {
+                notesSeen.addAllAbsent(vm.state.value.notes)
+                notesSeen.any { it.contains("refused") }
+            },
+        )
+        assertEquals(0, coreRowsOf(vm))
     }
 }
