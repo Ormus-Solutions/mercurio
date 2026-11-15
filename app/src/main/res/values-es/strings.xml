@@ -608,6 +608,12 @@
 	<string name="inbox_no_match">Ninguna terminal coincide</string>
 	<string name="inbox_open">Abrir %1$s en %2$s</string>
 	<string name="inbox_open_named">Abrir %1$s, %2$s, en %3$s</string>
+	<string name="inbox_star_pin">Fijar %1$s</string>
+	<string name="inbox_star_unpin">Dejar de fijar %1$s</string>
+	<string name="inbox_star_pin_named">Fijar %1$s, %2$s</string>
+	<string name="inbox_star_unpin_named">Dejar de fijar %1$s, %2$s</string>
+	<string name="inbox_pinned">Fijada</string>
+	<string name="inbox_not_pinned">No fijada</string>
 	<string name="settings_panel_inbox">Bandeja</string>
 	<string name="settings_panel_inbox_switch">Mostrar la bandeja</string>
 	<string name="settings_panel_inbox_on">El inicio tiene una tecla Bandeja, y una pulsación larga en Te necesitan la abre.</string>

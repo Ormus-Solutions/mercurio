@@ -18,6 +18,7 @@
 package org.connectbot.ui.screens.inbox
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -35,6 +36,8 @@ import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -270,7 +273,7 @@ class InboxScreenTest {
         assertEquals(1, taps)
     }
 
-    private fun core(address: String, state: AgentState, unread: Boolean? = null, pinned: Boolean = false, turn: Int? = 3) = Inbox.row(1L, "box", Agent(address, AgentEngine.CORE, "box", "alpha · ONE", "work", null, null, state, null, turn, unread, pinned))
+    private fun core(address: String, state: AgentState, unread: Boolean? = null, pinned: Boolean = false, turn: Int? = 3, role: String? = null) = Inbox.row(1L, "box", Agent(address, AgentEngine.CORE, "box", "alpha · ONE", "work", null, null, state, null, turn, unread, pinned, role = role))
 
     @Test
     fun anUnreadRow_hasADot_aReadOneDoesNot() {
@@ -300,6 +303,167 @@ class InboxScreenTest {
         composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeRight() }
         composeTestRule.waitForIdle()
         assertEquals(listOf(r to RowAction.MARK_READ), acted)
+    }
+
+    private val starLogged = mutableListOf<String>()
+
+    private fun showStarred(rows: List<InboxRow>) {
+        composeTestRule.setContent {
+            ConnectBotTheme {
+                androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { starLogged += it }) {
+                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
+                }
+            }
+        }
+    }
+
+    private fun stars() = composeTestRule.onAllNodesWithTag(INBOX_STAR_TAG, useUnmergedTree = true)
+
+    @Test
+    fun everyCoreRow_hasAStar_andATuiRowHasNone() {
+        showStarred(listOf(core("a", AgentState.Working), core("b", AgentState.Idle, pinned = true), row("t", AgentState.Idle)))
+        stars().assertCountEquals(2)
+    }
+
+    @Test
+    fun aTapOnTheStar_pinsTheRow_logsItsOwnId_andOpensNothing() {
+        val r = core("a", AgentState.Idle)
+        showStarred(listOf(r))
+        stars()[0].performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(r to RowAction.PIN), acted)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.INBOX_STAR), starLogged)
+        assertEquals(emptyList<InboxRow>(), opened)
+    }
+
+    @Test
+    fun aTapOnTheStarOfAPinnedRow_unpinsIt_andLogsItsOwnId() {
+        val r = core("a", AgentState.Idle, pinned = true)
+        showStarred(listOf(r))
+        stars()[0].performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(r to RowAction.UNPIN), acted)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.INBOX_UNSTAR), starLogged)
+    }
+
+    @Test
+    fun onAnUnreadRow_oneTapOnTheStarPins_whereTheSwipeNeedsTwo() {
+        val r = core("a", AgentState.Done, unread = true)
+        showStarred(listOf(r))
+        stars()[0].performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(r to RowAction.PIN), acted)
+    }
+
+    @Test
+    fun theStar_isFilledOnAPinnedRow_andOutlinedOnAnotherOne() {
+        showStarred(listOf(core("a", AgentState.Idle, pinned = true), core("b", AgentState.Idle)))
+        composeTestRule.onAllNodesWithTag(INBOX_PINNED_TAG, useUnmergedTree = true).assertCountEquals(1)
+        stars()[0].assertContentDescriptionContains("Unpin alpha · ONE")
+        stars()[1].assertContentDescriptionContains("Pin alpha · ONE")
+    }
+
+    @Config(qualifiers = "+es")
+    @Test
+    fun inSpanish_theStarSaysWhatATapDoes() {
+        showStarred(listOf(core("a", AgentState.Idle, pinned = true), core("b", AgentState.Idle)))
+        stars()[0].assertContentDescriptionContains("Dejar de fijar alpha · ONE")
+        stars()[1].assertContentDescriptionContains("Fijar alpha · ONE")
+    }
+
+    @Test
+    fun theRowOffersPinAsAnAction_toTalkBack_asASecondWayToTheStar() {
+        showStarred(listOf(core("a", AgentState.Idle), core("b", AgentState.Idle, pinned = true)))
+        fun labels(i: Int) = composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[i].fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions].map { it.label }
+        // The pinned row is first in its section.
+        assertEquals(listOf("Unpin alpha · ONE"), labels(0))
+        assertEquals(listOf("Pin alpha · ONE"), labels(1))
+    }
+
+    private fun rowDescription(i: Int) = composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[i].fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString(" | ")
+
+    private fun starState(i: Int) = stars()[i].fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription)
+
+    private fun starLabels() = stars().fetchSemanticsNodes().map { it.config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString(" | ") }
+
+    // M1 of the gate lane's review: the row said "Pinned" through its 16 dp pin icon; the star replaced the icon, and the row went silent.
+    @Test
+    fun aPinnedCoreRow_saysPinned_inItsMergedDescription_andAnotherRowDoesNot() {
+        showStarred(listOf(core("a", AgentState.Idle, pinned = true), core("b", AgentState.Idle)))
+        // The pinned row is first in its section.
+        assertTrue("the pinned row: ${rowDescription(0)}", rowDescription(0).contains("Pinned"))
+        assertFalse("the other row: ${rowDescription(1)}", rowDescription(1).contains("Pinned"))
+    }
+
+    @Test
+    fun theStar_hasAState_pinnedOrNotPinned() {
+        showStarred(listOf(core("a", AgentState.Idle, pinned = true), core("b", AgentState.Idle)))
+        assertEquals("Pinned", starState(0))
+        assertEquals("Not pinned", starState(1))
+    }
+
+    @Config(qualifiers = "+es")
+    @Test
+    fun inSpanish_aPinnedRowAndItsStar_sayFijada_andTheOtherStarSaysNoFijada() {
+        showStarred(listOf(core("a", AgentState.Idle, pinned = true), core("b", AgentState.Idle)))
+        assertTrue("the pinned row: ${rowDescription(0)}", rowDescription(0).contains("Fijada"))
+        assertEquals("Fijada", starState(0))
+        assertEquals("No fijada", starState(1))
+    }
+
+    // L2: two terminals of one space got the same label, "Pin alpha · ONE".
+    @Test
+    fun twoTerminalsOfOneSpace_withTwoRoles_getTwoStarLabels_andTwoActions() {
+        showStarred(listOf(core("a", AgentState.Idle, role = "Gate lane"), core("b", AgentState.Idle, role = "Herd lane")))
+        assertEquals(setOf("Pin alpha · ONE, Gate lane", "Pin alpha · ONE, Herd lane"), starLabels().toSet())
+        val actions = (0..1).flatMap { i -> composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[i].fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions].map { it.label } }
+        assertEquals(setOf("Pin alpha · ONE, Gate lane", "Pin alpha · ONE, Herd lane"), actions.toSet())
+    }
+
+    @Test
+    fun aPinnedRowWithARole_hasAnUnpinLabelThatNamesTheRole() {
+        showStarred(listOf(core("a", AgentState.Idle, pinned = true, role = "Gate lane")))
+        assertEquals(listOf("Unpin alpha · ONE, Gate lane"), starLabels())
+    }
+
+    @Config(qualifiers = "+es")
+    @Test
+    fun inSpanish_theStarLabelNamesTheRole() {
+        showStarred(listOf(core("a", AgentState.Idle, role = "Gate lane"), core("b", AgentState.Idle, pinned = true, role = "Herd lane")))
+        assertEquals(setOf("Fijar alpha · ONE, Gate lane", "Dejar de fijar alpha · ONE, Herd lane"), starLabels().toSet())
+    }
+
+    @Test
+    fun theStarAction_ofTalkBack_pinsTheRowToo() {
+        val r = core("a", AgentState.Idle)
+        showStarred(listOf(r))
+        val action = composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions].first { it.label == "Pin alpha · ONE" }
+        composeTestRule.runOnUiThread { action.action() }
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(r to RowAction.PIN), acted)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.INBOX_STAR), starLogged)
+    }
+
+    @Test
+    fun aHelperRow_hasItsOwnStar_thatPinsTheHelper() {
+        val parent = core("p", AgentState.Working)
+        val helper = Agent("h", AgentEngine.CORE, "box", "alpha · ONE", "work", null, "claude-code", AgentState.NeedsYou(), null, 3, null, false, "p")
+        showStarred(listOf(parent, Inbox.row(1L, "box", helper)))
+        stars().assertCountEquals(2)
+        stars()[1].performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(listOf("h"), acted.map { it.first.agent.address })
+        assertEquals(listOf(RowAction.PIN), acted.map { it.second })
+    }
+
+    @Test
+    fun theSwipe_stillMarksAnUnreadRowRead_andPinsAnotherOne_withTheStarThere() {
+        val unread = core("a", AgentState.Done, unread = true)
+        showStarred(listOf(unread))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).performTouchInput { swipeRight() }
+        composeTestRule.waitForIdle()
+        assertEquals(listOf(unread to RowAction.MARK_READ), acted)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.INBOX_MARK_READ), starLogged)
     }
 
     @Test

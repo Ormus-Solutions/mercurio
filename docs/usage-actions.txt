@@ -89,6 +89,8 @@ inbox:open
 inbox:search
 inbox:pin
 inbox:unpin
+inbox:star
+inbox:unstar
 inbox:mark-read
 inbox:esc
 inbox:fold

@@ -215,22 +215,26 @@ class InboxRowLayoutTest {
     @Test
     fun theWorstParentRow_atALargeFont_givesItsRoleTheWholeLine_andKeepsItsMark_andItsCountWhole() {
         // Round 2 of the review (R1): at font scale 1.3 the count is 174 dp wide in a 181 dp column, so beside the role it left
-        // the role 0 dp. It goes under the role, and under the mark when the two do not fit on a line. The role (188 dp) is wider than
-        // the column, so it is cut at the line's end (180.5 dp, named under Risk): no layout shows it whole.
+        // the role 0 dp. It goes under the role, and under the mark when the two do not fit on a line. On the base the role (188 dp)
+        // was wider than the column and was cut at the line's end (180.5 dp). With the star in the place of the 16 dp pin icon the
+        // column has room: the role is whole (188.0 dp, measured by the gate lane). The threshold stays the roles PR's.
         show(worstParentRow(), fontScale = 1.3f)
         assertShown(worstRole, 175f)
         assertWhole("Orchestrator")
         assertWhole(worstCount)
         assertTrue("the count is under the role", bounds(worstCount).top >= bounds(worstRole).bottom - 1f)
         assertCountClearOfMark(worstCount)
-        // The name is cut a little by the unread dot and the pin (165 of 176 dp, named under Risk); it must not get worse.
+        // On the base the name was cut a little by the unread dot and the pin icon (164.5 of 176 dp). With the star it is whole
+        // (176.0 dp, measured by the gate lane); the threshold stays the roles PR's, and it must not get worse.
         assertShown(space, 160f)
     }
 
     @Test
-    fun theWorstParentRow_atFontScale15_cutsItsCountWithAnEllipsis_notInSilence() {
-        // Round 3 (S1): at font scale 1.5 the count (182 dp) is wider than the column. Clipped, "needs you" went with no sign of a cut.
-        show(worstParentRow(), fontScale = 1.5f)
+    fun theWorstParentRow_atFontScale20_cutsItsCountWithAnEllipsis_notInSilence() {
+        // Round 3 (S1): at a large font the count is wider than the column. Clipped, "needs you" went with no sign of a cut. It was font 1.5 before the
+        // star: the worst row is pinned, and on the base its count was cut there (159.5 of 182.0 dp). The star replaces the 16 dp pin icon, so at 1.5 the
+        // count fits (182.0 dp); at 2.0 it is 243 dp, wider than the column.
+        show(worstParentRow(), fontScale = 2.0f)
         val count = measure(worstCount)
         assertTrue("the count is wider than its line: ${dp(count.wholePx)} dp", count.wholePx > count.shownPx)
         assertTrue("the cut shows: an ellipsis", count.cut)

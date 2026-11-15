@@ -19,12 +19,14 @@ package org.connectbot.ui.screens.inbox
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -37,9 +39,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -54,6 +57,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -76,9 +80,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -210,6 +216,11 @@ fun InboxContent(
         )
         onAction(row, action)
     }
+    // The star pins or unpins with the same write as the swipe, and has its own ids: it is a control of its own.
+    val starRow: (InboxRow, RowAction) -> Unit = { row, action ->
+        usage.log(if (action == RowAction.UNPIN) UsageActions.INBOX_UNSTAR else UsageActions.INBOX_STAR)
+        onAction(row, action)
+    }
     // The row a swipe left is asking about: Esc is sent only after the person confirms.
     var interrupting by remember { mutableStateOf<InboxRow?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -310,14 +321,14 @@ fun InboxContent(
                         val helpersOpen = shown.helpersNeedYou != (shown.key in flipped)
                         row {
                             key(shown.key) {
-                                InboxRowItem(shown, now, openRow, actOnRow, helpersOpen = helpersOpen, onToggleHelpers = {
+                                InboxRowItem(shown, now, openRow, actOnRow, starRow, helpersOpen = helpersOpen, onToggleHelpers = {
                                     usage.log(UsageActions.INBOX_HELPERS)
                                     flipped = if (shown.key in flipped) flipped - shown.key else flipped + shown.key
                                 }) { interrupting = it }
                             }
                         }
                         if (helpersOpen) {
-                            shown.helperRows.forEach { helper -> row { key(helper.key) { InboxRowItem(helper, now, openRow, actOnRow, indent = true) { interrupting = it } } } }
+                            shown.helperRows.forEach { helper -> row { key(helper.key) { InboxRowItem(helper, now, openRow, actOnRow, starRow, indent = true) { interrupting = it } } } }
                         }
                     }
                     if (section.hidden > 0) {
@@ -383,11 +394,14 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
 /** Test tag of the dot on an unread row. */
 const val INBOX_UNREAD_TAG = "inbox_unread"
 
-/** Test tag of the pin on a pinned row. */
+/** Test tag of the filled star on a pinned row. */
 const val INBOX_PINNED_TAG = "inbox_pinned"
 
 /** Test tag of the Orchestrator mark on a row whose terminal other terminals name as their parent. */
 const val INBOX_ORCHESTRATOR_TAG = "inbox_orchestrator"
+
+/** Test tag of the star on a herdr-core row. */
+const val INBOX_STAR_TAG = "inbox_star"
 
 /** Test tag of the helper count on a row that has helpers. */
 const val INBOX_HELPERS_TAG = "inbox_helpers"
@@ -398,6 +412,9 @@ const val INBOX_HELPERS_UNREAD_TAG = "inbox_helpers_unread"
 private val INDENT = 24.dp
 
 private val DOT_SIZE = 8.dp
+
+/** The touch target of the star: 48 dp square. */
+private val STAR_TARGET = 48.dp
 
 /**
  * One row. A herdr-core row swipes: right marks it read or toggles its pin ([Inbox.rightSwipe]),
@@ -411,6 +428,7 @@ private fun InboxRowItem(
     now: Long,
     onOpen: (InboxRow) -> Unit,
     onAction: (InboxRow, RowAction) -> Unit,
+    onStar: (InboxRow, RowAction) -> Unit,
     indent: Boolean = false,
     helpersOpen: Boolean = false,
     onToggleHelpers: () -> Unit = {},
@@ -419,7 +437,7 @@ private fun InboxRowItem(
     val right = Inbox.rightSwipe(row.agent)
     val left = Inbox.canInterrupt(row.agent)
     if (right == null && !left) {
-        InboxRowBody(row, now, onOpen, indent, onToggleHelpers = onToggleHelpers)
+        InboxRowBody(row, now, onOpen, indent, onToggleHelpers = onToggleHelpers, onStar = onStar)
         return
     }
     val currentRow by rememberUpdatedState(row)
@@ -462,12 +480,12 @@ private fun InboxRowItem(
             }
         },
     ) {
-        InboxRowBody(row, now, onOpen, indent, onToggleHelpers = onToggleHelpers, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
+        InboxRowBody(row, now, onOpen, indent, onToggleHelpers = onToggleHelpers, onStar = onStar, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
     }
 }
 
 @Composable
-private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, indent: Boolean, onToggleHelpers: () -> Unit, modifier: Modifier = Modifier) {
+private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, indent: Boolean, onToggleHelpers: () -> Unit, onStar: (InboxRow, RowAction) -> Unit, modifier: Modifier = Modifier) {
     val space = row.agent.space
     val helpers = if (row.helpers > 0) pluralStringResource(R.plurals.inbox_helpers, row.helpers, row.helpers) else null
     val helpersText = helpers?.let { if (row.helpersNeedYou) stringResource(R.string.inbox_helpers_need_you, it) else it }
@@ -479,6 +497,20 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, i
     if (marked) description = stringResource(R.string.inbox_open_with, description, mark)
     if (helpersText != null) description = stringResource(R.string.inbox_open_with, description, helpersText)
     if (row.helpersUnread) description = stringResource(R.string.inbox_open_with, description, stringResource(R.string.inbox_unread))
+    // The row says it is pinned, as the 16 dp pin icon made it say before the star replaced the icon.
+    if (row.agent.pinned) description = stringResource(R.string.inbox_open_with, description, stringResource(R.string.inbox_pinned))
+    // A herdr-core row has a star: a tap pins it, or unpins it. A TUI row cannot be pinned and has none. Its label names the role
+    // when the row has one, so two terminals of one space do not get the same words.
+    val starAction = Inbox.pinAction(row.agent)
+    val starLabel = starAction?.let { action ->
+        val unpin = action == RowAction.UNPIN
+        when {
+            roleName == null -> stringResource(if (unpin) R.string.inbox_star_unpin else R.string.inbox_star_pin, space)
+            else -> stringResource(if (unpin) R.string.inbox_star_unpin_named else R.string.inbox_star_pin_named, space, roleName)
+        }
+    }
+    val starState = stringResource(if (row.agent.pinned) R.string.inbox_pinned else R.string.inbox_not_pinned)
+    val age = Inbox.age(row, now)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.md),
@@ -489,17 +521,30 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, i
             .clickable { onOpen(row) }
             .semantics {
                 contentDescription = description
-                // The count is a control of its own; a merged row hides it from a screen reader, so offer it as an action too.
-                if (helpersText != null) {
-                    customActions = listOf(
-                        CustomAccessibilityAction(helpersText) {
-                            onToggleHelpers()
-                            true
-                        },
-                    )
+                // The count is a control of its own that a merged row hides from a screen reader, so it is an action too. The star is a node of
+                // its own; its action here is a second way to the same write, from the actions menu of the screen reader.
+                val actions = buildList {
+                    if (helpersText != null) {
+                        add(
+                            CustomAccessibilityAction(helpersText) {
+                                onToggleHelpers()
+                                true
+                            },
+                        )
+                    }
+                    if (starAction != null && starLabel != null) {
+                        add(
+                            CustomAccessibilityAction(starLabel) {
+                                onStar(row, starAction)
+                                true
+                            },
+                        )
+                    }
                 }
+                if (actions.isNotEmpty()) customActions = actions
             }
-            .padding(start = Ormus.spacing.lg + if (indent) INDENT else 0.dp, end = Ormus.spacing.lg, top = Ormus.spacing.sm, bottom = Ormus.spacing.sm),
+            // The star's 48 dp target takes the row's end padding, so it costs the text 32 dp, not 60.
+            .padding(start = Ormus.spacing.lg + if (indent) INDENT else 0.dp, end = if (starAction != null) 0.dp else Ormus.spacing.lg, top = Ormus.spacing.sm, bottom = Ormus.spacing.sm),
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -557,20 +602,52 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, i
                 }
             }
         }
-        if (row.agent.pinned) {
-            Icon(
-                Icons.Filled.PushPin,
-                contentDescription = stringResource(R.string.inbox_pinned),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .size(16.dp)
-                    .testTag(INBOX_PINNED_TAG),
-            )
-        }
         if (!stacked && helpersText != null) HelpersChip(row, helpersText, onToggleHelpers)
-        Inbox.age(row, now)?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (starAction != null && starLabel != null) {
+            RowStar(starLabel, starState, pinned = starAction == RowAction.UNPIN, age = age) { onStar(row, starAction) }
+        } else {
+            age?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+    }
+}
+
+/**
+ * The star of a herdr-core row: filled when the row is pinned. [label] says what a tap does and [state] says whether the row is
+ * pinned. The touch layer is a [STAR_TARGET] square at least (a tap in its corners pins too: an IconButton's area is a circle).
+ * The row's [age] sits under the glyph, in the same cell, so the star costs the text column no more than the age did; at a
+ * large font the cell grows with the age, and the age keeps 4 dp from the cell's sides, so it neither touches the glyph nor
+ * reaches the row's edge.
+ */
+@Composable
+private fun RowStar(label: String, state: String, pinned: Boolean, age: String?, onClick: () -> Unit) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.defaultMinSize(minWidth = STAR_TARGET, minHeight = STAR_TARGET)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                if (pinned) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                contentDescription = null,
+                tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = if (pinned) Modifier.testTag(INBOX_PINNED_TAG) else Modifier,
+            )
+            age?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
+            }
+        }
+        // On top of the glyph and the age, so a tap anywhere in the cell pins.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .testTag(INBOX_STAR_TAG)
+                .semantics {
+                    contentDescription = label
+                    stateDescription = state
+                }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ripple(bounded = false, radius = STAR_TARGET / 2),
+                    role = Role.Button,
+                    onClick = onClick,
+                ),
+        )
     }
 }
 

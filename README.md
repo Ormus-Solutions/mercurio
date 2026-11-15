@@ -148,7 +148,9 @@ management come from ConnectBot. Mercurio is maintained by
   refresh runs no more commands than before. A parent's helper count sits at the
   end of the role's line when the role stays whole there, else on the mark's line, or on a line of its own.
   Each section shows three rows and a Show more key. On a herdr-core row, a swipe marks it read,
-  pins it or sends Esc (after a confirmation). The list shows "Loading…" until
+  pins it or sends Esc (after a confirmation). A star at the right of each herdr-core
+  row pins it in one tap, also when the row is unread, and a second tap unpins it;
+  it is the same `herdr.pinned` label as the swipe. A pinned row is first in its section. The list shows "Loading…" until
   each machine has answered once, and "No agents yet" only after a read that
   came back empty. A machine whose read fails, or gives no answer, shows its own
   line until its next good read. The Inbox and Include herdr-core agents are

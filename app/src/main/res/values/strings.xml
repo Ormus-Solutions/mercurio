@@ -2234,11 +2234,19 @@
 	<string name="inbox_swipe_read">Mark read</string>
 	<string name="inbox_swipe_pin">Pin</string>
 	<string name="inbox_swipe_unpin">Unpin</string>
+	<!-- The star on a herdr-core row pins or unpins it; %1$s is the space. The text says what a tap does -->
+	<string name="inbox_star_pin">Pin %1$s</string>
+	<string name="inbox_star_unpin">Unpin %1$s</string>
+	<!-- The same when the row has a role or a name; %1$s is the space, %2$s the role (two terminals of one space differ by it) -->
+	<string name="inbox_star_pin_named">Pin %1$s, %2$s</string>
+	<string name="inbox_star_unpin_named">Unpin %1$s, %2$s</string>
 	<!-- Swipe left shows this under the row, then asks before sending Esc -->
 	<string name="inbox_swipe_esc">Esc</string>
 	<!-- Spoken marks on a row: a done agent not yet looked at, and a pinned one -->
 	<string name="inbox_unread">Unread</string>
 	<string name="inbox_pinned">Pinned</string>
+	<!-- The state a screen reader gives the star of a row that is not pinned -->
+	<string name="inbox_not_pinned">Not pinned</string>
 	<!-- Confirm before Esc is sent to an agent; %1$s is the space -->
 	<string name="inbox_esc_title">Send Esc to %1$s?</string>
 	<string name="inbox_esc_body">Esc interrupts the agent in the middle of what it is doing.</string>

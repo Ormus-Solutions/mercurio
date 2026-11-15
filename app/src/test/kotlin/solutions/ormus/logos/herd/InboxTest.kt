@@ -469,4 +469,40 @@ class InboxTest {
         val hit = Inbox.sections(rows, "herd inbox", emptySet()).flatMap { it.rows }
         assertEquals(listOf("t2"), hit.map { it.agent.address })
     }
+
+    private fun coreAgent(address: String, state: AgentState = AgentState.Idle, pinned: Boolean = false, unread: Boolean? = null, since: Long? = null) = Agent(address, AgentEngine.CORE, "box", "alpha · ONE", "work", null, "claude-code", state, since, 3, unread, pinned)
+
+    @Test
+    fun theStar_pinsAnUnpinnedCoreRow_andUnpinsAPinnedOne() {
+        assertEquals(RowAction.PIN, Inbox.pinAction(coreAgent("a")))
+        assertEquals(RowAction.UNPIN, Inbox.pinAction(coreAgent("a", pinned = true)))
+    }
+
+    @Test
+    fun theStar_pinsAnUnreadRowAtOnce_whereTheSwipeFirstMarksItRead() {
+        val unread = coreAgent("a", AgentState.Done, unread = true)
+        assertEquals(RowAction.MARK_READ, Inbox.rightSwipe(unread))
+        assertEquals(RowAction.PIN, Inbox.pinAction(unread))
+        assertEquals(RowAction.UNPIN, Inbox.pinAction(unread.copy(pinned = true)))
+    }
+
+    @Test
+    fun aRowThatIsNotCore_hasNoStar() {
+        assertNull(Inbox.pinAction(agent("t", AgentState.Idle)))
+        assertNull(Inbox.pinAction(agent("t", AgentState.Idle, pinned = true)))
+        assertFalse(Inbox.canPin(agent("t", AgentState.Idle)))
+        assertTrue(Inbox.canPin(coreAgent("a")))
+    }
+
+    @Test
+    fun aPinnedRow_staysFirstInItsSection_afterTheStarWrote_andLastAfterTheUnpin() {
+        val rows = listOf(coreAgent("a", AgentState.Working, since = 100), coreAgent("b", AgentState.Working, since = 200), coreAgent("c", AgentState.Working, since = 300))
+            .map { Inbox.row(1L, "box", it) }
+        fun order(of: List<InboxRow>) = Inbox.sections(of, "", emptySet()).flatMap { it.rows }.map { it.agent.address }
+        assertEquals(listOf("a", "b", "c"), order(rows))
+        val pinned = Inbox.patched(rows, rows[2].agent, RowAction.PIN)
+        assertEquals(listOf("c", "a", "b"), order(pinned))
+        val unpinned = Inbox.patched(pinned, pinned.first { it.agent.address == "c" }.agent, RowAction.UNPIN)
+        assertEquals(listOf("a", "b", "c"), order(unpinned))
+    }
 }

@@ -202,6 +202,19 @@ object Inbox {
         else -> RowAction.PIN
     }
 
+    /** Whether [agent] can be pinned: a herdr-core terminal has the `herdr.pinned` label, a TUI agent has none. */
+    fun canPin(agent: Agent): Boolean = agent.engine == AgentEngine.CORE
+
+    /**
+     * What a tap on the star of [agent] does: pin it, or unpin it when it is pinned. Null for a TUI agent, which has no star.
+     * Unlike [rightSwipe], an unread row is pinned at once: the swipe marks it read first, so a pin took two swipes.
+     */
+    fun pinAction(agent: Agent): RowAction? = when {
+        !canPin(agent) -> null
+        agent.pinned -> RowAction.UNPIN
+        else -> RowAction.PIN
+    }
+
     /** Whether a swipe left may send Esc to [agent]: herdr-core terminals only. */
     fun canInterrupt(agent: Agent): Boolean = agent.engine == AgentEngine.CORE
 
