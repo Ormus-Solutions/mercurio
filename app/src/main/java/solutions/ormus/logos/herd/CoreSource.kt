@@ -38,6 +38,10 @@ import org.connectbot.transport.CommandOutput
  * `hc ls` gives a terminal's `status` as a string (`"idle"`) or null; `hc get` gives it as an
  * object (`{"app":..,"state":..}`, and a `kind` for a terminal that needs the user). Both are read.
  * A shell terminal reports no status and is [AgentState.Unknown].
+ *
+ * A terminal's role is its `ormus.title` label. `hc ls` does not print labels, so the title is read with
+ * `hc get`, inside the labels command and only for an address that shows for the first time: it is kept
+ * until the address goes, so a refresh adds no command for it.
  */
 class CoreSource {
     sealed interface Result {
@@ -54,6 +58,14 @@ class CoreSource {
     private data class Seen(val state: AgentState, val since: Long)
 
     private val seen = HashMap<String, Seen>()
+
+    /**
+     * What was read of one terminal's `ormus.title`, with the facts of the `hc ls` record it was read for. A record
+     * that no longer matches them is another terminal on a reused address (a restarted core numbers again).
+     */
+    private data class Titled(val title: String?, val name: String?, val cwd: String?, val turn: Int?)
+
+    private val titled = HashMap<String, Titled>()
 
     // The --version probe answered once; it is not asked again until a read fails, so a poll is one command.
     // A "not installed" answer is not asked again either, until RECHECK_MS passes or [recheck] is called.
@@ -128,9 +140,12 @@ class CoreSource {
         val records = parse(out.stdout)
             ?: return down("herdr-core answered something unreadable")
 
-        val labels = readLabels(records, run)
+        val labels = readLabels(records, run, titlesToAsk(records))
+        if (labels != null) rememberTitles(records, labels)
         val agents = records.mapNotNull { toAgent(it, machine, now, labels) }
-        seen.keys.retainAll(agents.map { it.address }.toSet())
+        val addresses = agents.map { it.address }.toSet()
+        seen.keys.retainAll(addresses)
+        titled.keys.retainAll(addresses)
         return Result.Agents(agents)
     }
 
@@ -146,16 +161,52 @@ class CoreSource {
         address.takeIf { turn > 0 && stateOf(r["status"]).let { it == AgentState.Idle || it == AgentState.Done } }
     }
 
-    /** What the labels command gave: the pinned terminals, and the `herdr.seen` of the ones asked. */
-    private class Labels(val pinned: Set<String>, val seen: Map<String, Int>)
+    /**
+     * The terminals whose title is not known: a new address, an address whose record names another terminal,
+     * and an untitled one whose turn moved (a lane is listed a moment before its launcher labels it).
+     * Only a plain terminal name is asked, so nothing else reaches the shell.
+     */
+    private fun titlesToAsk(records: List<JsonObject>): List<String> = records.mapNotNull { r ->
+        val address = r.str("address")?.takeIf { TERMINAL.matches(it) } ?: return@mapNotNull null
+        val known = titled[address]
+        address.takeIf { known == null || !known.describes(r) || (known.title == null && known.turn != r.turn()) }
+    }
+
+    /** Keep the titles the labels command answered, each with the record it was read for. */
+    private fun rememberTitles(records: List<JsonObject>, labels: Labels) {
+        for (r in records) {
+            val address = r.str("address")?.takeIf { it in labels.titles } ?: continue
+            titled[address] = Titled(labels.titles[address], r.str("name"), r.str("cwd"), r.turn())
+        }
+    }
+
+    /**
+     * Whether this kept title is of the terminal [record] lists: the same name and folder, and a turn that did not go back.
+     * A turn never goes down inside one terminal ([CoreSeen] relies on it too), so a lower turn is a core that started again
+     * and gave the address to another terminal, which an unnamed terminal of one folder cannot tell from its name and folder.
+     */
+    private fun Titled.describes(record: JsonObject): Boolean {
+        val now = record.turn()
+        return name == record.str("name") && cwd == record.str("cwd") && !(turn != null && now != null && now < turn)
+    }
+
+    private fun JsonObject.turn(): Int? = (this["turn"] as? JsonPrimitive)?.intOrNull
+
+    /**
+     * What the labels command gave: the pinned terminals, the `herdr.seen` of the ones asked, and the `ormus.title`
+     * of the ones asked (null for one with no title: its `hc get` has no `labels` key when it has no labels).
+     */
+    private class Labels(val pinned: Set<String>, val seen: Map<String, Int>, val titles: Map<String, String?>)
 
     /**
      * The shared labels of this host's terminals, in one command. Null when it could not be read:
      * the agents then keep the core's own status, nothing is pinned, and no row is unread.
-     * Only an idle or done terminal past turn 0 can be unread, so only those are asked.
+     * Only an idle or done terminal past turn 0 can be unread, so only those are asked, and the terminals
+     * in [titles] (one `hc get` serves both: its labels carry `herdr.seen` and `ormus.title`).
      */
-    private fun readLabels(records: List<JsonObject>, run: (String) -> CommandOutput?): Labels? {
-        val asked = seenCandidates(records)
+    private fun readLabels(records: List<JsonObject>, run: (String) -> CommandOutput?, titles: List<String> = emptyList()): Labels? {
+        val wanted = seenCandidates(records).toHashSet().also { it += titles }
+        val asked = records.mapNotNull { it.str("address") }.filter { it in wanted }.distinct()
         val out = try {
             run(HerdrApi.loginShell(labelsCmd(asked)))
         } catch (_: Exception) {
@@ -163,6 +214,7 @@ class CoreSource {
         } ?: return null
         val pinned = HashSet<String>()
         val seen = HashMap<String, Int>()
+        val roles = HashMap<String, String?>()
         var any = false
         for (line in out.stdout.lineSequence()) {
             val obj = try {
@@ -177,10 +229,11 @@ class CoreSource {
                 continue
             }
             val address = obj.str("address") ?: continue
-            val value = (obj["labels"] as? JsonObject)?.str(SEEN)?.toIntOrNull() ?: continue
-            seen[address] = value
+            val labels = obj["labels"] as? JsonObject
+            roles[address] = labels?.str(TITLE)?.trim()?.takeIf { it.isNotEmpty() }
+            labels?.str(SEEN)?.toIntOrNull()?.let { seen[address] = it }
         }
-        return if (any) Labels(pinned, seen) else null
+        return if (any) Labels(pinned, seen, roles) else null
     }
 
     private fun toAgent(
@@ -223,6 +276,8 @@ class CoreSource {
             unread = unread,
             pinned = labels != null && address in labels.pinned,
             parent = record.str("parent"),
+            name = record.str("name"),
+            role = titled[address]?.takeIf { it.describes(record) }?.title,
         )
     }
 
@@ -317,12 +372,15 @@ class CoreSource {
         /** The label a client raises to the turn it has shown; see herdr-app docs/labels.md. */
         private const val SEEN = "herdr.seen"
 
+        /** The label a lane's launcher sets to say what the terminal is ("Orchestrator", "Herd: Inbox, Spaces, notices"). */
+        private const val TITLE = "ormus.title"
+
         // A terminal (`t7`) or a remote one (`mac/t7`); it starts with a letter or digit so it can never read as an option.
         private val TERMINAL = Regex("[A-Za-z0-9][A-Za-z0-9_-]*(/[A-Za-z0-9][A-Za-z0-9_-]*)?")
 
         /**
          * One command that prints the pinned listing, then one `hc get` line per terminal in
-         * [addresses] (their `labels` object carries `herdr.seen`). An address that is not a plain
+         * [addresses] (their `labels` object carries `herdr.seen` and `ormus.title`). An address that is not a plain
          * terminal name is left out, so nothing else reaches the shell.
          */
         fun labelsCmd(addresses: List<String>): String = PINNED_CMD + addresses.filter { TERMINAL.matches(it) }.joinToString("") { "; hc get $it --json" }

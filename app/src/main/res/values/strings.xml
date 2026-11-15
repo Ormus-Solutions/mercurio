@@ -2202,7 +2202,7 @@
 		<item quantity="one">%1$d helper</item>
 		<item quantity="other">%1$d helpers</item>
 	</plurals>
-	<!-- Spoken description of an Inbox row that has more to say: %1$s is "Open <space> on <host>", %2$s the helper count or the unread mark -->
+	<!-- Spoken description of an Inbox row that has more to say: %1$s is "Open <space> on <host>", %2$s the Orchestrator mark, the helper count or the unread mark -->
 	<string name="inbox_open_with">%1$s, %2$s</string>
 	<!-- Inbox row: the helper count when one of the helpers needs the user, e.g. "2 helpers · needs you" -->
 	<string name="inbox_helpers_need_you">%1$s · needs you</string>
@@ -2226,6 +2226,10 @@
 	<string name="inbox_no_match">No terminal matches</string>
 	<!-- Spoken name of a row; %1$s is the space, %2$s the host it is on -->
 	<string name="inbox_open">Open %1$s on %2$s</string>
+	<!-- Spoken name of a herdr-core row that says what it is; %1$s is the space, %2$s its role or name (e.g. "Gate: review and proof"), %3$s the host -->
+	<string name="inbox_open_named">Open %1$s, %2$s, on %3$s</string>
+	<!-- Mark on the row of a terminal that other terminals name as their parent, shown and spoken -->
+	<string name="inbox_orchestrator">Orchestrator</string>
 	<!-- Swipe right on a row marks an unread agent read; on any other it pins or unpins it -->
 	<string name="inbox_swipe_read">Mark read</string>
 	<string name="inbox_swipe_pin">Pin</string>

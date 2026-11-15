@@ -39,6 +39,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.doSuspendableAnswer
+import org.robolectric.annotation.Config
 import solutions.ormus.logos.herd.Agent
 import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.AgentState
@@ -366,5 +367,99 @@ class InboxScreenTest {
         show(listOf(parent, helper))
         composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open alpha · ONE on box, 1 helper · needs you, Unread")
         composeTestRule.onAllNodesWithTag(INBOX_HELPERS_UNREAD_TAG, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    private fun lane(address: String, role: String?, name: String? = null, parent: String? = null, orchestrator: Boolean = false, tab: String = "Dev") = Inbox.row(
+        1L,
+        "box",
+        Agent(address = address, engine = AgentEngine.CORE, machine = "box", space = "ormus · MERCURIO", tab = tab, kind = "claude-code", state = AgentState.Working, turn = 3, parent = parent, name = name, role = role),
+    ).copy(orchestrator = orchestrator)
+
+    @Test
+    fun aCoreRow_showsItsRoleName_andTalkBackReadsIt() {
+        show(listOf(lane("t2", "Herd: Inbox, Spaces, notices", name = "mdev-herd")))
+        composeTestRule.onNodeWithText("Herd: Inbox, Spaces, notices").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Dev").assertDoesNotExist()
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).assertContentDescriptionContains("Open ormus · MERCURIO, Herd: Inbox, Spaces, notices, on box")
+    }
+
+    @Test
+    fun aCoreRowWithNoRole_showsItsTerminalName_thenItsTab() {
+        show(listOf(lane("t2", null, name = "mdev-herd"), lane("t3", null)))
+        composeTestRule.onNodeWithText("mdev-herd").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Dev").assertIsDisplayed()
+    }
+
+    @Test
+    fun aTerminalOthersNameAsParent_showsAnOrchestratorMark_inWords_andTalkBackReadsIt() {
+        show(listOf(lane("t1", "Dev lead", orchestrator = true), lane("t2", "Herd", parent = "t1")))
+        composeTestRule.onNodeWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Orchestrator", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open ormus · MERCURIO, Dev lead, on box, Orchestrator, 1 helper")
+    }
+
+    @Test
+    fun aRowThatIsNotAnOrchestrator_hasNoMark() {
+        show(listOf(lane("t1", "Dev lead"), lane("t2", "Herd")))
+        composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(0)
+        composeTestRule.onAllNodesWithText("Orchestrator", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aRoleThatAlreadySaysOrchestrator_isNotRepeatedByTheMark_butTheRowStillReadsIt() {
+        show(listOf(lane("t1", "Orchestrator", orchestrator = true), lane("t2", "Herd", parent = "t1")))
+        composeTestRule.onAllNodesWithText("Orchestrator", useUnmergedTree = true).assertCountEquals(1)
+        composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open ormus · MERCURIO, Orchestrator, on box, 1 helper")
+    }
+
+    @Test
+    fun theMark_showsOnAnOrchestratorWithNoRole_andTheRowReadsItsNameThenTheMark() {
+        show(listOf(lane("t1", null, name = "mdev-orch", orchestrator = true)))
+        composeTestRule.onNodeWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).assertContentDescriptionContains("Open ormus · MERCURIO, mdev-orch, on box, Orchestrator")
+    }
+
+    @Test
+    fun aParentNamedOnlyByItsTab_thatSaysOrchestrator_isStillMarked_andReadAsAnOrchestrator() {
+        // Round 2 (R5): the mark was compared with what the row shows (the tab too), but the spoken name reads the role or the name only.
+        show(listOf(lane("t1", null, orchestrator = true, tab = "Orchestrator"), lane("t2", "Herd", parent = "t1")))
+        composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(1)
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open ormus · MERCURIO on box, Orchestrator, 1 helper")
+    }
+
+    @Test
+    fun aParentNamedOnlyByItsTerminalName_thatSaysOrchestrator_isNotMarkedAgain() {
+        show(listOf(lane("t1", null, name = "mdev-orchestrator", orchestrator = true), lane("t2", "Herd", parent = "t1")))
+        composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open ormus · MERCURIO, mdev-orchestrator, on box, 1 helper")
+    }
+
+    @Test
+    fun theMarkWord_isTheWordTheSearchReads() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        assertEquals(Inbox.ORCHESTRATOR_WORD, context.getString(org.connectbot.R.string.inbox_orchestrator))
+    }
+
+    @Test
+    fun aRoleThatSaysOrchestratorInLowerCase_isNotRepeatedByTheMark() {
+        // 7 of the 11 roles on a real host that carry the word write it in lower case ("Builds orchestrator").
+        show(listOf(lane("t1", "Builds orchestrator", orchestrator = true), lane("t2", "Herd", parent = "t1")))
+        composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(INBOX_ROW_TAG)[0].assertContentDescriptionContains("Open ormus · MERCURIO, Builds orchestrator, on box, 1 helper")
+    }
+
+    @Config(qualifiers = "+es")
+    @Test
+    fun inSpanish_aRowWithARole_isReadInSpanish() {
+        show(listOf(lane("t1", "Herd: Inbox, Spaces, notices")))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).assertContentDescriptionContains("Abrir ormus · MERCURIO, Herd: Inbox, Spaces, notices, en box")
+    }
+
+    @Test
+    fun aPlainHerdrRow_keepsItsDescriptionAndHasNoMark() {
+        show(listOf(row("a", AgentState.Idle)))
+        composeTestRule.onNodeWithTag(INBOX_ROW_TAG).assertContentDescriptionContains("Open alpha · ONE on box")
+        composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(0)
     }
 }

@@ -151,6 +151,27 @@ class JumpSheetTest {
     }
 
     @Test
+    fun coreItems_ofOneTab_readTheirRole_thenTheirName_andSearchFindsThem() {
+        val lane = { address: String, role: String?, name: String? -> Agent(address = address, engine = AgentEngine.CORE, space = "ormus · MERCURIO", tab = "Dev", state = AgentState.Idle, role = role, name = name) }
+        val core = Inbox.fromCore(7, "box", CoreSource.Result.Agents(listOf(lane("t1", "Orchestrator", "mdev-orch"), lane("t2", "Gate: review and proof", "mdev-gate"), lane("t3", null, "mdev-phone"), lane("t4", null, null)))).rows
+        val items = JumpSheet.items(emptyList(), "box", core)
+        assertEquals(listOf("Orchestrator", "Gate: review and proof", "mdev-phone", null), listOf("t1", "t2", "t3", "t4").map { t -> items.single { it.agent.address == t }.third })
+        assertEquals(listOf("7/core/t2"), keys(JumpSheet.sections(items, emptyList(), "gate proof").single()))
+        assertEquals(listOf("7/core/t3"), keys(JumpSheet.sections(items, emptyList(), "mdev-phone").single()))
+    }
+
+    @Test
+    fun aTitledTerminal_isFoundByItsRole_andByItsName_asTheInboxDoes() {
+        val agents = listOf(Agent(address = "t2", engine = AgentEngine.CORE, space = "ormus · MERCURIO", tab = "Dev", state = AgentState.Idle, role = "Gate: review and proof", name = "mdev-gate"))
+        val core = Inbox.fromCore(7, "box", CoreSource.Result.Agents(agents)).rows
+        val items = JumpSheet.items(emptyList(), "box", core)
+        listOf("mdev-gate", "gate proof", "mdev-gate review").forEach { query ->
+            assertEquals(query, listOf("7/core/t2"), JumpSheet.sections(items, emptyList(), query).flatMap { it.items }.map { it.key })
+            assertEquals(query, listOf("7/core/t2"), Inbox.sections(core, query, emptySet()).flatMap { it.rows }.map { it.key })
+        }
+    }
+
+    @Test
     fun coreItem_opensTheTerminalAsHcLsNamedIt() {
         val core = Inbox.fromCore(7, "box", CoreSource.Result.Agents(listOf(Agent(address = "t9", engine = AgentEngine.CORE, space = "gamma", tab = "logs", state = AgentState.Idle)))).rows
         val row = JumpSheet.items(emptyList(), "box", core).single().core!!

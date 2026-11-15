@@ -60,6 +60,8 @@ sealed interface AgentState {
  * One agent, engine-neutral: the board, Jump to and the notices read this, never an engine's
  * own record. A field only one engine fills ([machine], [turn], [unread], [parent]) is null
  * for the other. [since] is when the agent entered [state], epoch milliseconds.
+ * A herdr-core terminal's [name] is the one `hc ls` prints, and its [role] is its `ormus.title` label
+ * (a lane says what it is there, "Orchestrator"); both are null for a plain-herdr agent and for a terminal without them.
  */
 data class Agent(
     val address: String,
@@ -75,6 +77,8 @@ data class Agent(
     val unread: Boolean? = null,
     val pinned: Boolean = false,
     val parent: String? = null,
+    val name: String? = null,
+    val role: String? = null,
 ) {
     companion object {
         /**

@@ -56,7 +56,7 @@ object JumpSheet {
 
     /**
      * The rows of one host: its Herdr [targets] (already in the Inbox rank) and its herdr-core
-     * [core] rows, all in the Inbox rank ([Agent.rank]). The second line is the tab, then [host].
+     * [core] rows, all in the Inbox rank ([Agent.rank]). The second line is the tab, then [host]; the third is the title, else a core terminal's role or name.
      */
     fun items(targets: List<JumpTarget>, host: String, core: List<InboxRow>): List<Item> {
         val tui = targets.mapIndexed { i, t ->
@@ -76,7 +76,7 @@ object JumpSheet {
                 key = r.key,
                 space = r.agent.space,
                 second = "${r.agent.tab} · ${r.host}",
-                third = r.agent.title?.takeIf { it.isNotBlank() },
+                third = r.agent.title?.takeIf { it.isNotBlank() } ?: r.roleName,
                 agent = r.agent,
                 target = null,
                 core = r,
@@ -87,14 +87,14 @@ object JumpSheet {
 
     /**
      * The groups to draw. An empty [query]: Recent (the [recent] keys that still have a row, newest
-     * first), then All (the other rows). A query: one Matches group over space, tab, title, agent,
-     * session and folder, in the rank. A group with no row is left out.
+     * first), then All (the other rows). A query: one Matches group over space, tab, title, role, terminal name,
+     * agent, session and folder, in the rank. A group with no row is left out.
      */
     fun sections(items: List<Item>, recent: List<String>, query: String): List<Section> {
         val words = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotEmpty() }
         if (words.isNotEmpty()) {
             val hit = items.filter { item ->
-                val hay = listOfNotNull(item.space, item.second, item.third, item.agent.kind, item.target?.session, item.target?.folder).joinToString(" ").lowercase(Locale.ROOT)
+                val hay = listOfNotNull(item.space, item.second, item.third, item.agent.role, item.agent.name, item.agent.kind, item.target?.session, item.target?.folder).joinToString(" ").lowercase(Locale.ROOT)
                 words.all { it in hay }
             }
             return listOf(Section(Group.MATCHES, hit)).filter { it.items.isNotEmpty() }

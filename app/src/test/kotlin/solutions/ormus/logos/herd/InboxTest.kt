@@ -348,4 +348,125 @@ class InboxTest {
         val read = rows.map { if (it.agent.address == "t2") it.copy(agent = it.agent.copy(unread = false)) else it }
         assertFalse(allRows(Inbox.sections(read, "", emptySet())).single().helpersUnread)
     }
+
+    private fun lane(address: String, role: String? = null, name: String? = null, parent: String? = null, title: String? = null, tab: String = "Dev", state: AgentState = AgentState.Working) = Agent(
+        address = address,
+        engine = AgentEngine.CORE,
+        machine = "box",
+        space = "ormus · MERCURIO",
+        tab = tab,
+        title = title,
+        kind = "claude-code",
+        state = state,
+        parent = parent,
+        name = name,
+        role = role,
+    )
+
+    private fun coreRows(vararg agents: Agent) = Inbox.fromCore(1L, "box", CoreSource.Result.Agents(agents.toList())).rows
+
+    @Test
+    fun aCoreRow_readsItsRole_thenItsTerminalName_thenItsTab() {
+        assertEquals("Herd: Inbox, Spaces, notices", Inbox.row(1L, "box", lane("t1", role = "Herd: Inbox, Spaces, notices", name = "mdev-herd")).detail)
+        assertEquals("mdev-herd", Inbox.row(1L, "box", lane("t1", name = "mdev-herd")).detail)
+        assertEquals("Dev", Inbox.row(1L, "box", lane("t1")).detail)
+    }
+
+    @Test
+    fun aBlankRoleOrName_isNotAName() {
+        assertEquals("mdev-herd", Inbox.row(1L, "box", lane("t1", role = "  ", name = "mdev-herd")).detail)
+        assertEquals("Dev", Inbox.row(1L, "box", lane("t1", role = "", name = " ")).detail)
+    }
+
+    @Test
+    fun aPlainHerdrRow_stillReadsItsTitle_thenItsTab() {
+        assertEquals("Fix the parser", Inbox.row(1L, "box", agent("t1", AgentState.Idle, tab = "work", title = "Fix the parser")).detail)
+        assertEquals("work", Inbox.row(1L, "box", agent("t1", AgentState.Idle, tab = "work")).detail)
+    }
+
+    @Test
+    fun theSixLanesOfOneTab_readSixNames() {
+        val rows = coreRows(
+            lane("t78", role = "Orchestrator"),
+            lane("t79", role = "Herd: Inbox, Spaces, notices", parent = "t78"),
+            lane("t7b", role = "Console: terminal and keys", parent = "t78"),
+            lane("t7c", name = "mdev-platform", parent = "t78"),
+            lane("t7d", role = "Gate: review and proof", parent = "t78"),
+            lane("t7f", parent = "t78", tab = "Phone"),
+        )
+        assertEquals(6, rows.map { it.detail }.toSet().size)
+    }
+
+    @Test
+    fun aTerminalThatOtherRowsNameAsParent_isMarkedAsAnOrchestrator() {
+        val rows = coreRows(lane("t1"), lane("t2", parent = "t1"), lane("t3", parent = "t1"), lane("t4"))
+        assertEquals(mapOf("t1" to true, "t2" to false, "t3" to false, "t4" to false), rows.associate { it.agent.address to it.orchestrator })
+    }
+
+    @Test
+    fun aMiddleTerminal_isBothAHelperAndAnOrchestrator() {
+        val rows = coreRows(lane("t1"), lane("t2", parent = "t1"), lane("t3", parent = "t2"))
+        assertEquals(mapOf("t1" to true, "t2" to true, "t3" to false), rows.associate { it.agent.address to it.orchestrator })
+    }
+
+    @Test
+    fun aHelperWhoseParentIsGone_marksNothing() {
+        val rows = coreRows(lane("t2", parent = "t1"), lane("t3"))
+        assertTrue(rows.none { it.orchestrator })
+    }
+
+    @Test
+    fun aTerminal_isNotItsOwnOrchestrator() {
+        assertFalse(coreRows(lane("t1", parent = "t1")).single().orchestrator)
+    }
+
+    @Test
+    fun theOrchestratorMark_isDecidedPerHost_andSurvivesARowPatch() {
+        val one = Inbox.fromCore(1L, "box", CoreSource.Result.Agents(listOf(lane("t1"), lane("t2", parent = "t1")))).rows
+        val two = Inbox.fromCore(2L, "devbox", CoreSource.Result.Agents(listOf(lane("t1")))).rows
+        assertTrue(one.first { it.agent.address == "t1" }.orchestrator)
+        assertFalse(two.single().orchestrator)
+        val pinned = Inbox.patched(one, one.first { it.agent.address == "t1" }.agent, RowAction.PIN)
+        assertTrue(pinned.first { it.agent.address == "t1" }.orchestrator)
+    }
+
+    @Test
+    fun searchFindsARow_byItsRoleName_andByItsTerminalName() {
+        val rows = coreRows(
+            lane("t1", role = "Orchestrator", name = "mdev-orch"),
+            lane("t2", role = "Gate: review and proof", name = "mdev-gate"),
+            lane("t3", name = "mdev-phone"),
+        )
+        fun found(query: String) = Inbox.sections(rows, query, emptySet()).flatMap { it.rows }.map { it.agent.address }
+        assertEquals(listOf("t2"), found("gate review"))
+        assertEquals(listOf("t1"), found("orchestrator"))
+        assertEquals(listOf("t3"), found("mdev-phone"))
+    }
+
+    @Test
+    fun searchFindsAMarkedParent_byTheWordOnItsMark_whenItsRoleLacksTheWord() {
+        // On a real host 2 of 13 parents say "Stand-up coordinator" or "Coordinator Nov 13": the row shows the mark, so the search finds it.
+        val rows = coreRows(
+            lane("t1", role = "Stand-up coordinator"),
+            lane("t2", role = "Herd: Inbox, Spaces, notices", parent = "t1"),
+            lane("t3", role = "Another coordinator"),
+        )
+        fun found(query: String) = Inbox.sections(rows, query, emptySet()).flatMap { it.rows }.map { it.agent.address }
+        assertEquals(listOf("t1"), found("orchestrator"))
+        assertEquals(listOf("t1"), found("orch"))
+        assertEquals(listOf("t1"), found("stand-up orchestrator"))
+        assertEquals(emptyList<String>(), found("orchestrator gate"))
+    }
+
+    @Test
+    fun theMarkWord_isOneWordForTheSearchAndTheRow() {
+        assertEquals("Orchestrator", Inbox.ORCHESTRATOR_WORD)
+    }
+
+    @Test
+    fun searchByARoleName_listsTheHelperItHits_asARowOfItsOwn() {
+        val rows = coreRows(lane("t1", role = "Orchestrator"), lane("t2", role = "Herd: Inbox, Spaces, notices", parent = "t1"))
+        val hit = Inbox.sections(rows, "herd inbox", emptySet()).flatMap { it.rows }
+        assertEquals(listOf("t2"), hit.map { it.agent.address })
+    }
 }

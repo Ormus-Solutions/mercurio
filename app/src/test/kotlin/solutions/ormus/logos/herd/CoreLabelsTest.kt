@@ -100,9 +100,18 @@ class CoreLabelsTest {
     }
 
     @Test
-    fun `only idle or done agents past turn 0 are asked for their labels`() {
+    fun `idle or done agents past turn 0 are asked for their labels at every read, any other terminal only once for its title`() {
         val log = mutableListOf<String>()
-        agents(host(ls(rec("t1", "done", 5), rec("t2", "idle", 0), rec("t3", "working", 2), rec("t4", "idle", 1)), labelOut(emptyList()), log))
+        val source = CoreSource()
+        val run = host(
+            ls(rec("t1", "done", 5), rec("t2", "idle", 0), rec("t3", "working", 2), rec("t4", "idle", 1)),
+            labelOut(emptyList(), get("t1"), get("t2"), get("t3"), get("t4")),
+            log,
+        )
+        source.read(true, "box", 1L, run)
+        assertEquals(listOf(HerdrApi.loginShell(CoreSource.labelsCmd(listOf("t1", "t2", "t3", "t4")))), log.filter { CoreSource.PINNED_CMD in it })
+        log.clear()
+        source.read(true, "box", 2L, run)
         assertEquals(listOf(HerdrApi.loginShell(CoreSource.labelsCmd(listOf("t1", "t4")))), log.filter { CoreSource.PINNED_CMD in it })
     }
 

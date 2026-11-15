@@ -138,8 +138,16 @@ management come from ConnectBot. Mercurio is maintained by
 - **Inbox.** Every agent of every Herdr machine in one list, in sections by state (Needs
   you, Done, Working, Idle, Unknown) with a search field. A dot marks output you
   have not seen. Helper terminals fold under their parent row, which shows how
-  many there are; a tap opens them (they start open while one needs you). Each
-  section shows three rows and a Show more key. On a herdr-core row, a swipe marks it read,
+  many there are; a tap opens them (they start open while one needs you). A
+  herdr-core row names its role under its space name: the terminal's `ormus.title`
+  label, else its terminal name, else its tab. A terminal that other terminals name
+  as their parent carries an Orchestrator mark, in words, on its own line, which
+  TalkBack reads. The search and Jump find a row by its role or its terminal name.
+  A role is read once when a terminal first shows and kept while the Inbox is open
+  (each time the Inbox opens, its first read asks every terminal once), so a
+  refresh runs no more commands than before. A parent's helper count sits at the
+  end of the role's line when the role stays whole there, else on the mark's line, or on a line of its own.
+  Each section shows three rows and a Show more key. On a herdr-core row, a swipe marks it read,
   pins it or sends Esc (after a confirmation). The list shows "Loading…" until
   each machine has answered once, and "No agents yet" only after a read that
   came back empty. A machine whose read fails, or gives no answer, shows its own

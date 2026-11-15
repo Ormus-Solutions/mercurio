@@ -26,6 +26,7 @@ import java.util.Locale
  * console a tap opens on the host (a TUI agent's session); null opens the host's own console,
  * which is all a herdr-core agent has until it gets its own view. [helperRows] are the helper terminals
  * ([Agent.parent]) [Inbox.sections] folded under this row, ranked, each a row of its own to open.
+ * [orchestrator] is set when another terminal of the host names this one as its parent ([Inbox.fromCore]).
  */
 data class InboxRow(
     val agent: Agent,
@@ -34,6 +35,7 @@ data class InboxRow(
     val console: HerdrConsole? = null,
     val key: String = Inbox.keyOf(hostId, agent),
     val helperRows: List<InboxRow> = emptyList(),
+    val orchestrator: Boolean = false,
 ) {
     /** How many helpers are folded under this row. */
     val helpers: Int get() = helperRows.size
@@ -44,9 +46,14 @@ data class InboxRow(
     /** Whether a folded helper has output the user has not seen. */
     val helpersUnread: Boolean get() = helperRows.any { it.agent.unread == true }
 
-    /** The second line: the agent's title (its task) when it has one, else its tab. */
-    val detail: String get() = agent.title?.takeIf { it.isNotBlank() } ?: agent.tab
+    /** What a herdr-core terminal says it is: its role (`ormus.title`), else its name; null for one with neither. */
+    val roleName: String? get() = agent.role.filled() ?: agent.name.filled()
+
+    /** The second line: a core terminal's role, else the agent's title (its task), else its name, else its tab. */
+    val detail: String get() = agent.role.filled() ?: agent.title.filled() ?: agent.name.filled() ?: agent.tab
 }
+
+private fun String?.filled(): String? = this?.takeIf { it.isNotBlank() }
 
 /** One section of the Inbox: [rows] in order, [shown] of them while folded, [hidden] the rest. */
 data class InboxSection(
@@ -67,6 +74,9 @@ enum class RowAction { MARK_READ, PIN, UNPIN, INTERRUPT }
 object Inbox {
     /** A section folds after this many rows. */
     const val FOLD = 3
+
+    /** The word of the Orchestrator mark (`inbox_orchestrator`): the search reads it on a marked row, the row draws it. */
+    const val ORCHESTRATOR_WORD = "Orchestrator"
 
     /** How many identity accents the space colour picks from. */
     const val ACCENT_COUNT = 6
@@ -107,10 +117,18 @@ object Inbox {
         row(hostId, host, card.toAgent().copy(machine = host), HerdrConsole(card.session, workspaceLabel = card.workspaceLabel))
     }
 
-    /** One host's herdr-core [result]: its agents as rows; a note only when the core could not be read. */
+    /**
+     * One host's herdr-core [result]: its agents as rows; a note only when the core could not be read. A terminal
+     * that another terminal of the host names as its parent is an [InboxRow.orchestrator].
+     */
     fun fromCore(hostId: Long, host: String, result: CoreSource.Result): CoreRows = when (result) {
         CoreSource.Result.Off -> CoreRows(emptyList(), null)
-        is CoreSource.Result.Agents -> CoreRows(result.agents.map { row(hostId, host, it) }, null)
+
+        is CoreSource.Result.Agents -> {
+            val parents = result.agents.mapNotNullTo(HashSet()) { a -> a.parent?.takeIf { it != a.address } }
+            CoreRows(result.agents.map { row(hostId, host, it).copy(orchestrator = it.address in parents) }, null)
+        }
+
         is CoreSource.Result.Unavailable -> CoreRows(emptyList(), "$host: ${result.reason}")
     }
 
@@ -166,12 +184,13 @@ object Inbox {
             .map { row -> folded[row.key]?.let { row.copy(helperRows = it.sortedWith(order)) } ?: row }
     }
 
-    /** Whether [row] holds every word of [query] in its space, tab, title, kind or host, case aside. */
+    /** Whether [row] holds every word of [query] in its space, tab, title, role, name, kind or host, or in its Orchestrator mark, case aside. */
     fun matches(row: InboxRow, query: String): Boolean {
         val words = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotEmpty() }
         if (words.isEmpty()) return true
         val a = row.agent
-        val hay = listOfNotNull(a.space, a.tab, a.title, a.kind, row.host).joinToString(" ").lowercase(Locale.ROOT)
+        val mark = ORCHESTRATOR_WORD.takeIf { row.orchestrator }
+        val hay = listOfNotNull(a.space, a.tab, a.title, a.role, a.name, a.kind, row.host, mark).joinToString(" ").lowercase(Locale.ROOT)
         return words.all { it in hay }
     }
 

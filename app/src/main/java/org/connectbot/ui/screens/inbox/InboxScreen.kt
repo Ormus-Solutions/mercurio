@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -68,6 +69,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -78,6 +82,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -96,6 +101,7 @@ import org.connectbot.ui.theme.OrmusCornerShape
 import org.connectbot.ui.theme.OrmusTokens
 import org.connectbot.usage.LocalUsageLog
 import org.connectbot.usage.UsageActions
+import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
 import solutions.ormus.logos.herd.RowAction
@@ -380,6 +386,9 @@ const val INBOX_UNREAD_TAG = "inbox_unread"
 /** Test tag of the pin on a pinned row. */
 const val INBOX_PINNED_TAG = "inbox_pinned"
 
+/** Test tag of the Orchestrator mark on a row whose terminal other terminals name as their parent. */
+const val INBOX_ORCHESTRATOR_TAG = "inbox_orchestrator"
+
 /** Test tag of the helper count on a row that has helpers. */
 const val INBOX_HELPERS_TAG = "inbox_helpers"
 
@@ -462,7 +471,12 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, i
     val space = row.agent.space
     val helpers = if (row.helpers > 0) pluralStringResource(R.plurals.inbox_helpers, row.helpers, row.helpers) else null
     val helpersText = helpers?.let { if (row.helpersNeedYou) stringResource(R.string.inbox_helpers_need_you, it) else it }
-    var description = stringResource(R.string.inbox_open, space, row.host)
+    // The mark is words, and a name that already says Orchestrator is not repeated by it; the row's spoken name has either once.
+    val mark = stringResource(R.string.inbox_orchestrator)
+    val roleName = row.roleName
+    val marked = row.orchestrator && roleName?.contains(mark, ignoreCase = true) != true
+    var description = if (roleName != null) stringResource(R.string.inbox_open_named, space, roleName, row.host) else stringResource(R.string.inbox_open, space, row.host)
+    if (marked) description = stringResource(R.string.inbox_open_with, description, mark)
     if (helpersText != null) description = stringResource(R.string.inbox_open_with, description, helpersText)
     if (row.helpersUnread) description = stringResource(R.string.inbox_open_with, description, stringResource(R.string.inbox_unread))
     Row(
@@ -496,33 +510,52 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, i
         ) {
             Text(Inbox.letter(space), color = OrmusTokens.Deep, fontWeight = FontWeight.Bold)
         }
-        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            if (row.agent.unread == true) {
-                val unread = stringResource(R.string.inbox_unread)
-                Box(
-                    modifier = Modifier
-                        .size(DOT_SIZE)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .testTag(INBOX_UNREAD_TAG)
-                        .semantics { contentDescription = unread },
+        // A core row stacks its texts, so each has the width of the column: the space name on the first line, whole; under it the
+        // role, then the Orchestrator mark and the helper count (see RowLines). Side by side, a role of 25 characters (the median) took
+        // the width first and left the name 60 of 142 dp at 360 dp, and a parent's count and mark took the rest.
+        // A plain-herdr row keeps its tab beside the name and its count at the right, as before.
+        val stacked = row.agent.engine == AgentEngine.CORE
+        Column(modifier = Modifier.weight(1f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                if (row.agent.unread == true) {
+                    val unread = stringResource(R.string.inbox_unread)
+                    Box(
+                        modifier = Modifier
+                            .size(DOT_SIZE)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .testTag(INBOX_UNREAD_TAG)
+                            .semantics { contentDescription = unread },
+                    )
+                }
+                Text(
+                    text = space,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (!stacked) RowDetail(row.detail)
             }
-            Text(
-                text = space,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Text(
-                text = row.detail,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (stacked) {
+                RowLines {
+                    if (row.detail.isNotBlank()) RowDetail(row.detail, Modifier.layoutId(RowLine.ROLE))
+                    if (marked) {
+                        Text(
+                            text = mark,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .layoutId(RowLine.MARK)
+                                .testTag(INBOX_ORCHESTRATOR_TAG),
+                        )
+                    }
+                    if (helpersText != null) HelpersChip(row, helpersText, onToggleHelpers, Modifier.layoutId(RowLine.COUNT))
+                }
+            }
         }
         if (row.agent.pinned) {
             Icon(
@@ -534,39 +567,102 @@ private fun InboxRowBody(row: InboxRow, now: Long, onOpen: (InboxRow) -> Unit, i
                     .testTag(INBOX_PINNED_TAG),
             )
         }
-        if (helpersText != null) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.xs),
-                modifier = Modifier
-                    .testTag(INBOX_HELPERS_TAG)
-                    .clip(OrmusCornerShape)
-                    .clickable(onClick = onToggleHelpers)
-                    .padding(horizontal = Ormus.spacing.sm, vertical = Ormus.spacing.xs),
-            ) {
-                if (row.helpersUnread) {
-                    val unread = stringResource(R.string.inbox_unread)
-                    Box(
-                        modifier = Modifier
-                            .size(DOT_SIZE)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .testTag(INBOX_HELPERS_UNREAD_TAG)
-                            .semantics { contentDescription = unread },
-                    )
-                }
-                Text(
-                    text = helpersText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (row.helpersNeedYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-        }
+        if (!stacked && helpersText != null) HelpersChip(row, helpersText, onToggleHelpers)
         Inbox.age(row, now)?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+/** The helper count of a parent row: a control of its own that folds or opens its helpers. */
+@Composable
+private fun HelpersChip(row: InboxRow, helpersText: String, onToggleHelpers: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Ormus.spacing.xs),
+        modifier = modifier
+            .testTag(INBOX_HELPERS_TAG)
+            .clip(OrmusCornerShape)
+            .clickable(onClick = onToggleHelpers)
+            .padding(horizontal = Ormus.spacing.sm, vertical = Ormus.spacing.xs),
+    ) {
+        if (row.helpersUnread) {
+            val unread = stringResource(R.string.inbox_unread)
+            Box(
+                modifier = Modifier
+                    .size(DOT_SIZE)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .testTag(INBOX_HELPERS_UNREAD_TAG)
+                    .semantics { contentDescription = unread },
+            )
+        }
+        Text(
+            text = helpersText,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (row.helpersNeedYou) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Which text of a core row [RowLines] places. */
+private enum class RowLine { ROLE, MARK, COUNT }
+
+/**
+ * The lines under a core row's space name: the role, the Orchestrator mark and the helper count, each marked with its [RowLine].
+ * The role has the first line, and the count its end when the role stays whole beside it. Else the count goes to the mark's
+ * line, at its end, and to a line of its own when the mark and the count do not fit one line. A role longer than the column
+ * takes the first line alone and is cut there. Beside the role, the count of the worst parent row (pin, unread dot, "7 helpers
+ * · needs you") left the role 40.5 dp at 360 dp and 0 dp at font scale 1.3. The column must be bounded: the row gives it its weight.
+ */
+@Composable
+private fun RowLines(content: @Composable () -> Unit) {
+    val gapDp = Ormus.spacing.sm
+    Layout(content = content) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val gap = gapDp.roundToPx()
+        fun of(line: RowLine) = measurables.firstOrNull { it.layoutId == line }
+        val count = of(RowLine.COUNT)?.measure(Constraints(maxWidth = width))
+        val mark = of(RowLine.MARK)?.measure(Constraints(maxWidth = width))
+        val roleItem = of(RowLine.ROLE)
+        val beside = count != null && (roleItem?.maxIntrinsicWidth(Constraints.Infinity) ?: 0) + gap + count.width <= width
+        val role = roleItem?.measure(Constraints(maxWidth = if (beside && count != null) width - gap - count.width else width))
+        val lines = mutableListOf<List<Placeable>>()
+        listOfNotNull(role, count.takeIf { beside }).takeIf { it.isNotEmpty() }?.let { lines += it }
+        val below = listOfNotNull(mark, count.takeIf { !beside })
+        if (below.sumOf { it.width } + gap * (below.size - 1) <= width) {
+            below.takeIf { it.isNotEmpty() }?.let { lines += it }
+        } else {
+            below.forEach { lines += listOf(it) }
+        }
+        val heights = lines.map { line -> line.maxOf { it.height } }
+        layout(width, heights.sum()) {
+            var y = 0
+            lines.forEachIndexed { i, line ->
+                line.forEach { it.placeRelative(if (it === count) width - it.width else 0, y + (heights[i] - it.height) / 2) }
+                y += heights[i]
+            }
+        }
+    }
+}
+
+/** The second text of a row: its role, else its title, name or tab. */
+@Composable
+private fun RowDetail(text: String, modifier: Modifier = Modifier) {
+    if (text.isBlank()) {
+        Spacer(modifier)
+        return
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
 }
 
 @Composable
