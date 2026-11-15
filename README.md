@@ -122,12 +122,12 @@ management come from ConnectBot. Mercurio is maintained by
 - **Keys from the host's config.** The prefix and every client key come from
   the host's Herdr config, with Herdr's defaults for anything it leaves out.
 - **Gestures.** On the terminal of a Herdr session, one finger across switches
-  tabs, two fingers across move pane focus, and two fingers up or down, or a
-  fast one-finger flick up or down, step through workspaces. When the host's
-  Herdr client has saved machines, that step goes through Herdr's own switcher
-  (prefix+w, an arrow, Enter), so it reaches workspaces on the other machines
-  too. A one-finger drag up or down that is not a flick still scrolls; a pinch
-  still zooms.
+  tabs, two fingers across move pane focus, and two fingers up or down step
+  through workspaces. When the host's Herdr client has saved machines, that step
+  goes through Herdr's own switcher (prefix+w, an arrow, Enter), so it reaches
+  workspaces on the other machines too. A one-finger drag up or down always
+  scrolls, however fast (a drag that slants 30 degrees or more from the vertical is
+  not taken for the wheel's scroll); a pinch still zooms.
 - **Herd screen.** Every agent in the session by state (blocked, done, working,
   idle). Tap one to focus its pane.
 - **Reattach.** When the Herdr client drops with `lost connection to server`,

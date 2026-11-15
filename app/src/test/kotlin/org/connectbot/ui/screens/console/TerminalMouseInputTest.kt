@@ -174,7 +174,7 @@ class TerminalMouseInputTest {
     }
 
     @Test
-    fun aOneFingerFlickUpOrDown_isAWorkspaceSwipe_neverAClick() {
+    fun aOneFingerFlickUpOrDown_isScroll_neverASwipeAndNeverAClick() {
         setContent()
         touch { swipeUp(startY = 700f, endY = 200f, durationMillis = 80) }
         touch {
@@ -182,7 +182,7 @@ class TerminalMouseInputTest {
             moveBy(Offset(0f, 150f))
             up()
         }
-        assertEquals(listOf(HerdrSwipe.NEXT_WORKSPACE, HerdrSwipe.PREV_WORKSPACE), swipes)
+        assertEquals(emptyList<HerdrSwipe>(), swipes)
         assertEquals(emptyList<Offset>(), clicks)
     }
 

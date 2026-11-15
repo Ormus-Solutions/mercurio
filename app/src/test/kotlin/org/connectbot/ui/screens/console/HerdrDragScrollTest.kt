@@ -116,10 +116,10 @@ class HerdrDragScrollTest {
     }
 
     @Test
-    fun aSlowDrag_sendsAWheelNotchPerRowCrossed_atTheTouchCell_andAFlickStillSwitchesWorkspace() {
+    fun aDrag_sendsAWheelNotchPerRowCrossed_atTheTouchCell_andAFlickIsScrollToo_neverAWorkspaceSwitch() {
         setContent(mouseReporting = true)
 
-        // 200px down over 320ms (312dp/s, under FLICK_DP_PER_S): five rows, five notches up, at column 16, row 6.
+        // 200px down over 320ms (312dp/s): five rows, five notches up, at column 16, row 6.
         drag(Offset(300f, 200f), Offset(0f, 200f), steps = 20)
         verify(bridge, times(5)).mouseWheel(16, 6, true)
         verify(bridge, never()).mouseWheel(anyInt(), anyInt(), eq(false))
@@ -131,12 +131,14 @@ class HerdrDragScrollTest {
         verify(bridge, times(4)).mouseWheel(21, 16, false)
         assertEquals(2, drags)
 
-        // A flick up at or above FLICK_DP_PER_S: no notch, and the workspace still switches.
+        // A fast flick up (500px in 80ms) is scroll too: wheel notches, no workspace switch.
         rule.onNodeWithTag("terminal").performTouchInput { swipeUp(startY = 700f, endY = 200f, durationMillis = 80) }
         rule.waitForIdle()
-        assertEquals(listOf(HerdrSwipe.NEXT_WORKSPACE), fired)
-        verify(bridge, times(9)).mouseWheel(anyInt(), anyInt(), anyBoolean())
-        assertEquals(2, drags)
+        assertEquals(emptyList<HerdrSwipe>(), fired)
+        // The 500px flick crosses 12 rows of 40px: 12 notches down, on top of the 4 of the drag before it; the 5 up are the first drag's.
+        verify(bridge, times(16)).mouseWheel(anyInt(), anyInt(), eq(false))
+        verify(bridge, times(5)).mouseWheel(anyInt(), anyInt(), eq(true))
+        assertEquals(3, drags)
     }
 
     @Test

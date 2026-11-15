@@ -45,6 +45,9 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -78,7 +81,7 @@ private const val PROBLEM_HINT_MS = 3_000L
  * ahead of termlib, and taken only once [HerdrSwipes.claim] says swipe: from the next event
  * on it is consumed, so termlib's scroll stops where it was and its tap and long press
  * never fire (termlib reads consumed moves as no movement). Taps, long presses, one-finger
- * scrolls that are not a fast flick, and pinches are never claimed and reach termlib
+ * drags up or down (the scroll, at any speed), and pinches are never claimed and reach termlib
  * untouched. [enabled] is read as each touch starts and while it waits: false off Herdr,
  * and while a selection is up so its handles and drags stay termlib's. [onSwipe] gets the
  * swipe and how many fingers made it. With a [wheel] whose program asked for the mouse, a
@@ -145,8 +148,7 @@ internal fun Modifier.herdrSwipes(enabled: () -> Boolean, wheel: TerminalWheel? 
             }
             // The claiming event itself goes on to termlib, so its scroll or zoom has already
             // started (past touch slop) and the touch can never end as its tap.
-            val v = claimVelocity(velocity.calculateVelocity(), travel, lastAt - down.uptimeMillis)
-            when (HerdrSwipes.claim(pointers, travel.x.toDp().value, travel.y.toDp().value, spanChange.toDp().value, v.x.toDp().value, v.y.toDp().value)) {
+            when (HerdrSwipes.claim(pointers, travel.x.toDp().value, travel.y.toDp().value, spanChange.toDp().value)) {
                 HerdrSwipes.Claim.CLAIM -> {
                     claimed = true
                     across = HerdrSwipes.horizontal(travel.x, travel.y)
@@ -174,11 +176,10 @@ internal fun Modifier.herdrSwipes(enabled: () -> Boolean, wheel: TerminalWheel? 
 
 private fun span(pressed: List<PointerInputChange>): Float = (pressed[0].position - pressed[1].position).getDistance()
 
-// The velocity a touch is judged with, per axis: the tracker's, or the average since the
-// finger landed when that is faster in the direction the touch travelled. A flick can pass the
-// judging distance on its first move or two, before the tracker has the samples it needs (it
-// reads zero, or even the wrong way, until then), and in the millisecond of the down, which
-// counts as one.
+// The velocity a claimed touch is judged with when it lifts, per axis: the tracker's, or the average
+// since the finger landed when that is faster in the direction the touch travelled. A short swipe can
+// lift before the tracker has the samples it needs (it reads zero, or even the wrong way, until
+// then), and the millisecond of the down counts as one.
 internal fun claimVelocity(tracked: Velocity, travel: Offset, elapsedMs: Long): Velocity {
     val average = travel * (1_000f / elapsedMs.coerceAtLeast(1))
     return Velocity(faster(tracked.x, average.x, travel.x), faster(tracked.y, average.y, travel.y))
@@ -232,8 +233,9 @@ internal fun runHerdrSwipe(bridge: TerminalBridge, swipe: HerdrSwipe): String? {
 }
 
 /**
- * Usage-log id for each swipe made with [fingers]: a one-finger flick to a workspace has its
- * own, and so does a workspace swipe that went through Herdr's [switcher].
+ * Usage-log id for each swipe made with [fingers]: a workspace swipe that went through Herdr's
+ * [switcher] has its own. A one-finger flick to a workspace has none that can be reached now (the
+ * flick is gone: a one-finger drag is the scroll); its branches stay until the console lane removes them.
  */
 internal fun usageIdFor(swipe: HerdrSwipe, fingers: Int, switcher: Boolean = false): String = when (swipe) {
     HerdrSwipe.PREV_TAB -> UsageActions.SWIPE_PREV_TAB
@@ -307,7 +309,7 @@ internal const val HERDR_SWIPE_INTRO_TAG = "herdr_swipe_intro"
 
 /**
  * The one-time hint the first time a Herdr session opens: one finger across the terminal
- * moves between tabs, a flick up or down between workspaces. It stays until [onDismiss]
+ * moves between tabs, two fingers across move pane focus and up or down switch workspace. It stays until [onDismiss]
  * (its key, or the first swipe).
  */
 @Composable
@@ -321,7 +323,19 @@ internal fun HerdrSwipeIntro(onDismiss: () -> Unit, modifier: Modifier = Modifie
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        MonoLabel(text = stringResource(R.string.herdr_swipe_intro), color = MaterialTheme.colorScheme.primary)
+        // Up to two lines (MonoLabel has one): the sentence names the tab swipe and the two-finger moves, and does not fit one line at 360 dp.
+        // The words are the spoken name (MonoLabel does the same): the label's own text carries the "/ " and the capitals.
+        val sentence = stringResource(R.string.herdr_swipe_intro)
+        Text(
+            text = "/ " + sentence.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .semantics { contentDescription = sentence },
+        )
         OrmusKey(label = stringResource(R.string.herdr_swipe_intro_dismiss), onClick = onDismiss, contentPadding = WORD_KEY_PADDING)
     }
 }

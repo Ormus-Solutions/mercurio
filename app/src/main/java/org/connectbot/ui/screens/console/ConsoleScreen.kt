@@ -1086,7 +1086,7 @@ fun ConsoleScreen(
                             val taps = remember { TerminalTaps() }
                             val cellSize = rememberCellSize(fontResult.typeface, fontSize)
 
-                            // A slow one-finger drag scrolls a program that asked for the mouse (a Herdr pane) by wheel notches.
+                            // A one-finger drag up or down scrolls a program that asked for the mouse (a Herdr pane) by wheel notches.
                             val wheelCell by rememberUpdatedState(cellSize)
                             val wheel = remember {
                                 TerminalWheel(

@@ -1289,8 +1289,8 @@
 	<string name="herdr_jump_exec">Focused in %1$s. The terminal stays here: its post-login runs exec herdr, so detaching would end the session.</string>
 	<!-- Herdr Jump to: the tab was focused in another Herdr session, but the host binds Herdr's detach to no key Mercurio can send; %1$s is the session -->
 	<string name="herdr_jump_no_detach">Focused in %1$s. The terminal stays here: Herdr\'s detach has no key Mercurio can send.</string>
-	<!-- One-time hint over a Herdr terminal: one finger across moves between Herdr tabs, a fast flick up or down between workspaces -->
-	<string name="herdr_swipe_intro">Swipe ←→ tabs, flick ↑↓ workspaces</string>
+	<!-- One-time hint over a Herdr terminal, up to two lines at 360 dp: one finger across moves between tabs; two fingers move pane focus (across) and switch workspace (up or down) -->
+	<string name="herdr_swipe_intro">←→ tabs. 2 fingers: ←→ panes, ↑↓ spaces</string>
 	<!-- One-time hint over a Herdr terminal: the key that puts the hint away for good -->
 	<string name="herdr_swipe_intro_dismiss">Got it</string>
 	<!-- Herdr command sheet: label above the row of tabs in the current workspace to jump to -->

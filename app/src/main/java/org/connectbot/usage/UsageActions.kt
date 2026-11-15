@@ -411,9 +411,10 @@ object UsageActions {
     const val SLASH_REFRESH = "slash:refresh"
 
     // Swipes on the terminal of a Herdr session: one finger across for tabs, two fingers
-    // across for pane focus, two fingers up or down for workspaces, and a fast one-finger
-    // flick up or down for workspaces too (its own ids, to tell it from two fingers). The
-    // _SWITCHER ids: a workspace swipe sent as Herdr's switcher keys (the client has saved machines).
+    // across for pane focus, and two fingers up or down for workspaces. The _SWITCHER ids: a
+    // workspace swipe sent as Herdr's switcher keys (the client has saved machines). The SWIPE_FLICK_*
+    // ids are retired: the one-finger flick to a workspace is gone (a one-finger drag up or down
+    // always scrolls), so nothing logs them; they stay for the usage history and the id list.
     const val SWIPE_PREV_TAB = "swipe:prev-tab"
     const val SWIPE_NEXT_TAB = "swipe:next-tab"
     const val SWIPE_PANE_LEFT = "swipe:pane-left"

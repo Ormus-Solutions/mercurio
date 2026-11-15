@@ -104,7 +104,7 @@ internal fun clickTap(
 }
 
 /**
- * A slow one-finger drag on [bridge]'s terminal, sent as mouse wheel notches to a program
+ * A one-finger drag up or down on [bridge]'s terminal, at any speed, sent as mouse wheel notches to a program
  * that asked for mouse reports (Herdr scrolls the pane under them), one per row the finger
  * crosses. [cell] is the cell in px, empty while it is unknown (a forced size); [size] the
  * terminal in cells. [onDrag] runs once as each drag starts sending.

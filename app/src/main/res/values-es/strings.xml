@@ -629,4 +629,6 @@
 	<string name="spaces_none">Sin espacios</string>
 	<!-- Spoken name of a tab's box; %1$s is the tab, %2$s its space -->
 	<string name="spaces_open_tab">Abrir la pestaña %1$s de %2$s</string>
+	<!-- One-time hint over a Herdr terminal, up to two lines at 360 dp: one finger across moves between tabs; two fingers move pane focus (across) and switch workspace (up or down) -->
+	<string name="herdr_swipe_intro">←→ pestañas. 2 dedos: ←→ paneles, ↑↓ espacios</string>
 </resources>

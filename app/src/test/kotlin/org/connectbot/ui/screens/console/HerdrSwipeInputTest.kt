@@ -33,6 +33,7 @@ import androidx.compose.ui.test.TouchInjectionScope
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -159,17 +160,15 @@ class HerdrSwipeInputTest {
     }
 
     @Test
-    fun oneFingerFlickUpOrDown_switchesWorkspace_andTheTerminalStopsMovingOnceClaimed() {
+    fun oneFingerFlickUpOrDown_isTheTerminalsScroll_neverAWorkspace() {
         setContent()
-        swipe(1, Offset(0f, -300f), steps = 5) // 150dp over 80ms
-        assertEquals(listOf(HerdrSwipe.NEXT_WORKSPACE), fired)
-        // Claimed on its first 60px move; after that the terminal sees no movement.
-        assertTrue("terminal saw ${termTravel.y}px", termTravel.y > -100f && termTravel.y <= -40f)
-
+        swipe(1, Offset(0f, -300f), steps = 5) // 150dp over 80ms: it was a flick that switched workspace
         swipe(1, Offset(0f, 300f), steps = 5)
-        assertEquals(listOf(HerdrSwipe.NEXT_WORKSPACE, HerdrSwipe.PREV_WORKSPACE), fired)
-        assertEquals(listOf(1, 1), fingers)
-        assertEquals(UsageActions.SWIPE_FLICK_NEXT_WORKSPACE, usageIdFor(HerdrSwipe.NEXT_WORKSPACE, 1))
+        swipe(1, Offset(0f, -600f), steps = 3)
+        assertEquals(emptyList<HerdrSwipe>(), fired)
+        assertEquals("the terminal saw every flick whole", -600f, termTravel.y, 0.5f)
+        assertEquals(3, termTouches)
+        // Two fingers up or down still switch it, with the ids of two fingers.
         assertEquals(UsageActions.SWIPE_NEXT_WORKSPACE, usageIdFor(HerdrSwipe.NEXT_WORKSPACE, 2))
     }
 
@@ -422,7 +421,7 @@ class HerdrSwipeInputTest {
         var dismissed = 0
         rule.setContent { HerdrSwipeIntro(onDismiss = { dismissed++ }) }
 
-        rule.onNodeWithText("Swipe ←→ tabs, flick ↑↓ workspaces").assertIsDisplayed()
+        rule.onNodeWithContentDescription("←→ tabs. 2 fingers: ←→ panes, ↑↓ spaces").assertIsDisplayed()
         rule.onNodeWithText("Got it").performClick()
         assertEquals(1, dismissed)
     }

@@ -24,6 +24,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Console: the Needs you key shows a two-digit count whole at 420 dpi on a 411 dp phone (its side padding is gone; the label was 3 px too wide)
 - Inbox: while a console to a machine is open, show the Herd session's fresh herdr-core agents read instead of polling the host a second time (#303)
 - Inbox: a console that is still connecting, or that runs nothing, no longer shuts out the Inbox's own login: the Inbox showed only "could not reach the host" until that console was signed in
+- Herdr terminal: a one-finger drag up or down always scrolls; the fast flick that switched workspace is gone (two fingers up or down still switch it), and the swipe hint names the two-finger moves
 - Free the slash refresh guard on cancel or an unexpected failure (#284)
 - Lint errors fixed, and lint now fails on any error (#285)
 - Probe a host without herdr-core only every 5 minutes, not on every read; say the Inbox logs in to saved hosts (#286)
