@@ -990,6 +990,17 @@
 
 	<!-- Console top bar and palette: open the draft view, a page to write or dictate a long message before it is sent -->
 	<string name="console_menu_text_input">Draft a long message</string>
+	<!-- Menu entry of a console that watches a herdr-core terminal: its label says what a tap does -->
+	<string name="console_menu_pin">Pin to Inbox</string>
+	<string name="console_menu_unpin">Unpin</string>
+	<!-- Under the entry when the pin could not be read; the entry is off -->
+	<string name="console_pin_unknown">Could not read the pin</string>
+	<!-- Said after a tap on the entry -->
+	<string name="console_pin_done">Pinned to the Inbox</string>
+	<string name="console_unpin_done">Unpinned</string>
+	<!-- A write that got no answer may still have been written by the host: the text does not say that nothing changed -->
+	<string name="console_pin_failed">Could not pin this terminal</string>
+	<string name="console_unpin_failed">Could not unpin this terminal</string>
 	<!-- Draft view: micro-label title -->
 	<string name="draft_title">Draft</string>
 	<!-- Draft view: hint in the empty field -->

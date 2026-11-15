@@ -44,6 +44,7 @@ import org.connectbot.ui.components.DictationDraft
 import org.connectbot.ui.navigation.NavArgs
 import org.connectbot.util.NotificationPermissionHelper
 import org.connectbot.util.PreferenceConstants
+import solutions.ormus.logos.herd.CorePin
 import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdView
@@ -381,6 +382,26 @@ class ConsoleViewModel @Inject constructor(
     /**
      * Request a reconnection for the given bridge.
      */
+
+    /**
+     * Whether [bridge] may offer Pin: a console that watches a herdr-core terminal and has an SSH session to
+     * run `hc` on. A plain SSH console and a Herdr TUI pane have no label to write, so they are offered nothing.
+     */
+    fun canPinCore(bridge: TerminalBridge?): Boolean = bridge?.watch != null && bridge.herd != null
+
+    /** Whether the terminal [bridge] watches is pinned, read on its console's connection; null when it could not be read. */
+    suspend fun corePinned(bridge: TerminalBridge): Boolean? {
+        val address = bridge.watch?.address ?: return null
+        val herd = bridge.herd ?: return null
+        return withContext(dispatchers.io) { CorePin.look(address, herd::exec) }
+    }
+
+    /** Pin ([pin]) or unpin the terminal [bridge] watches with the Inbox's write; false when the write failed or gave no answer (the host may have written it all the same). */
+    suspend fun setCorePin(bridge: TerminalBridge, pin: Boolean): Boolean {
+        val address = bridge.watch?.address ?: return false
+        val herd = bridge.herd ?: return false
+        return withContext(dispatchers.io) { CorePin.set(address, pin, herd::exec) }
+    }
 
     /** Secrets-free diagnostics report of [bridge], for "Copy details". */
     suspend fun diagnosticsReport(bridge: TerminalBridge): String = diagnosticsReporter.build(bridge)

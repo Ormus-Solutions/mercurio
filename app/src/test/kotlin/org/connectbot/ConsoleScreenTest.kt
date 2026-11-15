@@ -30,12 +30,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -89,8 +91,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
+import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.wheneverBlocking
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -658,6 +665,82 @@ class ConsoleScreenTest {
             val rootLayout = composeTestRule.activity.findViewById<View>(android.R.id.content)
             assertFalse("Screen should not be kept awake when disconnected", hasKeepScreenOn(rootLayout))
         }
+    }
+
+    // The Pin to Inbox entry in the real console menu (ConsoleScreen's wiring). CorePinEntryTest tests the entry alone and
+    // CorePinViewModelTest canPinCore alone: with the entry left out of the screen, neither goes red.
+    private fun pinScreen(canPin: Boolean, pinned: Boolean?, writes: Boolean): Pair<ConsoleViewModel, TerminalBridge> {
+        val bridge = mock(TerminalBridge::class.java)
+        `when`(bridge.host).thenReturn(Host(nickname = "box", hostname = "box.example"))
+        `when`(bridge.isDisconnected).thenReturn(false)
+        val vm = mock(ConsoleViewModel::class.java)
+        `when`(vm.uiState).thenReturn(MutableStateFlow(ConsoleUiState(bridges = listOf(bridge), currentBridgeIndex = 0, isLoading = true)))
+        `when`(vm.networkStatusMessages).thenReturn(MutableSharedFlow())
+        `when`(vm.allBridges).thenReturn(MutableStateFlow<List<TerminalBridge>>(emptyList()))
+        `when`(vm.shouldShowNotificationWarning()).thenReturn(false)
+        `when`(vm.canPinCore(anyOrNull())).thenReturn(canPin)
+        wheneverBlocking { vm.corePinned(any()) }.thenReturn(pinned)
+        wheneverBlocking { vm.setCorePin(any(), any()) }.thenReturn(writes)
+        setContent(mockConsoleViewModel = vm)
+        navigateToConsoleScreen(hostId = 1L)
+        composeTestRule.waitForIdle()
+        return vm to bridge
+    }
+
+    private fun string(id: Int) = composeTestRule.activity.getString(id)
+
+    private fun openMoreOptions() {
+        composeTestRule.onNodeWithContentDescription("More options").performClick()
+        composeTestRule.waitForIdle()
+    }
+
+    private fun waitForText(text: String) {
+        composeTestRule.waitUntil(5_000) { composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun aCoreConsole_menuShowsPin_aTapWritesOnThatBridge_andTheNextOpenReadsAgain() {
+        val (vm, bridge) = pinScreen(canPin = true, pinned = false, writes = true)
+        openMoreOptions()
+        composeTestRule.onNodeWithText(string(R.string.console_menu_pin)).assertIsDisplayed().assertIsEnabled().performClick()
+        composeTestRule.waitForIdle()
+        waitForText(string(R.string.console_pin_done))
+        verifyBlocking(vm) { setCorePin(bridge, true) }
+        composeTestRule.onAllNodesWithText(string(R.string.console_menu_pin)).assertCountEquals(0)
+        openMoreOptions()
+        composeTestRule.onNodeWithText(string(R.string.console_menu_pin)).assertIsDisplayed()
+        verifyBlocking(vm, times(2)) { corePinned(bridge) }
+    }
+
+    @Test
+    fun aPinnedCoreConsole_menuShowsUnpin_andAFailedUnpinSaysSo() {
+        val (vm, bridge) = pinScreen(canPin = true, pinned = true, writes = false)
+        openMoreOptions()
+        composeTestRule.onAllNodesWithText(string(R.string.console_menu_pin)).assertCountEquals(0)
+        composeTestRule.onNodeWithText(string(R.string.console_menu_unpin)).assertIsDisplayed().performClick()
+        composeTestRule.waitForIdle()
+        waitForText(string(R.string.console_unpin_failed))
+        verifyBlocking(vm) { setCorePin(bridge, false) }
+    }
+
+    @Test
+    fun aConsoleNotOfferedPin_menuHasNoEntry_andReadsNothing() {
+        val (vm, _) = pinScreen(canPin = false, pinned = false, writes = true)
+        openMoreOptions()
+        composeTestRule.onNodeWithText("Search everything").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(string(R.string.console_menu_pin)).assertCountEquals(0)
+        composeTestRule.onAllNodesWithText(string(R.string.console_menu_unpin)).assertCountEquals(0)
+        verifyBlocking(vm, never()) { corePinned(any()) }
+    }
+
+    @Test
+    fun aCoreConsoleWhoseReadFails_entryIsOffWithItsReason() {
+        val (vm, _) = pinScreen(canPin = true, pinned = null, writes = true)
+        openMoreOptions()
+        waitForText(string(R.string.console_pin_unknown))
+        composeTestRule.onNodeWithText(string(R.string.console_menu_pin)).performClick()
+        composeTestRule.waitForIdle()
+        verifyBlocking(vm, never()) { setCorePin(any(), any()) }
     }
 
     private fun hasKeepScreenOn(view: View): Boolean {

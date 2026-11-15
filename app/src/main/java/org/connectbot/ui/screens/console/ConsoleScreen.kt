@@ -1686,6 +1686,17 @@ fun ConsoleScreen(
                                     )
                                 }
 
+                                // Pin to Inbox / Unpin: a core terminal's console only, read each time the menu opens.
+                                if (currentBridge != null && viewModel.canPinCore(currentBridge)) {
+                                    CorePinEntry(
+                                        read = { viewModel.corePinned(currentBridge) },
+                                        write = { viewModel.setCorePin(currentBridge, it) },
+                                        scope = coroutineScope,
+                                        onClose = { showMenu = false },
+                                        onNote = { coroutineScope.launch { snackbarHostState.showSnackbar(it) } },
+                                    )
+                                }
+
                                 // Command palette: one search over every action. Off the top bar,
                                 // which keeps only what is used there.
                                 DropdownMenuItem(

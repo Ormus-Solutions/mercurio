@@ -150,7 +150,10 @@ management come from ConnectBot. Mercurio is maintained by
   Each section shows three rows and a Show more key. On a herdr-core row, a swipe marks it read,
   pins it or sends Esc (after a confirmation). A star at the right of each herdr-core
   row pins it in one tap, also when the row is unread, and a second tap unpins it;
-  it is the same `herdr.pinned` label as the swipe. A pinned row is first in its section. The list shows "Loading…" until
+  it is the same `herdr.pinned` label as the swipe. A pinned row is first in its section.
+  A console that watches a herdr-core terminal has the same pin in its menu: Pin to
+  Inbox pins the terminal, and Unpin takes the pin off. A plain SSH console and a
+  Herdr pane have no pin. The list shows "Loading…" until
   each machine has answered once, and "No agents yet" only after a read that
   came back empty. A machine whose read fails, or gives no answer, shows its own
   line until its next good read. The Inbox and Include herdr-core agents are

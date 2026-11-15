@@ -10,6 +10,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Console: an Inbox icon key in the compose box row, beside Esc and Tab, on every key page, opens the Inbox in one tap, whichever way the console was opened, also while the top bar is hidden; it shows while the Inbox is on. The Needs you long press now leaves the console off the back stack too
 - Inbox: a herdr-core row names its role (its `ormus.title` label, else its terminal name, else its tab), and a terminal that other terminals name as their parent is marked Orchestrator; the search and Jump find a row by its role or its terminal name, and the search also finds a marked row by the word Orchestrator
 - Inbox: a star on each herdr-core row pins or unpins it in one tap (a swipe on an unread row marked it read first, so a pin took two)
+- Console: the menu of a console that watches a herdr-core terminal has Pin to Inbox and Unpin, the Inbox's own pin
 - Inbox: a Settings gear on the top bar opens the app's Settings, so Settings is no longer reached only from the Hosts screen
 - Unblock: the Inbox key Unblock (N) and a swipe on the home open the questions store's open asks one at a time, and one tap answers a single-choice ask (#266)
 - Inbox: helper terminals fold under their parent row (#290)

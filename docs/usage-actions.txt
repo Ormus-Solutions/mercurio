@@ -122,6 +122,8 @@ menu:title-bar
 menu:wish
 menu:copy-details
 menu:send-error
+menu:pin
+menu:unpin
 overlay:reconnect
 overlay:close
 overlay:copy-details
