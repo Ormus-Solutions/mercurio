@@ -14,12 +14,16 @@ management come from ConnectBot. Mercurio is maintained by
 
 ### Terminal and input
 
-- **Compose bar.** A box under the terminal with Esc, Tab, a text field for the
+- **Compose bar.** A box under the terminal with Esc, Tab, an Inbox key (an icon,
+  shown while the Inbox is on, on every host and every key page), a text field for the
   keyboard or the phone's voice input, and one ⏎ key that sends the field's text
   and then Enter, or Enter alone when the field is empty. Unsent text stays
   with its terminal: leave the console and open the same terminal again and
   the field still holds it. It is kept in memory only, so closing the app
-  drops it.
+  drops it. The Inbox key goes to the Inbox in one tap, whichever way the console was
+  opened (the Inbox, Spaces, the hosts or a notice) and also while the top bar is hidden.
+  The console leaves the back stack, so Back from the Inbox is the hosts home; the
+  session stays connected, and its row in the Inbox opens it again.
 - **Key bar.** One row at the bottom, paged: swipe it to turn the page (a slow
   swipe needs a fifth of the bar), one dot per page. Page 0 is the bar's own: PgUp, PgDn (hold to repeat), Herdr, ⋯, Chat
   and Needs you. Needs you shows how many agents wait for you in every Herdr

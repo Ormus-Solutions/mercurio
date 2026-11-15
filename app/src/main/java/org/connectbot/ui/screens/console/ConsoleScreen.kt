@@ -306,6 +306,9 @@ internal fun handleConsoleShortcut(
 fun ConsoleScreen(
     onNavigateBack: () -> Unit,
     onNavigateToPortForwards: (Long) -> Unit,
+    // The Inbox icon key and the Needs you long press, while the Inbox setting is on. No default:
+    // a caller that left it out would get a key that shows and does nothing.
+    onNavigateToInbox: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigateToSettings: () -> Unit = {},
     onNavigateToConsole: (Long) -> Unit = {},
@@ -1268,11 +1271,7 @@ fun ConsoleScreen(
                                             herdrPanelBridge = null
                                             boardBridge = bridge
                                         },
-                                        onInbox = if (inboxOn) {
-                                            { onNavigateToRoute(NavDestinations.INBOX) }
-                                        } else {
-                                            null
-                                        },
+                                        onInbox = if (inboxOn) onNavigateToInbox else null,
                                         // A core terminal picked on the Jump sheet opens as the Inbox opens it.
                                         onJumpCore = { row ->
                                             onOpenJumpedConsole(NavDestinations.console(row.hostId, row.console, CoreWatch.target(row.agent)))

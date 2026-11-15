@@ -71,7 +71,7 @@ class NeedsYouKeyTest {
             ConnectBotTheme {
                 gold = MaterialTheme.colorScheme.primaryContainer
                 ghost = MaterialTheme.colorScheme.surfaceContainerHighest
-                // Row 1's share of a 411dp phone: two of 6.4 weights.
+                // Roomy: these tests are about the label, the tone and the taps; the fit test sets the bar's own width.
                 Box(Modifier.width(width)) {
                     NeedsYouKey(
                         waiting = waiting,
@@ -123,9 +123,9 @@ class NeedsYouKeyTest {
 
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE) // real text measurement
-    fun aTwoDigitCount_fitsTheKeyOnA360dpPhone() {
+    fun aTwoDigitCount_fitsTheKeyOnA411dpPhone() {
         waiting = 12
-        width = 103.dp // two of 6.4 weights of a 360dp phone's row 1
+        width = 104.dp // two of the row's 7.2 weights on a 411dp phone (measured on the real bar, TerminalComposeBarTest)
         setKey()
         val layouts = mutableListOf<TextLayoutResult>()
         rule.onNodeWithText("Needs you · 12").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

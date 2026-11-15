@@ -25,8 +25,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,11 +69,11 @@ class CoreViewBarTest {
         return bridge
     }
 
-    private fun setBar(bridge: TerminalBridge) {
+    private fun setBar(bridge: TerminalBridge, onInbox: (() -> Unit)? = null) {
         composeTestRule.setContent {
             ConnectBotTheme {
                 Box(Modifier.width(411.dp).fillMaxSize()) {
-                    TerminalComposeBar(bridge = bridge, modifier = Modifier.align(Alignment.BottomCenter), onRead = {}, onHerdrPanelChange = {})
+                    TerminalComposeBar(bridge = bridge, modifier = Modifier.align(Alignment.BottomCenter), onRead = {}, onHerdrPanelChange = {}, onInbox = onInbox)
                 }
             }
         }
@@ -85,6 +88,23 @@ class CoreViewBarTest {
             assertEquals(label, 0, composeTestRule.onAllNodesWithText(label).fetchSemanticsNodes().size)
         }
         composeTestRule.onNodeWithText("PgUp").assertIsDisplayed()
+    }
+
+    @Test
+    fun aCoreWatch_hasTheInboxKey_whileTheInboxIsOn() {
+        var taps = 0
+        setBar(bridge(CoreWatchTarget("box/t1", "alpha · ONE", "build")), onInbox = { taps++ })
+
+        composeTestRule.onNodeWithContentDescription("Inbox").assertIsDisplayed().performClick()
+
+        assertEquals(1, taps)
+    }
+
+    @Test
+    fun aCoreWatch_hasNoInboxKey_whileTheInboxIsOff() {
+        setBar(bridge(CoreWatchTarget("box/t1", "alpha · ONE", "build")))
+
+        assertEquals(0, composeTestRule.onAllNodesWithContentDescription("Inbox").fetchSemanticsNodes().size)
     }
 
     @Test

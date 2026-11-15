@@ -175,6 +175,13 @@ fun HomePlacesFrame(
 }
 
 /**
+ * The console's Inbox key: the Inbox as a top place, whichever way the console was opened (the
+ * Inbox, Spaces, the hosts, a notice). The console leaves the back stack, so Back from the Inbox is
+ * the hosts home, as from any place. Its session stays connected in the service.
+ */
+fun NavController.openInboxFromConsole() = selectPlace(HomePlace.INBOX)
+
+/**
  * Open the console at [route] for a core terminal picked on the Jump sheet. The sheet sits on a
  * console, so the new console takes its place: Back returns to whatever opened
  * it from, and a run of jumps does not pile consoles up. Like the Inbox, which leaves the stack

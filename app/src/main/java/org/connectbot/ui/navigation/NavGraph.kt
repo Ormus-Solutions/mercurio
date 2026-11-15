@@ -160,6 +160,7 @@ fun ConnectBotNavHost(
                     if (!navController.popBackStack(NavDestinations.HOST_LIST, inclusive = false)) navController.selectPlace(HomePlace.HOSTS)
                 },
                 onNavigateToRoute = { route -> navController.navigateSafely(route) },
+                onNavigateToInbox = navController::openInboxFromConsole,
                 onOpenJumpedConsole = navController::openJumpedConsole,
             )
         }

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
@@ -216,8 +217,8 @@ private val ENTER_KEY_WIDTH = 56.dp
 // more on a 411dp phone.
 private val KEY_GAP = Ormus.spacing.xs
 
-// Esc and Tab before the field: the 44dp minimum, so the field keeps as much of row 2
-// as it can.
+// Esc, Tab and the Inbox icon key before the field: the 44dp minimum, so the field keeps as much
+// of row 2 as it can.
 private val ROW2_KEY_WIDTH = 44.dp
 
 // A vertical drag at least this long on the bar opens (up) or closes (down) the tray.
@@ -689,7 +690,7 @@ private fun ReadKey(
  *    under ⏎: a tap jumps to the next agent waiting for the user, in any Herdr session on
  *    the host, cycling; with none waiting, or on a long press, it opens the Agents board
  *    ([onBoard]). Gold while an agent waits.
- * 2. (compose box, above the key row) Esc, Tab, the dictation field and ⏎. The field takes whatever width is left. ⏎
+ * 2. (compose box, above the key row) Esc, Tab, the Inbox icon key (while the Inbox is on, [onInbox]), the dictation field and ⏎. The field takes whatever width is left. ⏎
  *    is Send and Enter in one key: it sends the field's text, then Enter, or a bare
  *    Enter when the field is empty. Dictation comes from the phone's own overlay
  *    (Wispr), so the bar has no mic.
@@ -729,7 +730,11 @@ fun TerminalComposeBar(
     onChat: (() -> Unit)? = null,
     /** Opens the Agents board, from the Herdr panel's Board key or the Needs you key. */
     onBoard: (() -> Unit)? = null,
-    /** Opens the Inbox from a long press on the Needs you key, in place of the Agents board; null keeps the board. */
+    /**
+     * Opens the Inbox: from the Inbox icon key in the compose box row (on every key page and every host), and
+     * from a long press on the Needs you key, in place of the Agents board. Null (the Inbox is off) leaves the
+     * icon key out and keeps the board.
+     */
     onInbox: (() -> Unit)? = null,
     /** Whether the Agents board shows, reading the other sessions itself. */
     boardOpen: Boolean = false,
@@ -1297,7 +1302,7 @@ fun TerminalComposeBar(
             ) {
                 // What happened to the last voice take, when the voice key is on and there is something to say.
                 if (voiceKey != null) VoiceNoteLine(voiceKey)
-                // The compose box: the field with Esc, Tab and ⏎, in one container.
+                // The compose box: the field with Esc, Tab, the Inbox key (while the Inbox is on) and ⏎, in one container.
                 Surface(
                     modifier = Modifier.fillMaxWidth().testTag(COMPOSE_BOX_TEST_TAG),
                     shape = OrmusContainerShape,
@@ -1311,6 +1316,19 @@ fun TerminalComposeBar(
                     ) {
                         ControlKey("Esc", ESC, sendKey, Modifier.width(ROW2_KEY_WIDTH))
                         ControlKey("Tab", TAB, sendKey, Modifier.width(ROW2_KEY_WIDTH))
+                        // One tap to the Inbox from any console, on every host and every key page, also with the
+                        // top bar hidden. Never dimmed: a notice opens a core terminal's console straight over the home.
+                        if (onInbox != null) {
+                            IconKey(
+                                icon = Icons.Filled.Inbox,
+                                description = stringResource(R.string.inbox_title),
+                                onClick = {
+                                    usage.log(UsageActions.CONSOLE_INBOX)
+                                    onInbox()
+                                },
+                                modifier = Modifier.width(ROW2_KEY_WIDTH),
+                            )
+                        }
                         TextField(
                             value = draft.value,
                             onValueChange = { onTextChange(it) },
@@ -1452,8 +1470,10 @@ internal fun NeedsYouKey(waiting: Int, onClick: () -> Unit, onLongClick: () -> U
         modifier = modifier,
         tone = if (waiting > 0 && enabled) KeyTone.ACCENT else KeyTone.PLAIN,
         enabled = enabled,
-        // Under the other keys' 14sp, so "Needs you · 12" fits row 1 on a 360dp phone.
+        // Under the other keys' 14sp and with no side padding, so "Needs you · 12" fits the key on a
+        // 411dp phone at 420dpi (measured; on a 360dp phone it does not).
         symbolSize = 12.sp,
+        contentPadding = PaddingValues(horizontal = 0.dp),
         description = stringResource(R.string.needs_you_key_description, waiting),
         onLongClick = onLongClick,
     )
@@ -1468,7 +1488,7 @@ internal const val HERDR_PANEL_TEST_TAG = "composeBarHerdrPanel"
 /** Test tag on the open tray, for tests that check it is there or swipe it closed. */
 internal const val TRAY_TEST_TAG = "composeBarTray"
 
-/** The compose box: the field with its Esc, Tab and Enter keys. */
+/** The compose box: the field with its Esc, Tab, Inbox (while the Inbox is on) and Enter keys. */
 internal const val COMPOSE_BOX_TEST_TAG = "composeBox"
 
 /** The key bar group: the paged key row (when on) and the page keys, apart from the compose box. */

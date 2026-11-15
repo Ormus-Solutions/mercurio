@@ -209,6 +209,10 @@ object UsageActions {
 
     /** The gear on the console top bar: opens the settings panel. */
     const val CONSOLE_SETTINGS = "console:settings"
+
+    /** The Inbox icon key in the console's compose box row: opens the Inbox, whichever way the console was opened. */
+    const val CONSOLE_INBOX = "console:inbox"
+
     const val MENU_RECONNECT = "menu:reconnect"
     const val MENU_DISCONNECT = "menu:disconnect"
     const val MENU_URL_SCAN = "menu:url-scan"
@@ -479,7 +483,7 @@ object UsageActions {
         INBOX_OPEN, INBOX_SEARCH, INBOX_PIN, INBOX_UNPIN, INBOX_MARK_READ, INBOX_ESC, INBOX_FOLD, INBOX_HELPERS, INBOX_SETTINGS,
         SPACES_OPEN_TAB, PLACES_INBOX, PLACES_SPACES, PLACES_HOSTS,
         NEEDS_STORE_SET, NEEDS_OPEN, NEEDS_ANSWER, NEEDS_LATER, NEEDS_HOME, NEEDS_INBOX_KEY,
-        CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS,
+        CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS, CONSOLE_INBOX,
         MENU_RECONNECT, MENU_DISCONNECT, MENU_URL_SCAN, MENU_RESIZE, MENU_PORT_FORWARDS,
         MENU_FULLSCREEN, MENU_TITLE_BAR, MENU_WISH, MENU_COPY_DETAILS, MENU_SEND_ERROR,
         OVERLAY_RECONNECT, OVERLAY_CLOSE, OVERLAY_COPY_DETAILS, OVERLAY_SEND_ERROR,

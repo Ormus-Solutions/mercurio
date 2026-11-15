@@ -134,12 +134,14 @@ class ConsoleScreenTest {
                                 ConsoleScreen(
                                     onNavigateBack = { navController.popBackStack() },
                                     onNavigateToPortForwards = {},
+                                    onNavigateToInbox = {},
                                     viewModel = mockConsoleViewModel,
                                 )
                             } else {
                                 ConsoleScreen(
                                     onNavigateBack = { navController.popBackStack() },
                                     onNavigateToPortForwards = {},
+                                    onNavigateToInbox = {},
                                 )
                             }
                         }
@@ -238,6 +240,7 @@ class ConsoleScreenTest {
                             ConsoleScreen(
                                 onNavigateBack = { navController.popBackStack() },
                                 onNavigateToPortForwards = {},
+                                onNavigateToInbox = {},
                                 onNavigateToSettings = { navigatedToSettings = true },
                             )
                         }
@@ -273,6 +276,7 @@ class ConsoleScreenTest {
                             ConsoleScreen(
                                 onNavigateBack = { navController.popBackStack() },
                                 onNavigateToPortForwards = {},
+                                onNavigateToInbox = {},
                                 onNavigateToRoute = { route = it },
                             )
                         }

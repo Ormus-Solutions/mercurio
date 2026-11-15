@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 The seals of one kintsugi pass, by pull request number. The entries below are upstream ConnectBot's.
 
 ### Added
+- Console: an Inbox icon key in the compose box row, beside Esc and Tab, on every key page, opens the Inbox in one tap, whichever way the console was opened, also while the top bar is hidden; it shows while the Inbox is on. The Needs you long press now leaves the console off the back stack too
 - Inbox: a Settings gear on the top bar opens the app's Settings, so Settings is no longer reached only from the Hosts screen
 - Unblock: the Inbox key Unblock (N) and a swipe on the home open the questions store's open asks one at a time, and one tap answers a single-choice ask (#266)
 - Inbox: helper terminals fold under their parent row (#290)
@@ -17,6 +18,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - The Inbox and Spaces log in in the background only to Herdr machines (a saved host that starts Herdr at login, or a machine where a console found Herdr), not to every saved host (#305)
 
 ### Fixed
+- Console: the Needs you key shows a two-digit count whole at 420 dpi on a 411 dp phone (its side padding is gone; the label was 3 px too wide)
 - Inbox: while a console to a machine is open, show the Herd session's fresh herdr-core agents read instead of polling the host a second time (#303)
 - Free the slash refresh guard on cancel or an unexpected failure (#284)
 - Lint errors fixed, and lint now fails on any error (#285)

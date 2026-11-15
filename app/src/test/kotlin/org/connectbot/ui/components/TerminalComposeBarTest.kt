@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -60,11 +61,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -95,6 +98,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.stub
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import solutions.ormus.logos.herd.CoreWatchTarget
 import solutions.ormus.logos.herd.HerdSession
@@ -193,6 +197,31 @@ class TerminalComposeBarTest {
         `when`(herd.chosen).thenReturn(MutableStateFlow(attached))
         `when`(herd.others).thenReturn(MutableStateFlow(mapOf("work" to work)))
         `when`(herd.attached).thenReturn(MutableStateFlow(attached))
+        `when`(herd.keys).thenReturn(MutableStateFlow(HerdrKeys.fromConfig("[keys]\nprefix = \"ctrl+space\"\n")))
+        `when`(bridge.herd).thenReturn(herd)
+        return bridge
+    }
+
+    /** A Herdr host with [blocked] agents waiting for the user, all in one session. */
+    private fun herdrBridgeWithBlocked(blocked: Int): TerminalBridge {
+        val bridge = bridgeWithPostLogin("herdr\n")
+        val waiting = (1..blocked).map { HerdrAgentInfo(paneId = "w1:p$it", workspaceId = "w1", tabId = "w1:t$it", agent = "claude", agentStatus = HerdrAgentStatus.BLOCKED) }
+        val main = HerdrSessionSnapshot(
+            workspaces = listOf(HerdrWorkspaceInfo("w1", label = "alpha", number = 1), HerdrWorkspaceInfo("w2", label = "beta", number = 2)),
+            tabs = (1..blocked).map { HerdrTabInfo("w1:t$it", workspaceId = "w1", label = "t$it", number = it) } + HerdrTabInfo("w2:t1", workspaceId = "w2", label = "tests", number = 1),
+            agents = waiting + HerdrAgentInfo(paneId = "w2:p1", workspaceId = "w2", tabId = "w2:t1", agent = "codex", agentStatus = HerdrAgentStatus.WORKING),
+            focusedWorkspaceId = "w2",
+            focusedTabId = "w2:t1",
+            focusedPaneId = "w2:p1",
+        )
+        val herd = mock(HerdSession::class.java)
+        `when`(herd.snapshot).thenReturn(MutableStateFlow(main))
+        `when`(herd.result).thenReturn(MutableStateFlow(null))
+        `when`(herd.failure).thenReturn(MutableStateFlow(null))
+        `when`(herd.sessions).thenReturn(MutableStateFlow(listOf("default")))
+        `when`(herd.chosen).thenReturn(MutableStateFlow("default"))
+        `when`(herd.others).thenReturn(MutableStateFlow<Map<String, HerdrSessionSnapshot>>(emptyMap()))
+        `when`(herd.attached).thenReturn(MutableStateFlow("default"))
         `when`(herd.keys).thenReturn(MutableStateFlow(HerdrKeys.fromConfig("[keys]\nprefix = \"ctrl+space\"\n")))
         `when`(bridge.herd).thenReturn(herd)
         return bridge
@@ -507,6 +536,134 @@ class TerminalComposeBarTest {
         assertEquals(0, boards)
         assertEquals(emptyList<String>(), logged)
     }
+
+    // The Inbox key: an icon key in the compose box row, beside Esc and Tab, on every key page, on every host.
+
+    @Test
+    fun inboxKey_sitsInTheComposeBoxRow_afterEscAndTab_beforeTheField() {
+        setBar(bridgeWithPostLogin("herdr\n"), onInbox = {})
+
+        assertRowOrder("Esc", "Tab", INBOX, ENTER)
+        assertFieldBetween(INBOX, ENTER)
+        val box = composeTestRule.onNodeWithTag(COMPOSE_BOX_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        val inbox = key(INBOX).fetchSemanticsNode().boundsInRoot
+        assertTrue("the key is inside the compose box", inbox.left >= box.left && inbox.right <= box.right && inbox.top >= box.top && inbox.bottom <= box.bottom)
+    }
+
+    @Test
+    fun inboxKey_isNotInTheKeyRow_whichKeepsItsKeys() {
+        setBar(bridgeWithPostLogin("herdr\n"), onInbox = {}, onRead = {})
+
+        val group = composeTestRule.onNodeWithTag(KEY_GROUP_TEST_TAG).fetchSemanticsNode().boundsInRoot
+        assertTrue("the key is above the key group", key(INBOX).fetchSemanticsNode().boundsInRoot.bottom <= group.top + 0.5f)
+        assertRowOrder(PAGE_UP, PAGE_DOWN, "Herdr", MORE, CHAT, NEEDS_YOU)
+    }
+
+    @Test
+    fun inboxKey_isOnEveryKeyPage() {
+        setBar(bridgeWithPostLogin("herdr\n"), onInbox = {}, keyBar = KeyBarLayout(listOf(listOf("ctrl-c", "up"), listOf("tab"))), hisKeys = false)
+
+        key(INBOX).assertIsDisplayed()
+        toPage(1)
+        key(INBOX).assertIsDisplayed()
+        toPage(2)
+        key(INBOX).assertIsDisplayed()
+        toPage(0)
+        key(INBOX).assertIsDisplayed()
+    }
+
+    @Test
+    fun inboxKey_isNotThere_whileTheInboxIsOff() {
+        setBar(bridgeWithPostLogin("herdr\n"))
+
+        key(INBOX).assertDoesNotExist()
+    }
+
+    @Test
+    fun inboxKey_onAPlainHost_isNotDimmed_andOpensTheInbox() {
+        var taps = 0
+        setBar(bridgeWithPostLogin(null), onInbox = { taps++ })
+
+        key(INBOX).assertIsEnabled().performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(1, taps)
+        assertEquals(listOf(UsageActions.CONSOLE_INBOX), logged)
+    }
+
+    @Test
+    fun inboxKey_onAHerdrHost_opensTheInboxOnce_andSendsNothingToTheTerminal() {
+        var taps = 0
+        val bridge = bridgeWithPostLogin("herdr\n")
+        setBar(bridge, onInbox = { taps++ })
+
+        key(INBOX).performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(1, taps)
+        assertEquals(emptyList<String>(), sentBytes(bridge))
+    }
+
+    @Test
+    fun inboxKey_isAnIcon_calledInboxForAScreenReader() {
+        setBar(bridgeWithPostLogin(null), onInbox = {})
+
+        composeTestRule.onNodeWithContentDescription(INBOX).assertIsDisplayed()
+        // An icon, not a word: there is no label to cut in a long language or at a large font.
+        composeTestRule.onAllNodesWithText(INBOX).assertCountEquals0()
+    }
+
+    @Test
+    fun inboxKey_isAtLeast44dpWideAndTall_onA411dpPhone() {
+        setBar(bridgeWithPostLogin("herdr\n"), onInbox = {})
+
+        val node = key(INBOX).fetchSemanticsNode()
+        val density = composeTestRule.density.density
+        assertTrue("the key is ${node.boundsInRoot.width / density} dp wide, needs 44", node.boundsInRoot.width / density >= 44f)
+        assertTrue("the key is ${node.boundsInRoot.height / density} dp tall, needs 44", node.boundsInRoot.height / density >= 44f)
+    }
+
+    @Test
+    fun inboxKey_leavesTheKeyRowKeysAtTheDesignDocs48dp_onA411dpPhone() {
+        setBar(bridgeWithPostLogin("herdr\n"), onInbox = {}, onRead = {})
+
+        val density = composeTestRule.density.density
+        listOf(PAGE_UP, PAGE_DOWN, MORE, CHAT).forEach {
+            val w = key(it).fetchSemanticsNode().boundsInRoot.width / density
+            assertTrue("'$it' is $w dp wide, docs/DESIGN.md asks 48", w >= 48f)
+        }
+    }
+
+    /** The Needs you key of the real bar with [blocked] agents waiting: its first line shows the whole label. */
+    private fun assertNeedsYouCountFits(blocked: Int, inbox: Boolean) {
+        setBar(herdrBridgeWithBlocked(blocked), onRead = {}, onBoard = {}, onInbox = if (inbox) ({}) else null)
+        val layouts = mutableListOf<TextLayoutResult>()
+        composeTestRule.onNode(hasClickAction() and hasLabel("Needs you, $blocked waiting")).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        val text = layout.layoutInput.text.text
+        val shown = text.substring(0, layout.getLineEnd(0, visibleEnd = true))
+        assertEquals("Needs you · $blocked", text)
+        assertEquals("the key shows '$shown' of '$text' at ${composeTestRule.density.density}x, ${layout.layoutInput.constraints.maxWidth}px for ${layout.multiParagraph.intrinsics.maxIntrinsicWidth}px", text, shown)
+        assertEquals(1, layout.lineCount)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE) // real text measurement
+    fun needsYou_oneWaiting_showsItsCount_withTheInboxKeyOn() = assertNeedsYouCountFits(1, inbox = true)
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun needsYou_twelveWaiting_showsItsCount_withTheInboxKeyOn() = assertNeedsYouCountFits(12, inbox = true)
+
+    @Test
+    @Config(qualifiers = "+420dpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun needsYou_oneWaiting_showsItsCount_at420dpi_withTheInboxKeyOn() = assertNeedsYouCountFits(1, inbox = true)
+
+    @Test
+    @Config(qualifiers = "+420dpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun needsYou_twelveWaiting_showsItsCount_at420dpi_withTheInboxKeyOn() = assertNeedsYouCountFits(12, inbox = true)
 
     @Test
     fun slashKey_hiddenWithoutACallback() {
@@ -1792,6 +1949,7 @@ class TerminalComposeBarTest {
         val PHONE_WIDTH = 411.dp
         const val NEEDS_YOU = "Needs you"
         const val CHAT = "Chat"
+        const val INBOX = "Inbox"
 
         // Stands in for Mockito's matchers, which return null for Kotlin's non-null parameters.
         val JUMP = JumpTarget("", "", "", 0, "", 0, null, HerdrAgentStatus.UNKNOWN, false)
