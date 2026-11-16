@@ -2153,6 +2153,10 @@
 	<string name="palette_key_prev_tab">Previous tab</string>
 	<!-- Command palette: result that sends Herdr's next-tab key -->
 	<string name="palette_key_next_tab">Next tab</string>
+	<!-- Place of a watched terminal among the agents a swipe moves between, at the start of the title's second line, for example "3 of 9" (%1$d the place, %2$d how many) -->
+	<string name="console_agent_place">%1$d of %2$d</string>
+	<!-- Screen reader name of that chip, for example "Agent 3 of 9" -->
+	<string name="console_agent_place_description">Agent %1$d of %2$d</string>
 	<!-- Hint over the terminal after a two-finger swipe across moved Herdr's focus to the pane on the left -->
 	<string name="swipe_hint_pane_left">Pane left</string>
 	<!-- Hint over the terminal after a two-finger swipe across moved Herdr's focus to the pane on the right -->
@@ -2161,6 +2165,12 @@
 	<string name="swipe_hint_prev_workspace">Previous workspace</string>
 	<!-- Hint over the terminal after a two-finger swipe up moved to the next Herdr workspace -->
 	<string name="swipe_hint_next_workspace">Next workspace</string>
+	<!-- Hint over a watched terminal after a swipe across opened the next agent in the Inbox order -->
+	<string name="swipe_hint_next_agent">Next agent</string>
+	<!-- Hint over a watched terminal after a swipe across opened the previous agent in the Inbox order -->
+	<string name="swipe_hint_prev_agent">Previous agent</string>
+	<!-- Hint over a watched terminal after a swipe across at the first or the last agent, where there is nowhere to go -->
+	<string name="swipe_hint_no_more_agents">No more agents</string>
 	<!-- Hint over the terminal when a swipe sent no keys because the Herdr client is not what the terminal shows (a shell prompt, for one) -->
 	<string name="swipe_hint_herdr_not_on_screen">Herdr not on screen</string>
 	<!-- Command palette: subtitle of a key result -->

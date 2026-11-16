@@ -189,7 +189,11 @@ management come from ConnectBot. Mercurio is maintained by
   In the console of a herdr-core terminal opened there, one finger moving left opens
   the next herdr-core terminal in the Inbox order and one moving right the previous
   one (as the Herdr tab swipe turns a page); it stops at the first and the last (no
-  wrap). Up and down stay the terminal's scroll. The order is the Inbox's (needs you,
+  wrap). The place, for example "3 of 9", is at the start of the title's second line
+  ("3 of 9 · space · host"), and a hint with a haptic tick says "Next agent",
+  "Previous agent" or, at an end, "No more agents"; the hint of a swipe that opens
+  another agent shows on the console that opens.
+  Up and down stay the terminal's scroll. The order is the Inbox's (needs you,
   done, working, idle, unknown, each with its pinned rows first), from the machines
   that have a console open, and only herdr-core terminals are in it: a Herdr session's
   agents are not, so a swipe never lands in a Herdr console.

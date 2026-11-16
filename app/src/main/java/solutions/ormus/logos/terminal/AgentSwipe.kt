@@ -44,11 +44,24 @@ object AgentSwipe {
      * either side of it. The first has no [previous] and the last no [next]: a swipe stops there, it does not wrap.
      */
     data class Place(val index: Int, val total: Int, val previous: InboxRow?, val next: InboxRow?) {
-        /** The place's number, counted from 1. */
+        /** The number the chip shows (from 1). */
         val number: Int get() = index + 1
+
+        /** A lone terminal has nothing to swipe to, so no chip. */
+        val showsChip: Boolean get() = total >= 2
 
         /** The row a swipe in [direction] opens; null at the end. */
         fun toward(direction: Direction): InboxRow? = if (direction == Direction.NEXT) next else previous
+    }
+
+    /** What the hint over the terminal says after a swipe fired. */
+    enum class Hint { NEXT, PREVIOUS, NONE_LEFT }
+
+    /** The hint for a swipe in [direction] from [place]: where it went, or [Hint.NONE_LEFT] at an end (or with no place yet). */
+    fun hint(place: Place?, direction: Direction): Hint = when {
+        place?.toward(direction) == null -> Hint.NONE_LEFT
+        direction == Direction.NEXT -> Hint.NEXT
+        else -> Hint.PREVIOUS
     }
 
     /** The usage-log id of a swipe that opened an agent. */

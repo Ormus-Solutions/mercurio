@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 The seals of one kintsugi pass, by pull request number. The entries below are upstream ConnectBot's.
 
 ### Added
-- Console: one finger across a watched herdr-core terminal opens the next (left) or previous (right) herdr-core terminal in the Inbox order (a Herdr session's agents are not in it); it stops at the ends
+- Console: one finger across a watched herdr-core terminal opens the next (left) or previous (right) herdr-core terminal in the Inbox order (a Herdr session's agents are not in it), with its place at the start of the title's second line ("3 of 9 · space · host"), a hint (on the console that opens) and a haptic tick; it stops at the ends
 - Console: an Inbox icon key in the compose box row, beside Esc and Tab, on every key page, opens the Inbox in one tap, whichever way the console was opened, also while the top bar is hidden; it shows while the Inbox is on. The Needs you long press now leaves the console off the back stack too
 - Inbox: a herdr-core row names its role (its `ormus.title` label, else its terminal name, else its tab), and a terminal that other terminals name as their parent is marked Orchestrator; the search and Jump find a row by its role or its terminal name, and the search also finds a marked row by the word Orchestrator
 - Inbox: a star on each herdr-core row pins or unpins it in one tap (a swipe on an unread row marked it read first, so a pin took two)

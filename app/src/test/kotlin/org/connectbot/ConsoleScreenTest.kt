@@ -28,11 +28,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -43,6 +46,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.ComposeNavigator
@@ -55,6 +60,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.connectbot.data.entity.Host
@@ -96,8 +102,18 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import solutions.ormus.logos.herd.Agent
+import solutions.ormus.logos.herd.AgentEngine
+import solutions.ormus.logos.herd.AgentState
+import solutions.ormus.logos.herd.CoreRead
+import solutions.ormus.logos.herd.CoreSource
+import solutions.ormus.logos.herd.CoreWatchTarget
+import solutions.ormus.logos.herd.HerdSession
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -124,13 +140,17 @@ class ConsoleScreenTest {
     private fun setContent(
         mockTerminalManager: TerminalManager? = null,
         mockConsoleViewModel: ConsoleViewModel? = null,
+        fontScale: Float = 1f,
     ) {
         composeTestRule.setContent {
             val context = LocalContext.current
             navController = TestNavHostController(context)
             navController.navigatorProvider.addNavigator(ComposeNavigator())
             ConnectBotTheme {
-                CompositionLocalProvider(LocalTerminalManager provides mockTerminalManager) {
+                CompositionLocalProvider(
+                    LocalTerminalManager provides mockTerminalManager,
+                    LocalDensity provides Density(LocalDensity.current.density, fontScale),
+                ) {
                     NavHost(navController = navController, startDestination = "start") {
                         composable("start") {}
                         composable(
@@ -741,6 +761,61 @@ class ConsoleScreenTest {
         composeTestRule.onNodeWithText(string(R.string.console_menu_pin)).performClick()
         composeTestRule.waitForIdle()
         verifyBlocking(vm, never()) { setCorePin(any(), any()) }
+    }
+
+    // The title row of a watched console, with the place of the terminal among the agents ("3 of 9"): the real ConsoleScreen's top
+    // bar (isLoading keeps the terminal out), at 360 dp, with native text measuring: the legacy mode measures 1 px a character, so a width check cannot fail there. The place goes at the start of the second line, so the title keeps its width.
+    private fun watchedScreen(fontScale: Float) {
+        val agents = (1..9).map { Agent(address = "t$it", engine = AgentEngine.CORE, space = "alpha one", tab = "build & test", state = AgentState.Working) }
+        val herd = mock(HerdSession::class.java)
+        `when`(herd.coreRead).thenReturn(MutableStateFlow(CoreRead(CoreSource.Result.Agents(agents), 10)))
+        `when`(herd.attached).thenReturn(MutableStateFlow("default"))
+        // The console waits here for a view to open; none is asked for.
+        wheneverBlocking { herd.takeView() }.doSuspendableAnswer { awaitCancellation() }
+        val bridge = mock(TerminalBridge::class.java)
+        `when`(bridge.host).thenReturn(Host(id = 1, nickname = "box", hostname = "box.example"))
+        `when`(bridge.watch).thenReturn(CoreWatchTarget("t3", "alpha one", "build & test"))
+        `when`(bridge.herd).thenReturn(herd)
+        `when`(bridge.isDisconnected).thenReturn(false)
+        `when`(bridge.activityPreview).thenReturn(MutableStateFlow(""))
+        val vm = mock(ConsoleViewModel::class.java)
+        `when`(vm.uiState).thenReturn(MutableStateFlow(ConsoleUiState(bridges = listOf(bridge), currentBridgeIndex = 0, isLoading = true)))
+        `when`(vm.networkStatusMessages).thenReturn(MutableSharedFlow())
+        `when`(vm.allBridges).thenReturn(MutableStateFlow(listOf(bridge)))
+        `when`(vm.shouldShowNotificationWarning()).thenReturn(false)
+        setContent(mockConsoleViewModel = vm, fontScale = fontScale)
+        navigateToConsoleScreen(hostId = 1L)
+        composeTestRule.waitUntil(5_000) { composeTestRule.onAllNodesWithContentDescription("Agent 3 of 9", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun inTitle(text: String) = composeTestRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(CONSOLE_TITLE_TAG)), useUnmergedTree = true)
+
+    private fun assertTitleWholeAndPlaceOnSecondLine() {
+        val title = mutableListOf<TextLayoutResult>()
+        inTitle("build & test").fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(title)
+        assertFalse("the title keeps its width: \"build & test\" is not cut", title.first().isLineEllipsized(0))
+        val titleBounds = inTitle("build & test").fetchSemanticsNode().boundsInRoot
+        val place = composeTestRule.onNode(hasContentDescription("Agent 3 of 9") and hasAnyAncestor(hasTestTag(CONSOLE_TITLE_TAG)), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val subtitle = inTitle("alpha one \u00b7 box").fetchSemanticsNode().boundsInRoot
+        assertTrue("the place is on the second line, under the title", place.top >= titleBounds.bottom - 1f)
+        assertTrue("and at its start, before space and host", place.right <= subtitle.left + 1f)
+        assertTrue("on the same line as them", kotlin.math.abs(place.center.y - subtitle.center.y) < place.height)
+    }
+
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun aWatchedConsoleTitle_keepsItsWidth_withThePlaceOnTheSecondLine_at360dp() {
+        watchedScreen(fontScale = 1.0f)
+        assertTitleWholeAndPlaceOnSecondLine()
+    }
+
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun aWatchedConsoleTitle_keepsItsWidth_withThePlaceOnTheSecondLine_atFont13() {
+        watchedScreen(fontScale = 1.3f)
+        assertTitleWholeAndPlaceOnSecondLine()
     }
 
     private fun hasKeepScreenOn(view: View): Boolean {

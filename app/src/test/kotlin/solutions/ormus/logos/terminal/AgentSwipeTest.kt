@@ -254,6 +254,27 @@ class AgentSwipeTest {
         assertEquals(1, AgentSwipe.place(after) { it.agent.address == "t1" }!!.number)
     }
 
+    // The hint over the terminal after a swipe fired.
+
+    @Test
+    fun theHint_saysWhereTheSwipeWent_orThatThereIsNoMore() {
+        val order = AgentSwipe.order(listOf(core("t1", needs), core("t2", AgentState.Done), core("t3", AgentState.Working)))
+        val middle = AgentSwipe.place(order) { it.agent.address == "t2" }!!
+        val first = AgentSwipe.place(order) { it.agent.address == "t1" }!!
+        val last = AgentSwipe.place(order) { it.agent.address == "t3" }!!
+
+        assertEquals(AgentSwipe.Hint.NEXT, AgentSwipe.hint(middle, Direction.NEXT))
+        assertEquals(AgentSwipe.Hint.PREVIOUS, AgentSwipe.hint(middle, Direction.PREVIOUS))
+        assertEquals(AgentSwipe.Hint.NONE_LEFT, AgentSwipe.hint(first, Direction.PREVIOUS))
+        assertEquals(AgentSwipe.Hint.NONE_LEFT, AgentSwipe.hint(last, Direction.NEXT))
+        assertEquals(AgentSwipe.Hint.NEXT, AgentSwipe.hint(first, Direction.NEXT))
+    }
+
+    @Test
+    fun theHint_withNoPlaceYet_saysThereIsNoMore() {
+        assertEquals(AgentSwipe.Hint.NONE_LEFT, AgentSwipe.hint(null, Direction.NEXT))
+    }
+
     @Test
     fun theUsageIds_areOnePerDirection() {
         assertEquals("swipe:next-agent", AgentSwipe.usageId(Direction.NEXT))

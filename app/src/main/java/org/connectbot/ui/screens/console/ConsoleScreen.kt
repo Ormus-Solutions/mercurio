@@ -1079,6 +1079,8 @@ fun ConsoleScreen(
                             var lastSwipe by remember { mutableStateOf<HerdrSwipe?>(null) }
                             var swipesFired by remember { mutableIntStateOf(0) }
                             var swipeProblem by remember { mutableStateOf<String?>(null) }
+                            // The hint of the swipe that opened this console shows here, not on the console it replaced.
+                            val agentHint = rememberAgentHintState(bridge.watch?.address)
 
                             // One time ever, the first time a Herdr session opens: swipes move between tabs and workspaces.
                             var swipeIntroSeen by remember { mutableStateOf(prefs.getBoolean(HERDR_SWIPE_INTRO_SEEN, false)) }
@@ -1136,10 +1138,8 @@ fun ConsoleScreen(
                                     }
                                     // A watched console has no Herdr swipes: one finger across moves between the Inbox's agents.
                                     .agentSwipes(enabled = { swipeBridge.watch != null && selectionController?.isSelectionActive != true }) { direction ->
-                                        AgentSwipeSource.open(agentPlaceNow, direction)?.let { route ->
-                                            usage.log(AgentSwipe.usageId(direction))
-                                            onOpenJumpedConsole(route)
-                                        }
+                                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                        handleAgentSwipe(agentPlaceNow, direction, agentHint, usage::log, onOpenJumpedConsole)
                                     }
                                     .dragArrows(arrows)
                                     .terminalTaps(taps)
@@ -1213,6 +1213,14 @@ fun ConsoleScreen(
                                         .padding(top = Ormus.spacing.sm),
                                 )
                             }
+
+                            AgentSwipeHint(
+                                hint = agentHint.hint,
+                                fired = agentHint.fired,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = Ormus.spacing.sm),
+                            )
 
                             HerdrSwipeHint(
                                 swipe = lastSwipe,
@@ -1573,16 +1581,12 @@ fun ConsoleScreen(
                         if (watched != null) {
                             // A core terminal's console: its tab and `space · host`, as the Herdr app's terminal view
                             // has them. No drop-down: this screen holds that terminal alone, so no drawer to open.
-                            Column(modifier = Modifier.testTag(CONSOLE_TITLE_TAG)) {
-                                Text(CoreView.title(watched), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(
-                                    CoreView.subtitle(watched, currentBridge?.host?.nickname.orEmpty()),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                            WatchedTitle(
+                                title = CoreView.title(watched),
+                                subtitle = CoreView.subtitle(watched, currentBridge?.host?.nickname.orEmpty()),
+                                place = agentPlace,
+                                modifier = Modifier.testTag(CONSOLE_TITLE_TAG),
+                            )
                         } else {
                             val openSessions = stringResource(R.string.drawer_sessions_title)
                             Row(
