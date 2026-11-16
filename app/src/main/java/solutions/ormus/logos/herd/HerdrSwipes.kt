@@ -63,10 +63,13 @@ object HerdrSwipes {
     }
 
     /**
-     * Whether a touch [claim] let go is a one-finger drag up or down: the terminal's scroll,
-     * which goes to Herdr as mouse wheel notches when it asked for the mouse.
+     * Whether a touch [claim] let go is a one-finger drag at least as far up or down as across, up to 45 degrees from
+     * the vertical (a tab swipe, twice as far across as up or down, is claimed and never gets here): the terminal's scroll, which goes to Herdr as
+     * mouse wheel notches when it asked for the mouse. A thumb often drags at a slant of 30 degrees or more; it used to need
+     * twice as far up or down as across (within 26.6 degrees), and a drag past that sent no notch. Between 45 degrees and a
+     * tab swipe a drag is neither, as before.
      */
-    fun dragScrolls(pointers: Int, dx: Float, dy: Float): Boolean = pointers == 1 && horizontal(dx, dy) == false
+    fun dragScrolls(pointers: Int, dx: Float, dy: Float): Boolean = pointers == 1 && abs(dy) >= abs(dx)
 
     /**
      * The swipe a claimed touch makes once it lifts, from its travel and velocity; null when

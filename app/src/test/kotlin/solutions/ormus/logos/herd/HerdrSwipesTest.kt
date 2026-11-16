@@ -55,23 +55,42 @@ class HerdrSwipesTest {
     }
 
     @Test
-    fun dragScrolls_isAboutTheVertical_andASlantOfThirtyDegreesOrMoreIsNot() {
-        // The wheel path takes a drag within about 27 degrees of the vertical (the axis must outweigh the other twice).
-        // A slanted drag is released to termlib and sends no wheel notch (gate lane M2 on G3; not changed by it).
+    fun dragScrolls_isEveryOneFingerDragAtLeastAsFarUpOrDownAsAcross_exceptATabSwipe() {
+        // Up to 45 degrees from the vertical (a thumb's usual slant): the wheel's scroll. Gate lane M2 on G3 and the console lane's
+        // MEASURE-v1.27.87.md: it used to be only within about 26.6 degrees, so a drag at 30 degrees sent no notch.
+        assertEquals(true, HerdrSwipes.dragScrolls(1, 0f, -30f))
         assertEquals(true, HerdrSwipes.dragScrolls(1, 10f, -30f))
         assertEquals(true, HerdrSwipes.dragScrolls(1, 14f, -30f))
-        assertEquals(false, HerdrSwipes.dragScrolls(1, 17.3f, -30f))
-        assertEquals(false, HerdrSwipes.dragScrolls(1, 30f, -30f))
+        assertEquals("30 degrees", true, HerdrSwipes.dragScrolls(1, 17.3f, -30f))
+        assertEquals("40 degrees", true, HerdrSwipes.dragScrolls(1, -25.2f, 30f))
+        assertEquals("exactly 45 degrees", true, HerdrSwipes.dragScrolls(1, 30f, -30f))
+        // Leaning more across than up or down: neither the scroll nor (before twice as far) a tab swipe.
+        assertEquals("46 degrees", false, HerdrSwipes.dragScrolls(1, 31f, -30f))
+        assertEquals("60 degrees", false, HerdrSwipes.dragScrolls(1, 52f, -30f))
+        // A tab swipe keeps its rule: at least twice as far across as up or down.
+        assertEquals(true, HerdrSwipes.horizontal(60f, 30f))
+        assertEquals(null, HerdrSwipes.horizontal(59f, 30f))
+        assertEquals(false, HerdrSwipes.dragScrolls(1, 60f, -30f))
+        assertEquals(false, HerdrSwipes.dragScrolls(1, 40f, 0f))
+        // Two fingers are never the wheel's scroll.
         assertEquals(false, HerdrSwipes.dragScrolls(2, 0f, -30f))
+    }
+
+    @Test
+    fun claim_stillLeavesASlantedOneFingerDragToTheTerminal_andClaimsATabSwipe() {
+        assertEquals(Claim.RELEASE, HerdrSwipes.claim(1, 17.3f, -30f))
+        assertEquals(Claim.RELEASE, HerdrSwipes.claim(1, 30f, -30f))
+        assertEquals(Claim.RELEASE, HerdrSwipes.claim(1, 31f, -30f))
+        assertEquals(Claim.CLAIM, HerdrSwipes.claim(1, 60f, -30f))
     }
 
     @Test
     fun claim_leavesScrollPinchDiagonalsAndThreeFingersToTheTerminal() {
         assertEquals("one finger up or down is scroll", Claim.RELEASE, HerdrSwipes.claim(1, 4f, -30f))
-        assertEquals("a diagonal up", Claim.RELEASE, HerdrSwipes.claim(1, 20f, -25f))
+        assertEquals("leaning 39 degrees up", Claim.RELEASE, HerdrSwipes.claim(1, 20f, -25f))
         assertEquals("a pinch changes the gap between fingers", Claim.RELEASE, HerdrSwipes.claim(2, 2f, 1f, spanChange = 40f))
         assertEquals("a pinch in", Claim.RELEASE, HerdrSwipes.claim(2, 0f, 0f, spanChange = -25f))
-        assertEquals("diagonal", Claim.RELEASE, HerdrSwipes.claim(1, 25f, 20f))
+        assertEquals("more across than up or down", Claim.RELEASE, HerdrSwipes.claim(1, 25f, 20f))
         assertEquals("diagonal", Claim.RELEASE, HerdrSwipes.claim(2, -20f, 20f))
         assertEquals(Claim.RELEASE, HerdrSwipes.claim(3, -40f, 0f))
     }
@@ -162,7 +181,7 @@ class HerdrSwipesTest {
         assertTrue(HerdrSwipes.dragScrolls(1, 4f, -30f))
         assertTrue(HerdrSwipes.dragScrolls(1, 0f, 40f))
         assertFalse("across", HerdrSwipes.dragScrolls(1, -30f, 4f))
-        assertFalse("diagonal", HerdrSwipes.dragScrolls(1, 25f, 20f))
+        assertFalse("more across than up or down", HerdrSwipes.dragScrolls(1, 25f, 20f))
         assertFalse("two fingers", HerdrSwipes.dragScrolls(2, 0f, -30f))
     }
 }

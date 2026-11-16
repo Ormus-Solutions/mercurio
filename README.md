@@ -126,8 +126,10 @@ management come from ConnectBot. Mercurio is maintained by
   through workspaces. When the host's Herdr client has saved machines, that step
   goes through Herdr's own switcher (prefix+w, an arrow, Enter), so it reaches
   workspaces on the other machines too. A one-finger drag up or down always
-  scrolls, however fast (a drag that slants 30 degrees or more from the vertical is
-  not taken for the wheel's scroll); a pinch still zooms.
+  scrolls, however fast. With the mouse on, a drag up to 45 degrees from the
+  vertical goes to the program as wheel notches (a drag that leans more across
+  than that sends no notch, and one twice as far across as up or down is a tab
+  swipe); a pinch still zooms.
 - **Herd screen.** Every agent in the session by state (blocked, done, working,
   idle). Tap one to focus its pane.
 - **Reattach.** When the Herdr client drops with `lost connection to server`,
