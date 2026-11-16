@@ -267,6 +267,8 @@ swipe:prev-workspace-switcher
 swipe:next-workspace-switcher
 swipe:flick-prev-workspace-switcher
 swipe:flick-next-workspace-switcher
+swipe:next-agent
+swipe:prev-agent
 terminal:mouse-click
 herdr:drag-scroll
 gesture:drag-arrow

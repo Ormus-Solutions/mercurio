@@ -427,6 +427,8 @@ object UsageActions {
     const val SWIPE_NEXT_WORKSPACE_SWITCHER = "swipe:next-workspace-switcher"
     const val SWIPE_FLICK_PREV_WORKSPACE_SWITCHER = "swipe:flick-prev-workspace-switcher"
     const val SWIPE_FLICK_NEXT_WORKSPACE_SWITCHER = "swipe:flick-next-workspace-switcher"
+    const val SWIPE_NEXT_AGENT = "swipe:next-agent"
+    const val SWIPE_PREV_AGENT = "swipe:prev-agent"
 
     // A tap on the terminal sent as a mouse click, to a program that asked for the mouse.
     const val TERMINAL_MOUSE_CLICK = "terminal:mouse-click"
@@ -526,6 +528,7 @@ object UsageActions {
         SWIPE_PREV_TAB, SWIPE_NEXT_TAB, SWIPE_PANE_LEFT, SWIPE_PANE_RIGHT, SWIPE_PREV_WORKSPACE, SWIPE_NEXT_WORKSPACE,
         SWIPE_FLICK_PREV_WORKSPACE, SWIPE_FLICK_NEXT_WORKSPACE, SWIPE_PREV_WORKSPACE_SWITCHER, SWIPE_NEXT_WORKSPACE_SWITCHER,
         SWIPE_FLICK_PREV_WORKSPACE_SWITCHER, SWIPE_FLICK_NEXT_WORKSPACE_SWITCHER,
+        SWIPE_NEXT_AGENT, SWIPE_PREV_AGENT,
         TERMINAL_MOUSE_CLICK, HERDR_DRAG_SCROLL, GESTURE_DRAG_ARROW,
         PUSH_REGISTERED, PUSH_FAILED, PUSH_UNREGISTERED, PUSH_HOST_SYNCED, PUSH_RECEIVED, PUSH_IGNORED,
         PUSH_TAIL_READ, PUSH_TAIL_MISSED,

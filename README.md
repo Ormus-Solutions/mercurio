@@ -179,6 +179,13 @@ management come from ConnectBot. Mercurio is maintained by
   connecting is passed over, and they read on a login of their own. The Inbox
   also passes over a console that runs nothing. A pin or a mark read that the console gave no answer for is written
   again on that login; an Esc is not, so it cannot reach the agent twice.
+  In the console of a herdr-core terminal opened there, one finger moving left opens
+  the next herdr-core terminal in the Inbox order and one moving right the previous
+  one (as the Herdr tab swipe turns a page); it stops at the first and the last (no
+  wrap). Up and down stay the terminal's scroll. The order is the Inbox's (needs you,
+  done, working, idle, unknown, each with its pinned rows first), from the machines
+  that have a console open, and only herdr-core terminals are in it: a Herdr session's
+  agents are not, so a swipe never lands in a Herdr console.
 - **Unblock.** With the address of a questions store set in Settings (Home,
   "Questions store"), the Inbox has an Unblock (N) key, N being the open
   questions the view walks, and a swipe from right to left on the home does the

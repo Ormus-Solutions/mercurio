@@ -145,6 +145,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.connectbot.R
@@ -221,6 +222,7 @@ import solutions.ormus.logos.herd.PasteOutcome
 import solutions.ormus.logos.herd.PasteUpload
 import solutions.ormus.logos.herd.SizeDecision
 import solutions.ormus.logos.home.HomeStart
+import solutions.ormus.logos.terminal.AgentSwipe
 import solutions.ormus.logos.voice.VoiceSettings
 import timber.log.Timber
 
@@ -641,6 +643,11 @@ fun ConsoleScreen(
     val hasBridge by rememberUpdatedState(currentBridge != null)
     // A core terminal's console holds that terminal alone: nothing opens the session drawer over it.
     val drawerBlocked by rememberUpdatedState(currentBridge?.watch != null)
+    // Where a watched terminal stands among the agents a swipe moves between (the Inbox order, from the open consoles).
+    val agentPlace by remember(currentBridge) {
+        currentBridge?.watch?.let { AgentSwipeSource.places(viewModel.allBridges, currentBridge, it) } ?: flowOf(null)
+    }.collectAsState(null)
+    val agentPlaceNow by rememberUpdatedState(agentPlace)
     val titlePull = remember {
         TitlePull { level ->
             if (level == TitlePullLevel.DISCONNECT && hasBridge) {
@@ -1126,6 +1133,13 @@ fun ConsoleScreen(
                                         lastSwipe = swipe
                                         swipesFired++
                                         putSwipeIntroAway()
+                                    }
+                                    // A watched console has no Herdr swipes: one finger across moves between the Inbox's agents.
+                                    .agentSwipes(enabled = { swipeBridge.watch != null && selectionController?.isSelectionActive != true }) { direction ->
+                                        AgentSwipeSource.open(agentPlaceNow, direction)?.let { route ->
+                                            usage.log(AgentSwipe.usageId(direction))
+                                            onOpenJumpedConsole(route)
+                                        }
                                     }
                                     .dragArrows(arrows)
                                     .terminalTaps(taps)
