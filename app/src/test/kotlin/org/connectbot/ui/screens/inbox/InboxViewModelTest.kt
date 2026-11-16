@@ -1158,4 +1158,35 @@ class InboxViewModelTest {
             timber.log.Timber.uproot(tree)
         }
     }
+
+    @Test
+    fun aLoginThatFailedOnce_isTriedAgainOnceTheShortDelayIsOver_whenTheNetworkIsBack() = runTest {
+        // The first attempt fails as the network changes; a poll after the short delay logs in again (it was 30 s).
+        var now = 0L
+        val links = CoreLinks(hosts = { listOf(saved(1, "one")) }, login = {
+            if (logins.incrementAndGet() == 1) {
+                CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+            } else {
+                CoreLinks.Opened.Session(
+                    object : HeadlessSession {
+                        override fun login(keys: List<java.security.KeyPair>) = HeadlessSsh.Login.Ok
+
+                        override fun exec(command: String) = answers(command)
+
+                        override fun close() {}
+                    },
+                )
+            }
+        }, clock = { now }, learned = HerdrHosts.inMemory())
+        val vm = viewModel(true, links = links)
+        vm.refresh()
+        awaitState(vm) { it.notes.any { n -> n.contains("could not log in") } }
+        now = CoreLinks.RETRY_FIRST_MS
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (vm.state.value.rows.none { it.agent.engine == core } && System.nanoTime() < end) {
+            vm.refresh()
+            Thread.sleep(40)
+        }
+        assertTrue("logins=${logins.get()}, notes=${vm.state.value.notes}", vm.state.value.rows.any { it.agent.engine == core })
+    }
 }

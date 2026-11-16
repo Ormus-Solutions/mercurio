@@ -28,6 +28,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Spaces: a console that is still connecting, or that has dropped, no longer shuts out the Spaces list's own login: the machine showed only "could not reach the host" until that console was signed in
 - Herdr terminal: a one-finger drag up or down always scrolls; the fast flick that switched workspace is gone (two fingers up or down still switch it), and the swipe hint names the two-finger moves
 - Inbox and Spaces: the background login of a machine offers a key the host refused once, not once per saved login (five saved logins of one machine made five connections and five failed attempts for one refused key)
+- Inbox and Spaces: a login that failed to connect is tried again after a short wait (5 s, doubling to 30 s) instead of 30 s; a login the host refused still waits 30 s
 - Free the slash refresh guard on cancel or an unexpected failure (#284)
 - Lint errors fixed, and lint now fails on any error (#285)
 - Probe a host without herdr-core only every 5 minutes, not on every read; say the Inbox logs in to saved hosts (#286)

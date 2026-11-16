@@ -212,6 +212,77 @@ class CoreMachinesTest {
         assertEquals(2, tries)
     }
 
+    // A login that cannot be made waits before the next try: a short first delay, then longer ones up to RETRY_MS. Measured on a phone
+    // (herd-inbox-reach/MEASURE.md, H4): the network came back a moment after the first failure and the Inbox made no try for 30 s.
+    private fun failingLinks(clock: () -> Long, tries: () -> Unit) = CoreLinks({ emptyList() }, {
+        tries()
+        CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+    }, clock)
+
+    @Test
+    fun aFailedLogin_isTriedAgainAfterAShortFirstDelay() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val links = failingLinks({ now }) { tries++ }
+        val m = CoreMachines.group(listOf(host(1, "a"))).single()
+        links.link(m)
+        now = CoreLinks.RETRY_FIRST_MS - 1
+        links.link(m)
+        assertEquals(1, tries)
+        now = CoreLinks.RETRY_FIRST_MS
+        links.link(m)
+        assertEquals(2, tries)
+    }
+
+    @Test
+    fun theDelayAfterEachFailure_doubles_untilTheOldLimit() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val links = failingLinks({ now }) { tries++ }
+        val m = CoreMachines.group(listOf(host(1, "a"))).single()
+        links.link(m)
+        val delays = mutableListOf<Long>()
+        repeat(5) {
+            val before = tries
+            // The first moment at which a try is made, in steps of one second.
+            val failedAt = now
+            while (tries == before) {
+                now += 1_000
+                links.link(m)
+            }
+            delays += now - failedAt
+        }
+        assertEquals(listOf(5_000L, 10_000L, 20_000L, 30_000L, 30_000L), delays)
+        assertEquals(CoreLinks.RETRY_MS, delays.last())
+    }
+
+    @Test
+    fun aLoginThatWorks_startsTheDelaysAgain() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val results = ArrayDeque(listOf<CoreLinks.Opened>(CoreLinks.Opened.Skipped("x", soon = true), CoreLinks.Opened.Skipped("x", soon = true), CoreLinks.Opened.Session(Fake { CommandOutput("", "", null) })))
+        val links = CoreLinks({ emptyList() }, {
+            tries++
+            results.removeFirstOrNull() ?: CoreLinks.Opened.Skipped("x", soon = true)
+        }, { now })
+        val m = CoreMachines.group(listOf(host(1, "a"))).single()
+        links.link(m)
+        now += CoreLinks.RETRY_FIRST_MS
+        links.link(m)
+        now += 2 * CoreLinks.RETRY_FIRST_MS
+        // The third login works; its first command closes early, so the link is gone and the next read logs in again, and fails.
+        (links.link(m) as CoreLinks.Link.Up).run("x")
+        assertEquals(3, tries)
+        links.link(m)
+        assertEquals(4, tries)
+        now += CoreLinks.RETRY_FIRST_MS - 1
+        links.link(m)
+        assertEquals("the delay is the first one again, not the third", 4, tries)
+        now += 1
+        links.link(m)
+        assertEquals(5, tries)
+    }
+
     @Test
     fun aConnectionThatClosedEarly_isLoggedInAgainOnTheNextRead() = runBlocking {
         var tries = 0
@@ -276,15 +347,250 @@ class CoreMachinesTest {
     @Test
     fun aLoginThatThrows_isNotRetriedBeforeTheDelay_evenAcrossAClose() = runBlocking {
         var tries = 0
+        val now = 0L
         val links = CoreLinks({ emptyList() }, {
             tries++
             error("boom")
-        })
+        }, { now })
         val m = CoreMachines.group(listOf(host(1, "a"))).single()
         assertTrue(runCatching { links.link(m) }.isFailure)
         links.close()
         links.reopen()
         assertEquals("boom", (links.link(m) as CoreLinks.Link.Down).reason)
         assertEquals(1, tries)
+    }
+
+    // --- Round 1 of the gate lane's review of H4 (~/work/.b2-tmp/gate-reach-h4/REPORT.md) ---
+
+    private val machine1 get() = CoreMachines.group(listOf(host(1, "a"))).single()
+
+    /** The seconds, in steps of one second from the failure, at which [links] first makes a login again; null when none in [limitMs]. */
+    private suspend fun firstRetryAt(links: CoreLinks, now: () -> Long, advance: (Long) -> Unit, tries: () -> Int, limitMs: Long = 40_000): Long? {
+        val before = tries()
+        val failedAt = now()
+        while (tries() == before && now() - failedAt < limitMs) {
+            advance(1_000)
+            links.link(machine1)
+        }
+        return if (tries() == before) null else now() - failedAt
+    }
+
+    private fun retryAfter(opened: CoreLinks.Opened): Long? = runBlocking {
+        var now = 0L
+        var tries = 0
+        val links = CoreLinks({ emptyList() }, {
+            tries++
+            opened
+        }, { now })
+        links.link(machine1)
+        firstRetryAt(links, { now }, { now += it }, { tries })
+    }
+
+    @Test
+    fun aLoginThatTookNoKey_waitsThirtySeconds_notFive() {
+        val opened = CoreLinks.skippedAfter("it took none of the keys", listOf(HeadlessSsh.Login.KeysRefused))
+        assertEquals(false, opened.soon)
+        assertEquals(CoreLinks.RETRY_MS, retryAfter(opened))
+    }
+
+    @Test
+    fun aChangedHostKey_waitsThirtySeconds_notFive() {
+        val opened = CoreLinks.skippedAfter("its host key changed: open it in Mercurio", listOf(HeadlessSsh.Login.HostKeyRefused))
+        assertEquals(false, opened.soon)
+        assertEquals(CoreLinks.RETRY_MS, retryAfter(opened))
+    }
+
+    @Test
+    fun aConnectFailure_waitsFiveSeconds() {
+        val opened = CoreLinks.skippedAfter("could not log in: connect timed out", listOf(HeadlessSsh.Login.Failed("connect timed out")))
+        assertEquals(true, opened.soon)
+        assertEquals(CoreLinks.RETRY_FIRST_MS, retryAfter(opened))
+    }
+
+    @Test
+    fun aMachineWhereOneSavedLoginWasRefused_waitsThirtySeconds_evenWhenAnotherOneFailedToConnect() {
+        val opened = CoreLinks.skippedAfter("could not log in: connect timed out", listOf(HeadlessSsh.Login.KeysRefused, HeadlessSsh.Login.Failed("connect timed out")))
+        assertEquals(false, opened.soon)
+    }
+
+    @Test
+    fun aLoginThatSentNothing_noKey_noSavedHostKey_orAskingForSomething_waitsThirtySeconds() {
+        val opened = CoreLinks.skippedAfter("no key that opens without asking", emptyList())
+        assertEquals(false, opened.soon)
+        assertEquals(CoreLinks.RETRY_MS, retryAfter(opened))
+    }
+
+    // M2 (a): a row of failures that ended with no good login (the user left while the host was down) still counted an hour later.
+    @Test
+    fun anOldRowOfFailures_doesNotMakeTheFirstFailureOfANewVisitWaitThirtySeconds() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val links = CoreLinks({ emptyList() }, {
+            tries++
+            CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+        }, { now })
+        val m = machine1
+        links.link(m)
+        now += 5_000
+        links.link(m)
+        now += 10_000
+        links.link(m)
+        now += 20_000
+        links.link(m)
+        assertEquals(4, tries)
+        links.close()
+        now += 3_600_000
+        links.reopen()
+        // The first read of the new visit fails once, as the network changes: the short wait, not the fourth one.
+        links.link(m)
+        assertEquals(5, tries)
+        now += CoreLinks.RETRY_FIRST_MS - 1
+        links.link(m)
+        assertEquals(5, tries)
+        now += 1
+        links.link(m)
+        assertEquals("the first wait again, after an hour", 6, tries)
+    }
+
+    @Test
+    fun aRowOfFailuresThatStillGoesOn_keepsItsCount_whenTheNextLoginComesAfterTheThirtySecondWait() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val links = CoreLinks({ emptyList() }, {
+            tries++
+            CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+        }, { now })
+        val m = machine1
+        links.link(m)
+        now += 5_000
+        links.link(m)
+        now += 10_000
+        links.link(m)
+        now += 20_000
+        links.link(m)
+        assertEquals(4, tries)
+        // The fifth login comes after the 30 s wait: the count goes on, and the wait stays 30 s.
+        now += CoreLinks.RETRY_MS
+        links.link(m)
+        assertEquals(5, tries)
+        now += CoreLinks.RETRY_MS - 1
+        links.link(m)
+        assertEquals(5, tries)
+        now += 1
+        links.link(m)
+        assertEquals(6, tries)
+    }
+
+    // M2 (b): the Inbox and Spaces each have their own CoreLinks and share the pool; a good login of the other one ended the row.
+    @Test
+    fun aGoodLoginOfTheOtherScreen_endsTheRowOfFailures() = runBlocking {
+        var now = 0L
+        val pool = CoreConnections(lingerMs = 0)
+        var dead = false
+        var spacesTries = 0
+        val spaces = CoreLinks({ emptyList() }, {
+            spacesTries++
+            CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+        }, { now }, pool)
+        val inbox = CoreLinks({ emptyList() }, { CoreLinks.Opened.Session(Fake { if (dead) CommandOutput("", "", null) else CommandOutput("ok", "", 0) }) }, { now }, pool)
+        val m = machine1
+        spaces.link(m)
+        now += 5_000
+        spaces.link(m)
+        now += 10_000
+        spaces.link(m)
+        now += 20_000
+        spaces.link(m)
+        assertEquals(4, spacesTries)
+        spaces.close()
+        // The network is back: the Inbox logs in. Spaces shows again and reads over that login, with no login of its own.
+        now += 60_000
+        assertEquals(0, (inbox.link(m) as CoreLinks.Link.Up).run("x")?.exitCode)
+        spaces.reopen()
+        assertEquals(0, (spaces.link(m) as CoreLinks.Link.Up).run("x")?.exitCode)
+        assertEquals(4, spacesTries)
+        // Within two minutes of the last failure (70 s, so the age of the old row does not decide): the link dies under Spaces, and its next login fails once.
+        now += 10_000
+        dead = true
+        (spaces.link(m) as CoreLinks.Link.Up).run("x")
+        spaces.link(m)
+        assertEquals(5, spacesTries)
+        now += CoreLinks.RETRY_FIRST_MS - 1
+        spaces.link(m)
+        assertEquals(5, spacesTries)
+        now += 1
+        spaces.link(m)
+        assertEquals("the first wait again, not the fifth", 6, spacesTries)
+        inbox.close()
+    }
+
+    // N2: two machines keep their own counts; a login that throws waits longer each time.
+    @Test
+    fun twoMachines_doNotShareTheCountOfFailures() = runBlocking {
+        var now = 0L
+        val tries = mutableMapOf<Long, Int>()
+        val links = CoreLinks({ emptyList() }, { m ->
+            tries.merge(m.primary.id, 1, Int::plus)
+            CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+        }, { now })
+        val a = CoreMachines.group(listOf(host(1, "a", hostname = "a.example"))).single()
+        val b = CoreMachines.group(listOf(host(2, "b", hostname = "b.example"))).single()
+        links.link(a)
+        now += 5_000
+        links.link(a)
+        now += 10_000
+        links.link(a)
+        // a has failed three times; b fails for the first time now and has the first wait.
+        links.link(b)
+        now += CoreLinks.RETRY_FIRST_MS
+        links.link(b)
+        links.link(a)
+        assertEquals(mapOf(1L to 3, 2L to 2), tries.toMap())
+    }
+
+    @Test
+    fun aLoginThatThrows_waitsLongerEachTime() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val links = CoreLinks({ emptyList() }, {
+            tries++
+            error("boom")
+        }, { now })
+        val m = machine1
+        val delays = mutableListOf<Long>()
+        runCatching { links.link(m) }
+        repeat(5) {
+            val before = tries
+            val failedAt = now
+            while (tries == before) {
+                now += 1_000
+                runCatching { links.link(m) }
+            }
+            delays += now - failedAt
+        }
+        assertEquals(listOf(5_000L, 10_000L, 20_000L, 30_000L, 30_000L), delays)
+    }
+
+    // N5: a failure of another kind starts the count at one: a refusal (the flat 30 s) and then a connect failure waits the first short wait.
+    @Test
+    fun aConnectFailureAfterARefusal_startsTheShortWaitAtOne() = runBlocking {
+        var now = 0L
+        var tries = 0
+        val results = ArrayDeque(listOf(CoreLinks.Opened.Skipped("it took none of the keys"), CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)))
+        val links = CoreLinks({ emptyList() }, {
+            tries++
+            results.removeFirstOrNull() ?: CoreLinks.Opened.Skipped("could not log in: connect timed out", soon = true)
+        }, { now })
+        val m = machine1
+        links.link(m)
+        now = CoreLinks.RETRY_MS
+        links.link(m)
+        assertEquals(2, tries)
+        now += CoreLinks.RETRY_FIRST_MS - 1
+        links.link(m)
+        assertEquals(2, tries)
+        now += 1
+        links.link(m)
+        assertEquals("the first short wait, not the second", 3, tries)
     }
 }

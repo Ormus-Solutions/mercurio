@@ -176,7 +176,10 @@ management come from ConnectBot. Mercurio is maintained by
   own; a link that has been quiet is probed first, and a new login is made only
   if the probe fails. The background login tries each saved host of the machine in
   turn, and offers a key the host refused once, not again on the next saved host.
-  The Inbox and Spaces read through an open console only while that
+  A login that cannot be made because the connection failed is tried again after a
+  short wait (5 s, then 10 and 20 s, at most 30 s; the Inbox polls every 5 s, so its
+  tries come at about 10, 25 and 50 s); a login the host refused (no key taken, a
+  changed host key) waits 30 s. The Inbox and Spaces read through an open console only while that
   console's SSH session is open and has not dropped; a console that is still
   connecting is passed over, and they read on a login of their own. The Inbox
   also passes over a console that runs nothing. A pin or a mark read that the console gave no answer for is written

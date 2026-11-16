@@ -164,4 +164,55 @@ class CoreLinksOpenHeadlessTest {
         assertEquals("it took none of the keys", (opened as CoreLinks.Opened.Skipped).reason)
         org.mockito.kotlin.verifyBlocking(hostRepo, org.mockito.kotlin.never()) { getKnownHostsForHost(3L) }
     }
+
+    // --- H4: what `openHeadless` makes of the way each saved login came out. `soon` is the short wait; a refusal never gets it. ---
+
+    private fun skipped(rows: List<Host>, startup: List<Pubkey>, byId: Map<Long, Pubkey> = emptyMap(), outcome: (Long, List<String>) -> HeadlessSsh.Login) = open(rows, startup, byId, outcome) as CoreLinks.Opened.Skipped
+
+    @Test
+    fun aSavedLoginThatFailedToConnect_isSoon_andSaysWhy() {
+        val opened = skipped(listOf(row(1)), listOf(pubkey(3, "a"))) { _, _ -> HeadlessSsh.Login.Failed("connect timed out") }
+        assertEquals(true, opened.soon)
+        assertEquals("could not log in: connect timed out", opened.reason)
+    }
+
+    @Test
+    fun aSavedLoginThatTookNoKey_isNotSoon() {
+        assertEquals(false, skipped(listOf(row(1)), listOf(pubkey(3, "a"))) { _, _ -> HeadlessSsh.Login.KeysRefused }.soon)
+    }
+
+    @Test
+    fun aChangedHostKey_isNotSoon() {
+        assertEquals(false, skipped(listOf(row(1)), listOf(pubkey(3, "a"))) { _, _ -> HeadlessSsh.Login.HostKeyRefused }.soon)
+    }
+
+    @Test
+    fun aMachineWhereOneSavedLoginWasRefusedAndAnotherFailedToConnect_isNotSoon_inEitherOrder() {
+        val rows = listOf(row(1), row(2, pubkeyId = 9))
+        val byId = mapOf(9L to pubkey(9, "c"))
+        assertEquals(false, skipped(rows, listOf(pubkey(3, "a")), byId) { host, _ -> if (host == 1L) HeadlessSsh.Login.KeysRefused else HeadlessSsh.Login.Failed("connect timed out") }.soon)
+        assertEquals(false, skipped(rows, listOf(pubkey(3, "a")), byId) { host, _ -> if (host == 1L) HeadlessSsh.Login.Failed("connect timed out") else HeadlessSsh.Login.KeysRefused }.soon)
+    }
+
+    @Test
+    fun aMachineWhereOneSavedLoginHadAChangedHostKeyAndAnotherFailedToConnect_isNotSoon() {
+        val rows = listOf(row(1), row(2))
+        assertEquals(false, skipped(rows, listOf(pubkey(3, "a"))) { host, _ -> if (host == 1L) HeadlessSsh.Login.HostKeyRefused else HeadlessSsh.Login.Failed("connect timed out") }.soon)
+    }
+
+    @Test
+    fun aMachineWhoseSavedLoginsSentNothing_isNotSoon() {
+        // No start-up key: no login sends anything.
+        val opened = skipped(listOf(row(1), row(2)), emptyList()) { _, _ -> error("no connection expected") }
+        assertEquals(false, opened.soon)
+        assertEquals(0, connections)
+    }
+
+    @Test
+    fun everyRowFailingToConnect_isSoon_evenWhenALaterRowIsPassedOver() {
+        // Row 1 fails to connect; the key is not refused, so row 2 offers it again and fails too: soon.
+        val opened = skipped(listOf(row(1), row(2)), listOf(pubkey(3, "a"))) { _, _ -> HeadlessSsh.Login.Failed("connect timed out") }
+        assertEquals(true, opened.soon)
+        assertEquals(2, connections)
+    }
 }

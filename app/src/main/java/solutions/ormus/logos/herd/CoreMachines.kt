@@ -84,7 +84,11 @@ object CoreMachines {
  * One headless login per machine, held while a screen shows and let go when it leaves. Commands
  * run over exec channels of that one connection, so a poll costs no login. Nothing is asked: a
  * saved host key and keys that open without a passphrase, as [HerdPushTail] reads a pane. A login
- * that cannot be made is not retried before [RETRY_MS].
+ * that cannot be made is not retried at once. One that nothing refused (it failed to connect) waits [RETRY_FIRST_MS], then twice as
+ * long after each failure up to [RETRY_MS] (a network that came back a moment after the first failure is found soon); one the host
+ * refused, or that sent nothing, waits [RETRY_MS]. The wait survives a close and a reopen. The count starts again after a good login
+ * of this machine's link that this screen reads over (its own login, or one the other screen made and it joins), and after a row of failures
+ * older than [FAILURE_MEMORY_MS].
  *
  * The logins live in [pool], shared by every screen: the Inbox and Spaces of one machine use one,
  * and a login let go stays open for [CoreConnections.LINGER_MS], so the next screen finds it.
@@ -104,7 +108,12 @@ class CoreLinks internal constructor(
     sealed interface Opened {
         class Session(val session: HeadlessSession) : Opened
 
-        class Skipped(val reason: String) : Opened
+        /**
+         * [soon]: nothing refused the login (it failed to connect, say), so it may be tried again after a short wait. A login the
+         * host refused (no key taken, a changed host key), or one that sent nothing, waits the full [RETRY_MS]: a refusal does not
+         * heal in seconds, and each try is one connection per saved login of the machine that the host counts against the phone.
+         */
+        class Skipped(val reason: String, val soon: Boolean = false) : Opened
     }
 
     /** A way to run commands on a machine, or why there is none. */
@@ -116,7 +125,11 @@ class CoreLinks internal constructor(
 
     // What this holds in the pool as, one per visit: a let-go of an old visit cannot touch a newer one.
     private var holder = Any()
-    private val failed = ConcurrentHashMap<String, Pair<Long, String>>()
+
+    // A login that could not be made: when, why, whether it may be tried again soon, and how many times in a row (of those).
+    private class Failure(val at: Long, val why: String, val times: Int, val soon: Boolean)
+
+    private val failed = ConcurrentHashMap<String, Failure>()
     private val locks = ConcurrentHashMap<String, Mutex>()
     private val state = Any()
     private var generation = 0
@@ -159,22 +172,26 @@ class CoreLinks internal constructor(
         // Held in one step with close(): a screen that left holds nothing.
         val started = synchronized(state) {
             if (!open) return Link.Down(LEFT)
-            pool.join(machine.key, holder)?.let { return up(machine, it) }
+            // A link that works ends a row of failures: this screen reads over it, whichever screen made it.
+            pool.join(machine.key, holder)?.let {
+                failed.remove(machine.key)
+                return up(machine, it)
+            }
             generation
         }
-        failed[machine.key]?.let { (at, why) -> if (clock() - at < RETRY_MS) return Link.Down(why) }
+        failed[machine.key]?.let { if (clock() - it.at < (if (it.soon) retryDelay(it.times) else RETRY_MS)) return Link.Down(it.why) }
         val opened = try {
             login(machine)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             val why = e.message ?: e::class.simpleName.orEmpty()
-            failed[machine.key] = clock() to why
+            noteFailure(machine.key, why, soon = true)
             throw e
         }
         return when (opened) {
             is Opened.Skipped -> {
-                failed[machine.key] = clock() to opened.reason
+                noteFailure(machine.key, opened.reason, opened.soon)
                 Link.Down(opened.reason)
             }
 
@@ -191,6 +208,13 @@ class CoreLinks internal constructor(
                 up(machine, kept)
             }
         }
+    }
+
+    private fun noteFailure(key: String, why: String, soon: Boolean) {
+        val now = clock()
+        // The count goes on only from a row that is still going: a failure of two minutes ago or less ([FAILURE_MEMORY_MS]), of the same kind.
+        val row = failed[key]?.takeIf { soon && it.soon && now - it.at < FAILURE_MEMORY_MS }
+        failed[key] = Failure(now, why, (row?.times ?: 0) + 1, soon)
     }
 
     private fun up(machine: CoreMachines.Machine, session: HeadlessSession) = Link.Up { command ->
@@ -230,8 +254,23 @@ class CoreLinks internal constructor(
     }
 
     companion object {
-        /** How long a login that could not be made is left alone. */
+        /** How long a login that could not be made is left alone, the first time. */
+        const val RETRY_FIRST_MS = 5_000L
+
+        /** The most a login that keeps failing is left alone; each failure doubles the wait from [RETRY_FIRST_MS] up to it. */
         const val RETRY_MS = 30_000L
+
+        /** A row of failures older than this is over: the next failure starts the count at one (the user left, or the other screen logged in). */
+        const val FAILURE_MEMORY_MS = 120_000L
+
+        internal fun retryDelay(failures: Int): Long = minOf(RETRY_MS, RETRY_FIRST_MS shl minOf(maxOf(failures - 1, 0), 10))
+
+        /** Skipped for [why] after each saved login of a machine came to [outcomes]: the short wait only when one failed and none was refused. */
+        internal fun skippedAfter(why: String, outcomes: List<HeadlessSsh.Login>): Opened.Skipped = Opened.Skipped(
+            why,
+            soon = outcomes.any { it is HeadlessSsh.Login.Failed } && outcomes.none { it == HeadlessSsh.Login.KeysRefused || it == HeadlessSsh.Login.HostKeyRefused },
+        )
+
         const val LEFT = "the screen was left"
 
         // What names a key across saved logins: its public half, in hex.
@@ -250,6 +289,7 @@ class CoreLinks internal constructor(
             var why = "no saved login for it"
             // The saved logins of one machine are one sshd and one user: a key it refused once is refused on every row, so it is offered once.
             val refused = mutableSetOf<String>()
+            val outcomes = mutableListOf<HeadlessSsh.Login>()
             for (host in machine.hosts) {
                 if (!HerdOfflineAnswer.logsInAlone(host)) {
                     why = "its login asks for something Mercurio cannot answer alone"
@@ -278,6 +318,7 @@ class CoreLinks internal constructor(
                     HeadlessSsh.Login.Failed(e.message ?: e::class.simpleName.orEmpty())
                 }
                 if (result == HeadlessSsh.Login.Ok) return Opened.Session(session)
+                outcomes += result
                 runCatching { session.close() }
                 why = when (result) {
                     HeadlessSsh.Login.HostKeyRefused -> "its host key changed: open it in Mercurio"
@@ -292,7 +333,7 @@ class CoreLinks internal constructor(
                     HeadlessSsh.Login.Ok -> why
                 }
             }
-            return Opened.Skipped(why)
+            return skippedAfter(why, outcomes)
         }
     }
 }
