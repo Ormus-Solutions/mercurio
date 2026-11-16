@@ -38,15 +38,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
@@ -55,7 +52,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -98,6 +94,7 @@ import kotlinx.coroutines.delay
 import org.connectbot.R
 import org.connectbot.ui.LocalTerminalManager
 import org.connectbot.ui.components.KeyTone
+import org.connectbot.ui.components.MercurioTopBar
 import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.OrmusKey
 import org.connectbot.ui.components.WORD_KEY_PADDING
@@ -117,9 +114,6 @@ const val INBOX_SEARCH_TAG = "inbox_search"
 
 /** Test tag of the Unblock key on the Inbox. */
 const val INBOX_UNBLOCK_TAG = "inbox_unblock"
-
-/** Test tag of the Settings gear on the Inbox top bar. */
-const val INBOX_SETTINGS_TAG = "inbox_settings"
 
 /** Test tag of every agent row. */
 const val INBOX_ROW_TAG = "inbox_row"
@@ -153,7 +147,6 @@ private val ACCENTS = listOf(
 @Composable
 fun InboxScreen(
     onOpen: (InboxRow) -> Unit,
-    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigateToNeeds: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
@@ -178,25 +171,23 @@ fun InboxScreen(
             value = System.currentTimeMillis()
         }
     }
-    InboxContent(rows = state.rows, notes = state.notes + listOfNotNull(stringResource(R.string.inbox_no_herdr_machine).takeIf { state.noHerdrMachine }), loading = !state.loaded, now = now, onOpen = onOpen, onNavigateBack = onNavigateBack, onAction = viewModel::act, unblock = unblock, onUnblock = onNavigateToNeeds, onSettings = onNavigateToSettings, modifier = modifier)
+    InboxContent(rows = state.rows, notes = state.notes + listOfNotNull(stringResource(R.string.inbox_no_herdr_machine).takeIf { state.noHerdrMachine }), loading = !state.loaded, now = now, onOpen = onOpen, onAction = viewModel::act, unblock = unblock, onUnblock = onNavigateToNeeds, onSettings = onNavigateToSettings, modifier = modifier)
 }
 
 /** The Inbox on [rows]: a search field, then one group per state, each folded after three rows. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InboxContent(
     rows: List<InboxRow>,
     notes: List<String>,
     now: Long,
     onOpen: (InboxRow) -> Unit,
-    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     onAction: (InboxRow, RowAction) -> Unit = { _, _ -> },
     loading: Boolean = false,
     /** The open questions of the questions store, or null with no store address: then there is no Unblock key. */
     unblock: Int? = null,
     onUnblock: () -> Unit = {},
-    /** The gear on the top bar: open the app's Settings. */
+    /** The gear on the shared top bar: open the app's Settings. */
     onSettings: () -> Unit = {},
 ) {
     val usage = LocalUsageLog.current
@@ -247,25 +238,8 @@ fun InboxContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.inbox_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.button_back))
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            usage.log(UsageActions.INBOX_SETTINGS)
-                            onSettings()
-                        },
-                        modifier = Modifier.testTag(INBOX_SETTINGS_TAG),
-                    ) {
-                        Icon(Icons.Default.Settings, stringResource(R.string.title_settings))
-                    }
-                },
-            )
+            // The Inbox icon is selected here: it is the home, and a tap on it does nothing.
+            MercurioTopBar(title = stringResource(R.string.inbox_title), homeSelected = true, onHome = {}, onSettings = onSettings)
         },
     ) { padding ->
         LazyColumn(

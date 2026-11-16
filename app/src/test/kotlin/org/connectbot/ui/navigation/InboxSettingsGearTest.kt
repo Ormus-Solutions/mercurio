@@ -50,7 +50,7 @@ class InboxSettingsGearTest {
             ConnectBotTheme {
                 NavHost(nav, startDestination = NavDestinations.INBOX) {
                     composable(NavDestinations.INBOX) {
-                        InboxContent(rows = emptyList(), notes = emptyList(), now = 0L, onOpen = {}, onNavigateBack = {}, onSettings = { nav.openSettings() })
+                        InboxContent(rows = emptyList(), notes = emptyList(), now = 0L, onOpen = {}, onSettings = { nav.openSettings() })
                     }
                     composable(NavDestinations.SETTINGS) {}
                 }

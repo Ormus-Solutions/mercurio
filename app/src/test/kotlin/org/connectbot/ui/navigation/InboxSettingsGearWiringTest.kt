@@ -27,7 +27,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.connectbot.HiltComponentActivity
-import org.connectbot.ui.screens.inbox.INBOX_SETTINGS_TAG
+import org.connectbot.ui.components.TOP_BAR_SETTINGS_TAG
 import org.connectbot.ui.theme.ConnectBotTheme
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -62,7 +62,7 @@ class InboxSettingsGearWiringTest {
         composeTestRule.waitForIdle()
         assertEquals(NavDestinations.INBOX, nav.currentDestination?.route)
 
-        composeTestRule.onNodeWithTag(INBOX_SETTINGS_TAG).performClick()
+        composeTestRule.onNodeWithTag(TOP_BAR_SETTINGS_TAG).performClick()
         composeTestRule.waitForIdle()
 
         val stack = nav.currentBackStack.value.map { it.destination.route }

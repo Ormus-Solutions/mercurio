@@ -23,6 +23,7 @@ import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -71,7 +72,7 @@ class InboxScreenTest {
     private fun show(rows: List<InboxRow>, notes: List<String> = emptyList(), loading: Boolean = false) {
         composeTestRule.setContent {
             ConnectBotTheme {
-                InboxContent(rows = rows, notes = notes, loading = loading, now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
+                InboxContent(rows = rows, notes = notes, loading = loading, now = now, onOpen = { opened += it }, onAction = { r, a -> acted += r to a })
             }
         }
     }
@@ -83,7 +84,7 @@ class InboxScreenTest {
         composeTestRule.setContent {
             ConnectBotTheme {
                 androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { keyLogged += it }) {
-                    InboxContent(rows = emptyList(), notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {}, unblock = unblock, onUnblock = { unblockTaps++ })
+                    InboxContent(rows = emptyList(), notes = emptyList(), now = now, onOpen = {}, unblock = unblock, onUnblock = { unblockTaps++ })
                 }
             }
         }
@@ -120,7 +121,7 @@ class InboxScreenTest {
             org.mockito.kotlin.whenever(inbox.watch()).doSuspendableAnswer { kotlinx.coroutines.awaitCancellation() }
             org.mockito.kotlin.whenever(needs.watch()).doSuspendableAnswer { kotlinx.coroutines.awaitCancellation() }
         }
-        composeTestRule.setContent { ConnectBotTheme { InboxScreen(onOpen = {}, onNavigateBack = {}, viewModel = inbox, needsViewModel = needs) } }
+        composeTestRule.setContent { ConnectBotTheme { InboxScreen(onOpen = {}, viewModel = inbox, needsViewModel = needs) } }
 
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(org.connectbot.R.string.inbox_no_herdr_machine)).assertIsDisplayed()
     }
@@ -142,7 +143,7 @@ class InboxScreenTest {
                 }
             }
         }
-        composeTestRule.setContent { ConnectBotTheme { InboxScreen(onOpen = {}, onNavigateBack = {}, viewModel = inbox, needsViewModel = needs) } }
+        composeTestRule.setContent { ConnectBotTheme { InboxScreen(onOpen = {}, viewModel = inbox, needsViewModel = needs) } }
         composeTestRule.waitForIdle()
         assertEquals(1 to 0, countStarted.get() to countCancelled.get())
 
@@ -162,7 +163,7 @@ class InboxScreenTest {
         composeTestRule.setContent {
             ConnectBotTheme {
                 androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { settingsLogged += it }) {
-                    InboxContent(rows = emptyList(), notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {}, onSettings = { settingsTaps++ })
+                    InboxContent(rows = emptyList(), notes = emptyList(), now = now, onOpen = {}, onSettings = { settingsTaps++ })
                 }
             }
         }
@@ -171,7 +172,7 @@ class InboxScreenTest {
         gear.assertIsDisplayed().performClick()
 
         assertEquals(1, settingsTaps)
-        assertEquals(listOf(org.connectbot.usage.UsageActions.INBOX_SETTINGS), settingsLogged)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.TOPBAR_SETTINGS), settingsLogged)
     }
 
     @Test
@@ -311,7 +312,7 @@ class InboxScreenTest {
         composeTestRule.setContent {
             ConnectBotTheme {
                 androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { starLogged += it }) {
-                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
+                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = { opened += it }, onAction = { r, a -> acted += r to a })
                 }
             }
         }
@@ -625,5 +626,20 @@ class InboxScreenTest {
         show(listOf(row("a", AgentState.Idle)))
         composeTestRule.onNodeWithTag(INBOX_ROW_TAG).assertContentDescriptionContains("Open alpha · ONE on box")
         composeTestRule.onAllNodesWithTag(INBOX_ORCHESTRATOR_TAG, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun theTopBar_hasTheTitle_theInboxIconSelectedAndInert_andTheGear() {
+        show(emptyList())
+        composeTestRule.onNodeWithText("Inbox").assertIsDisplayed()
+        val home = composeTestRule.onNodeWithTag(org.connectbot.ui.components.TOP_BAR_HOME_TAG, useUnmergedTree = true)
+        assertEquals(true, home.fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Selected))
+        home.performClick()
+        // Inert: the click changes nothing (the icon stays the selected place, nothing opens), and the gear is still there.
+        assertEquals(true, home.fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Selected))
+        assertEquals(emptyList<InboxRow>(), opened)
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.TOP_BAR_SETTINGS_TAG, useUnmergedTree = true).assertIsDisplayed()
+        // The bar has no back arrow: Back is the system's.
+        composeTestRule.onAllNodesWithContentDescription("Back").assertCountEquals(0)
     }
 }

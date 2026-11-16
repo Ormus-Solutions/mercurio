@@ -13,6 +13,7 @@ The seals of one kintsugi pass, by pull request number. The entries below are up
 - Inbox: a star on each herdr-core row pins or unpins it in one tap (a swipe on an unread row marked it read first, so a pin took two)
 - Console: the menu of a console that watches a herdr-core terminal has Pin to Inbox and Unpin, the Inbox's own pin
 - Inbox: a Settings gear on the top bar opens the app's Settings, so Settings is no longer reached only from the Hosts screen
+- Inbox and Spaces: one shared top bar, after the Herdr app's: the Inbox icon at the left goes home, a centred title, and the Settings gear (Spaces had none); no back arrow, Back is the system's
 - Unblock: the Inbox key Unblock (N) and a swipe on the home open the questions store's open asks one at a time, and one tap answers a single-choice ask (#266)
 - Inbox: helper terminals fold under their parent row (#290)
 - Spaces: each tab tile shows its name and its agent's state (#294)

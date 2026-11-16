@@ -100,6 +100,8 @@ spaces:open-tab
 places:inbox
 places:spaces
 places:hosts
+topbar:home
+topbar:settings
 needs:store-set
 needs:open
 needs:answer

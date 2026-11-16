@@ -19,6 +19,7 @@ package org.connectbot.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
@@ -28,6 +29,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.preference.PreferenceManager
 import org.connectbot.data.entity.Host
 import org.connectbot.ui.needs.NeedsScreen
 import org.connectbot.ui.screens.colors.ColorsScreen
@@ -53,6 +55,7 @@ import org.connectbot.util.IconStyle
 import solutions.ormus.logos.herd.AgentEngine
 import solutions.ormus.logos.herd.CoreWatch
 import solutions.ormus.logos.herd.HerdrConsole
+import solutions.ormus.logos.home.HomeStart
 import timber.log.Timber
 
 @Composable
@@ -190,7 +193,6 @@ fun ConnectBotNavHost(
                         launchSingleTop = true
                     }
                 },
-                onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() },
                 onNavigateToNeeds = { navController.navigateSafely(NavDestinations.NEEDS) },
                 onNavigateToSettings = { navController.openSettings() },
             )
@@ -201,10 +203,14 @@ fun ConnectBotNavHost(
         }
 
         composable(NavDestinations.SPACES) {
+            // The Inbox icon of the top bar is the way home: the Inbox while its setting is on, else the hosts. Read when the screen shows.
+            val inboxOn = HomeStart.inboxOn(PreferenceManager.getDefaultSharedPreferences(LocalContext.current))
             SpacesScreen(
                 // A tab opens its first terminal through the watch view; Spaces stays below it.
                 onOpenTab = { hostId, target -> navController.navigate(NavDestinations.console(hostId, watch = target)) { launchSingleTop = true } },
-                onNavigateBack = { if (navController.currentBackStackEntry.lifecycleIsResumed()) navController.backOrHosts() },
+                onHome = { navController.goHome(inboxOn) },
+                homeIsInbox = inboxOn,
+                onNavigateToSettings = { navController.openSettings() },
             )
         }
 

@@ -56,7 +56,7 @@ class InboxUsageTest {
         composeTestRule.setContent {
             ConnectBotTheme {
                 CompositionLocalProvider(LocalUsageLog provides UsageLog { logged += it }) {
-                    InboxContent(rows = rows, notes = emptyList(), now = 10_000_000L, onOpen = {}, onNavigateBack = {})
+                    InboxContent(rows = rows, notes = emptyList(), now = 10_000_000L, onOpen = {})
                 }
             }
         }

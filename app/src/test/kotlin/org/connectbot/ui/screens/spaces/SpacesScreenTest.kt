@@ -20,6 +20,7 @@ package org.connectbot.ui.screens.spaces
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
@@ -252,5 +253,27 @@ class SpacesScreenTest {
         // Two lines at 10sp x 2.0 are 40dp tall; a tile fixed at 38dp would clip them.
         val twoLines = with(composeTestRule.density) { 40.dp.toPx() }
         assertTrue("tile $tile must hold two scaled lines ($twoLines)", tile >= twoLines)
+    }
+
+    @Test
+    fun theTopBar_hasTheTitle_theInboxIcon_andTheGearThatSpacesLacked() {
+        var homes = 0
+        var gears = 0
+        val logged = mutableListOf<String>()
+        composeTestRule.setContent {
+            ConnectBotTheme {
+                androidx.compose.runtime.CompositionLocalProvider(org.connectbot.usage.LocalUsageLog provides org.connectbot.usage.UsageLog { logged += it }) {
+                    SpacesContent(sections = listOf(box), onOpenTab = { _, _ -> }, onHome = { homes++ }, onSettings = { gears++ })
+                }
+            }
+        }
+        composeTestRule.onNodeWithText("Spaces").assertIsDisplayed()
+        val home = composeTestRule.onNodeWithTag(org.connectbot.ui.components.TOP_BAR_HOME_TAG, useUnmergedTree = true)
+        assertEquals("Spaces is not the home: the icon is not selected", null, home.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected)?.takeIf { it })
+        home.performClick()
+        composeTestRule.onNodeWithTag(org.connectbot.ui.components.TOP_BAR_SETTINGS_TAG, useUnmergedTree = true).performClick()
+        assertEquals(1, homes)
+        assertEquals(1, gears)
+        assertEquals(listOf(org.connectbot.usage.UsageActions.TOPBAR_HOME, org.connectbot.usage.UsageActions.TOPBAR_SETTINGS), logged)
     }
 }

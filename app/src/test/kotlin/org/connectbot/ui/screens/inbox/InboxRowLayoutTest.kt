@@ -98,7 +98,7 @@ class InboxRowLayoutTest {
             ConnectBotTheme {
                 val d = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(d.density, fontScale)) {
-                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {})
+                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = {})
                 }
             }
         }
@@ -276,7 +276,7 @@ class InboxRowLayoutTest {
     fun aPlainHerdrRow_isDrawnAsBefore_itsTabBesideTheSpaceName() {
         val tui = Agent("a", AgentEngine.TUI, null, space, "work", null, null, AgentState.Idle, null)
         val rows = listOf(Inbox.row(1L, "box", tui))
-        rule.setContent { ConnectBotTheme { InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {}) } }
+        rule.setContent { ConnectBotTheme { InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = {}) } }
         rule.waitForIdle()
         val spaceNode = rule.onAllNodesWithText(space, useUnmergedTree = true)[0].fetchSemanticsNode()
         val tabNode = rule.onAllNodesWithText("work", useUnmergedTree = true)[0].fetchSemanticsNode()

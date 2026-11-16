@@ -174,7 +174,7 @@ object UsageActions {
     /** The helper-count control on a row: its helper terminals shown or folded away. */
     const val INBOX_HELPERS = "inbox:helpers"
 
-    /** The gear on the Inbox top bar: opens the app's Settings. */
+    /** Retired: the Inbox gear is the shared top bar's now ([TOPBAR_SETTINGS]). Kept for the usage history and the id list. */
     const val INBOX_SETTINGS = "inbox:settings"
 
     // Spaces: a tab's box opened in a console that watches its first terminal.
@@ -184,6 +184,11 @@ object UsageActions {
     const val PLACES_INBOX = "places:inbox"
     const val PLACES_SPACES = "places:spaces"
     const val PLACES_HOSTS = "places:hosts"
+
+    // The shared top bar (`MercurioTopBar`): the Inbox icon at the left goes home (the Inbox while it is on, else the hosts), and the gear
+    // opens the app's Settings. Logged by the bar for every screen that uses it; not by the Inbox icon on the Inbox, where it is inert.
+    const val TOPBAR_HOME = "topbar:home"
+    const val TOPBAR_SETTINGS = "topbar:settings"
 
     // Settings: the questions store address was saved or cleared (never the address itself).
     const val NEEDS_STORE_SET = "needs:store-set"
@@ -488,7 +493,7 @@ object UsageActions {
         MACHINES_CONNECT, MACHINES_REFRESH, MACHINES_FIX_PROMPT, MACHINES_API_SECRET,
         WORKSPACES_OPEN, HOME_FEED_SET, WORKBOARDS_OPEN, WORKBOARDS_SAVE_HOST,
         INBOX_OPEN, INBOX_SEARCH, INBOX_PIN, INBOX_UNPIN, INBOX_STAR, INBOX_UNSTAR, INBOX_MARK_READ, INBOX_ESC, INBOX_FOLD, INBOX_HELPERS, INBOX_SETTINGS,
-        SPACES_OPEN_TAB, PLACES_INBOX, PLACES_SPACES, PLACES_HOSTS,
+        SPACES_OPEN_TAB, PLACES_INBOX, PLACES_SPACES, PLACES_HOSTS, TOPBAR_HOME, TOPBAR_SETTINGS,
         NEEDS_STORE_SET, NEEDS_OPEN, NEEDS_ANSWER, NEEDS_LATER, NEEDS_HOME, NEEDS_INBOX_KEY,
         CONSOLE_BACK, CONSOLE_TEXT_INPUT, CONSOLE_PASTE, CONSOLE_MENU, CONSOLE_SETTINGS, CONSOLE_INBOX,
         MENU_RECONNECT, MENU_DISCONNECT, MENU_URL_SCAN, MENU_RESIZE, MENU_PORT_FORWARDS,

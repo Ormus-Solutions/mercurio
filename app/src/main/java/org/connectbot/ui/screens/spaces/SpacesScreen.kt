@@ -38,14 +38,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -74,6 +70,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import org.connectbot.R
 import org.connectbot.ui.LocalTerminalManager
 import org.connectbot.ui.components.DotStyle
+import org.connectbot.ui.components.MercurioTopBar
 import org.connectbot.ui.components.OrmusGroup
 import org.connectbot.ui.components.StatusDot
 import org.connectbot.ui.theme.Ormus
@@ -119,8 +116,10 @@ private val ACCENTS = listOf(
 @Composable
 fun SpacesScreen(
     onOpenTab: (hostId: Long, target: CoreWatchTarget) -> Unit,
-    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onHome: () -> Unit = {},
+    homeIsInbox: Boolean = true,
+    onNavigateToSettings: () -> Unit = {},
     viewModel: SpacesViewModel = hiltViewModel(),
 ) {
     val terminalManager = LocalTerminalManager.current
@@ -130,17 +129,21 @@ fun SpacesScreen(
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.watch() }
     }
     val sections by viewModel.sections.collectAsState()
-    SpacesContent(sections = sections, onOpenTab = onOpenTab, onNavigateBack = onNavigateBack, modifier = modifier)
+    SpacesContent(sections = sections, onOpenTab = onOpenTab, onHome = onHome, homeIsInbox = homeIsInbox, onSettings = onNavigateToSettings, modifier = modifier)
 }
 
-/** The Spaces list on [sections]: a group per machine, a row per space, a box per tab. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The Spaces list on [sections]: a group per machine, a row per space, a box per tab, under the shared top bar. The Inbox icon
+ * calls [onHome] (the Inbox while it is on, then [homeIsInbox], else the hosts) and the gear [onSettings].
+ */
 @Composable
 fun SpacesContent(
     sections: List<SpacesSection>,
     onOpenTab: (hostId: Long, target: CoreWatchTarget) -> Unit,
     modifier: Modifier = Modifier,
-    onNavigateBack: (() -> Unit)? = null,
+    onHome: () -> Unit = {},
+    homeIsInbox: Boolean = true,
+    onSettings: () -> Unit = {},
 ) {
     val usage = LocalUsageLog.current
     val openTab: (Long, CoreWatchTarget) -> Unit = { hostId, target ->
@@ -150,16 +153,7 @@ fun SpacesContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.spaces_title)) },
-                navigationIcon = {
-                    if (onNavigateBack != null) {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.button_back))
-                        }
-                    }
-                },
-            )
+            MercurioTopBar(title = stringResource(R.string.spaces_title), homeIsInbox = homeIsInbox, onHome = onHome, onSettings = onSettings)
         },
     ) { padding ->
         LazyColumn(

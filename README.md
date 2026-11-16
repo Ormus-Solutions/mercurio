@@ -161,8 +161,11 @@ management come from ConnectBot. Mercurio is maintained by
   line until its next good read. The Inbox and Include herdr-core agents are
   both on by default, and the console's Settings panel switches them. The
   home's bottom bar shows the Inbox while it is on and Spaces while Include
-  herdr-core agents is on. A gear on the Inbox's top bar opens the app's
-  Settings, the screen the Hosts screen opens too.
+  herdr-core agents is on. The Inbox and Spaces share one top bar, after the Herdr
+  app's: the Inbox icon at the left goes home (the Inbox while it is on, else the
+  hosts; on the Inbox it shows as the place you are in and does nothing), the title
+  is centred, and the gear at the right opens the app's Settings, the screen the
+  Hosts screen opens too. The bar has no back arrow: Back is the system's.
 - **herdr-core.** With Include herdr-core agents on, the Inbox and Spaces also
   read herdr-core on each Herdr machine. A machine is a Herdr machine when a
   saved host of it starts Herdr at login (a post-login whose command is `herdr`,

@@ -99,7 +99,7 @@ class InboxRowStarLayoutTest {
             ConnectBotTheme {
                 val d = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(d.density, fontScale)) {
-                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = { opened += it }, onNavigateBack = {}, onAction = { r, a -> acted += r to a })
+                    InboxContent(rows = rows, notes = emptyList(), now = now, onOpen = { opened += it }, onAction = { r, a -> acted += r to a })
                 }
             }
         }
@@ -231,7 +231,7 @@ class InboxRowStarLayoutTest {
     @Test
     fun aTuiRow_hasNoStar_andDrawsAsBefore() {
         val tui = Agent("a", AgentEngine.TUI, null, space, "Dev", null, null, AgentState.Idle, null)
-        rule.setContent { ConnectBotTheme { InboxContent(rows = listOf(Inbox.row(1L, "box", tui)), notes = emptyList(), now = now, onOpen = {}, onNavigateBack = {}) } }
+        rule.setContent { ConnectBotTheme { InboxContent(rows = listOf(Inbox.row(1L, "box", tui)), notes = emptyList(), now = now, onOpen = {}) } }
         rule.waitForIdle()
         assertEquals(0, rule.onAllNodesWithTag(INBOX_STAR_TAG, useUnmergedTree = true).fetchSemanticsNodes().size)
         assertFalse(cut(space))
