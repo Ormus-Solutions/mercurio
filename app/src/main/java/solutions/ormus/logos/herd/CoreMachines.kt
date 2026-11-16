@@ -234,9 +234,22 @@ class CoreLinks internal constructor(
         const val RETRY_MS = 30_000L
         const val LEFT = "the screen was left"
 
-        /** The login the app uses: each saved host of the machine in turn, the first that opens with nobody asked. */
-        internal suspend fun openHeadless(machine: CoreMachines.Machine, hostRepository: HostRepository, pubkeyRepository: PubkeyRepository): Opened {
+        // What names a key across saved logins: its public half, in hex.
+        private fun keyId(key: java.security.KeyPair): String = key.public.encoded.joinToString("") { "%02x".format(it) }
+
+        /**
+         * The login the app uses: each saved host of the machine in turn, the first that opens with nobody asked.
+         * [connect] makes the connection of one host (a test gives it a stand-in).
+         */
+        internal suspend fun openHeadless(
+            machine: CoreMachines.Machine,
+            hostRepository: HostRepository,
+            pubkeyRepository: PubkeyRepository,
+            connect: (Host, SavedHostKeyVerifier) -> HeadlessSession = { host, verifier -> HeadlessSsh(host, verifier) },
+        ): Opened {
             var why = "no saved login for it"
+            // The saved logins of one machine are one sshd and one user: a key it refused once is refused on every row, so it is offered once.
+            val refused = mutableSetOf<String>()
             for (host in machine.hosts) {
                 if (!HerdOfflineAnswer.logsInAlone(host)) {
                     why = "its login asks for something Mercurio cannot answer alone"
@@ -248,14 +261,19 @@ class CoreLinks internal constructor(
                     why = "no key that opens without asking"
                     continue
                 }
+                val fresh = keys.filter { keyId(it) !in refused }
+                if (fresh.isEmpty()) {
+                    why = "it took none of the keys"
+                    continue
+                }
                 val known = hostRepository.getKnownHostsForHost(host.id)
                 if (known.isEmpty()) {
                     why = "open it once in Mercurio so its host key is saved"
                     continue
                 }
-                val session = HeadlessSsh(host, SavedHostKeyVerifier(known, hostRepository.getHostKeyAlgorithmsForHost(host.id)))
+                val session = connect(host, SavedHostKeyVerifier(known, hostRepository.getHostKeyAlgorithmsForHost(host.id)))
                 val result = try {
-                    session.login(keys)
+                    session.login(fresh)
                 } catch (e: Exception) {
                     HeadlessSsh.Login.Failed(e.message ?: e::class.simpleName.orEmpty())
                 }
@@ -263,8 +281,14 @@ class CoreLinks internal constructor(
                 runCatching { session.close() }
                 why = when (result) {
                     HeadlessSsh.Login.HostKeyRefused -> "its host key changed: open it in Mercurio"
-                    HeadlessSsh.Login.KeysRefused -> "it took none of the keys"
+
+                    HeadlessSsh.Login.KeysRefused -> {
+                        refused += fresh.map(::keyId)
+                        "it took none of the keys"
+                    }
+
                     is HeadlessSsh.Login.Failed -> "could not log in: ${result.message}"
+
                     HeadlessSsh.Login.Ok -> why
                 }
             }

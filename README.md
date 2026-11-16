@@ -174,7 +174,9 @@ management come from ConnectBot. Mercurio is maintained by
   answers, and the Inbox says so when no Herdr machine is known. A terminal there opens on
   the machine's one shared SSH link when it has one, instead of a login of its
   own; a link that has been quiet is probed first, and a new login is made only
-  if the probe fails. The Inbox and Spaces read through an open console only while that
+  if the probe fails. The background login tries each saved host of the machine in
+  turn, and offers a key the host refused once, not again on the next saved host.
+  The Inbox and Spaces read through an open console only while that
   console's SSH session is open and has not dropped; a console that is still
   connecting is passed over, and they read on a login of their own. The Inbox
   also passes over a console that runs nothing. A pin or a mark read that the console gave no answer for is written
