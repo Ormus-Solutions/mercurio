@@ -186,7 +186,7 @@ object UsageActions {
     const val PLACES_HOSTS = "places:hosts"
 
     // The shared top bar (`MercurioTopBar`): the Inbox icon at the left goes home (the Inbox while it is on, else the hosts), and the gear
-    // opens the app's Settings. Logged by the bar for every screen that uses it; not by the Inbox icon on the Inbox, where it is inert.
+    // opens the settings panel. Logged by the bar for every screen that uses it; not by the Inbox icon on the Inbox, where it is inert.
     const val TOPBAR_HOME = "topbar:home"
     const val TOPBAR_SETTINGS = "topbar:settings"
 

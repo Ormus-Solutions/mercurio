@@ -35,7 +35,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The gear on the app's real Inbox route: the graph's own wiring, not a stand-in, lands on the Settings route. */
+/** The gear on the app's real Inbox route: the graph's own wiring, not a stand-in, lands on the settings panel route. */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class InboxSettingsGearWiringTest {
@@ -51,7 +51,7 @@ class InboxSettingsGearWiringTest {
     }
 
     @Test
-    fun aTapOnTheGear_onTheRealInboxRoute_landsOnTheSettingsRoute() {
+    fun aTapOnTheGear_onTheRealInboxRoute_landsOnTheSettingsPanelRoute() {
         lateinit var nav: TestNavHostController
         composeTestRule.setContent {
             nav = TestNavHostController(LocalContext.current).apply { navigatorProvider.addNavigator(ComposeNavigator()) }
@@ -65,7 +65,7 @@ class InboxSettingsGearWiringTest {
         composeTestRule.onNodeWithTag(TOP_BAR_SETTINGS_TAG).performClick()
         composeTestRule.waitForIdle()
 
-        val stack = nav.currentBackStack.value.map { it.destination.route }
-        assertEquals(stack.toString(), true, nav.currentDestination?.route?.startsWith(NavDestinations.SETTINGS))
+        // The panel, not the full Settings: "settings_panel" also starts with "settings", so the route is compared whole.
+        assertEquals(nav.currentBackStack.value.map { it.destination.route }.toString(), NavDestinations.SETTINGS_PANEL, nav.currentDestination?.route)
     }
 }

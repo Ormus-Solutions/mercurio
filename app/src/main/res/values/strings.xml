@@ -2189,7 +2189,7 @@
 	<string name="palette_subtitle_settings">Opens Settings</string>
 	<!-- Command palette: subtitle of the slash menu result -->
 	<string name="palette_subtitle_slash_menu">Every command of the agent in this session</string>
-	<!-- The settings panel, opened from the gear on the console's top bar. -->
+	<!-- The settings panel, opened from the gear on the top bar (the console, the Inbox and Spaces). -->
 	<string name="settings_panel_compose_bar">Compose bar</string>
 	<string name="settings_panel_enter_new_line">Enter starts a new line</string>
 	<string name="settings_panel_enter_new_line_on">Enter adds a line. The ⏎ key on the bar sends.</string>

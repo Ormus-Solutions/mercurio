@@ -194,7 +194,7 @@ fun ConnectBotNavHost(
                     }
                 },
                 onNavigateToNeeds = { navController.navigateSafely(NavDestinations.NEEDS) },
-                onNavigateToSettings = { navController.openSettings() },
+                onNavigateToSettings = { navController.openSettingsPanel() },
             )
         }
 
@@ -210,7 +210,7 @@ fun ConnectBotNavHost(
                 onOpenTab = { hostId, target -> navController.navigate(NavDestinations.console(hostId, watch = target)) { launchSingleTop = true } },
                 onHome = { navController.goHome(inboxOn) },
                 homeIsInbox = inboxOn,
-                onNavigateToSettings = { navController.openSettings() },
+                onNavigateToSettings = { navController.openSettingsPanel() },
             )
         }
 

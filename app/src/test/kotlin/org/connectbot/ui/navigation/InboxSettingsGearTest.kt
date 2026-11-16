@@ -35,7 +35,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The gear on the Inbox top bar opens the app's Settings, the same route the Hosts screen uses, and Back returns. */
+/** The gear on the Inbox top bar opens the settings panel, and Back returns. */
 @RunWith(AndroidJUnit4::class)
 class InboxSettingsGearTest {
     @get:Rule
@@ -44,15 +44,15 @@ class InboxSettingsGearTest {
     private lateinit var nav: TestNavHostController
 
     @Test
-    fun theGear_navigatesToSettings_andBackReturnsToTheInbox() {
+    fun theGear_navigatesToTheSettingsPanel_andBackReturnsToTheInbox() {
         composeTestRule.setContent {
             nav = TestNavHostController(LocalContext.current).apply { navigatorProvider.addNavigator(ComposeNavigator()) }
             ConnectBotTheme {
                 NavHost(nav, startDestination = NavDestinations.INBOX) {
                     composable(NavDestinations.INBOX) {
-                        InboxContent(rows = emptyList(), notes = emptyList(), now = 0L, onOpen = {}, onSettings = { nav.openSettings() })
+                        InboxContent(rows = emptyList(), notes = emptyList(), now = 0L, onOpen = {}, onSettings = { nav.openSettingsPanel() })
                     }
-                    composable(NavDestinations.SETTINGS) {}
+                    composable(NavDestinations.SETTINGS_PANEL) {}
                 }
             }
         }
@@ -62,7 +62,7 @@ class InboxSettingsGearTest {
         composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(R.string.title_settings)).performClick()
         composeTestRule.waitForIdle()
 
-        assertEquals(NavDestinations.SETTINGS, nav.currentDestination?.route)
+        assertEquals(NavDestinations.SETTINGS_PANEL, nav.currentDestination?.route)
         composeTestRule.runOnUiThread { nav.popBackStack() }
         composeTestRule.waitForIdle()
         assertEquals(NavDestinations.INBOX, nav.currentDestination?.route)

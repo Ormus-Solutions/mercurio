@@ -92,7 +92,7 @@ import solutions.ormus.logos.home.HomeStart
 import solutions.ormus.logos.voice.VoiceSettings
 
 /**
- * The settings panel, opened from the gear on the console's top bar: the theme (one per
+ * The settings panel, opened from the gear on the top bar (the console, the Inbox and Spaces): the theme (one per
  * planet), the settings worth changing from inside a session, and a way on to all of them
  * ([onNavigateToAllSettings]).
  */

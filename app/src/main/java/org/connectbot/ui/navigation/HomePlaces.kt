@@ -126,8 +126,8 @@ fun NavController.backOrHosts(): Boolean {
 /** The home the top bar's Inbox icon goes to: the Inbox while its setting is on ([inboxOn]), else the hosts. */
 fun NavController.goHome(inboxOn: Boolean) = selectPlace(if (inboxOn) HomePlace.INBOX else HomePlace.HOSTS)
 
-/** Open the app's Settings screen: the route the Hosts screen and the top bar's gear both use. */
-fun NavController.openSettings() = navigateSafely(NavDestinations.SETTINGS)
+/** Open the settings panel: the route the top bar's gear uses on every screen. It has the theme and an "All settings" row to the full Settings. */
+fun NavController.openSettingsPanel() = navigateSafely(NavDestinations.SETTINGS_PANEL)
 
 /**
  * Open the console at [route] over the start destination, dropping any console above it. The
