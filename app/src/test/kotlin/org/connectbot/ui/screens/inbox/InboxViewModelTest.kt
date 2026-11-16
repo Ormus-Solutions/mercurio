@@ -1063,4 +1063,99 @@ class InboxViewModelTest {
         )
         assertEquals(0, coreRowsOf(vm))
     }
+
+    // --- Round 3 of the gate lane's review (REPORT-r3.md): L5 rows past the read's deadline, N9 the swallowed failure is logged. ---
+
+    @Test
+    fun rowsTheConsoleRead_stayWhenTheInboxsOwnLoginDoesNotReturnBeforeTheReadsDeadline() = runTest {
+        // The rows show through a console. Then its labels command is refused, and the Inbox's own login hangs (a connect or an
+        // authentication has no timeout of its own). The read's deadline passes: the rows the console read must stay, with no line.
+        val refuseLabels = java.util.concurrent.atomic.AtomicBoolean(false)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val b = realConsole(1L, "one") { cmd -> if (refuseLabels.get() && CoreSource.PINNED_CMD in cmd) throw refused() else answers(cmd) }
+        val vm = viewModel(
+            true,
+            b,
+            links = loginsOf(listOf(saved(1, "one", "box1"))) {
+                release.await(20, TimeUnit.SECONDS)
+                session { answers(it) }
+            },
+        )
+        vm.readTimeoutMs = 400L
+        try {
+            assertTrue("no core row: ${vm.state.value}", pollUntil(vm) { coreRowsOf(vm) > 0 })
+            assertEquals("the reads went through the console", 0, logins.get())
+
+            refuseLabels.set(true)
+            var minRows = Int.MAX_VALUE
+            val notesSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
+            val end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(2500)
+            while (System.nanoTime() < end) {
+                vm.refresh()
+                Thread.sleep(40)
+                minRows = minOf(minRows, coreRowsOf(vm))
+                notesSeen.addAllAbsent(vm.state.value.notes)
+            }
+            assertEquals("the rows went away while the login hung: notes seen $notesSeen", 1, minRows)
+            assertEquals("a line showed: $notesSeen", emptyList<String>(), notesSeen.toList())
+        } finally {
+            release.countDown()
+        }
+    }
+
+    @Test
+    fun whenTheConsoleReadNothing_aLoginThatDoesNotReturnStillEndsInNoAnswer() = runTest {
+        // Nothing to keep: the console read no rows either, so the deadline's line shows as before.
+        val release = java.util.concurrent.CountDownLatch(1)
+        val b = realConsole(1L, "one") { throw refused() }
+        val vm = viewModel(
+            true,
+            b,
+            links = loginsOf(listOf(saved(1, "one", "box1"))) {
+                release.await(20, TimeUnit.SECONDS)
+                session { answers(it) }
+            },
+        )
+        vm.readTimeoutMs = 400L
+        try {
+            val notesSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
+            assertTrue(
+                "no line: ${vm.state.value}",
+                pollUntil(vm, seconds = 4) {
+                    notesSeen.addAllAbsent(vm.state.value.notes)
+                    notesSeen.any { it.contains("no answer") }
+                },
+            )
+            assertEquals(0, coreRowsOf(vm))
+        } finally {
+            release.countDown()
+        }
+    }
+
+    @Test
+    fun theFailureOfTheInboxsOwnLogin_isLogged_atWarn_withTheMachinesIdAndTheKindOfFailure_butNeitherItsNameNorItsText() = runTest {
+        val lines = java.util.concurrent.CopyOnWriteArrayList<Triple<Int, String, Throwable?>>()
+        val tree = object : timber.log.Timber.Tree() {
+            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+                lines += Triple(priority, message, t)
+            }
+        }
+        timber.log.Timber.plant(tree)
+        try {
+            // The machine's name is the host's nickname (a host made from user@host has that as its nickname) or its hostname: not in the log.
+            val named = saved(7, "nick-u@box-xyz", "host-xyz.example")
+            val b = realConsole(7L, "nick-u@box-xyz") { cmd -> if (CoreSource.PINNED_CMD in cmd) throw refused() else answers(cmd) }
+            val vm = viewModel(true, b, links = loginsOf(listOf(named)) { session { throw java.io.IOException("KEYTEXT ssh-ed25519 AAAAC3Nza") } })
+            assertTrue("no rows: ${vm.state.value}", pollUntil(vm, seconds = 3) { coreRowsOf(vm) > 0 })
+            val ours = lines.filter { it.second.contains("the login of machine 7") }
+            assertTrue("no line about the login of the machine: ${lines.map { it.second }}", ours.isNotEmpty())
+            assertTrue("the level is not WARN (the log viewer drops DEBUG): ${ours.map { it.first }}", ours.all { it.first == android.util.Log.WARN })
+            assertTrue("the kind of failure is named: ${ours.map { it.second }}", ours.all { it.second.contains("IOException") })
+            assertTrue("a throwable was attached: ${ours.map { it.third }}", ours.all { it.third == null })
+            assertTrue("the text of the failure is in the line: ${ours.map { it.second }}", ours.none { it.second.contains("KEYTEXT") || it.second.contains("ssh-ed25519") })
+            assertTrue("the machine's name is in the line: ${ours.map { it.second }}", ours.none { it.second.contains("nick-u") || it.second.contains("box-xyz") || it.second.contains("host-xyz") })
+        } finally {
+            timber.log.Timber.uproot(tree)
+        }
+    }
 }

@@ -47,7 +47,9 @@ import solutions.ormus.logos.herd.Inbox
 import solutions.ormus.logos.herd.InboxRow
 import solutions.ormus.logos.herd.RowAction
 import solutions.ormus.logos.home.HomeStart
+import timber.log.Timber
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 
 /**
@@ -222,6 +224,8 @@ class InboxViewModel @Inject constructor(
                 try {
                     val result = try {
                         // The read runs on its own, so a deadline can leave it behind; its late answer is dropped.
+                        // The rows the console read wait in [kept] while the Inbox's own login is out: the deadline then keeps them.
+                        val kept = AtomicReference<CoreSource.Result?>(null)
                         val work = viewModelScope.async(dispatchers.io) {
                             val silent = AtomicBoolean(false)
                             val first = readVia(links.link(machine, open?.let { noting(it, silent) }), source, machine.name)
@@ -229,6 +233,7 @@ class InboxViewModel @Inject constructor(
                                 first
                             } else {
                                 // The console gave no answer for a command (its link dropped, or the server refused its channel). A read changes nothing on the host: ask again on the Inbox's own login.
+                                if (first is CoreSource.Result.Agents) kept.set(first)
                                 val second = try {
                                     readVia(links.link(machine, null), source, machine.name)
                                 } catch (e: CancellationException) {
@@ -236,6 +241,9 @@ class InboxViewModel @Inject constructor(
                                 } catch (e: Exception) {
                                     // That login failed on its command: the rows the console read stay. With none to keep, the failure is the answer.
                                     if (first !is CoreSource.Result.Agents) throw e
+                                    // Said in the log without the failure's text (it may name a key or a host key) and without the machine's name (a
+                                    // nickname or a hostname, DNA R3): by the primary host's id. Without this line nothing tells why a login is made at every poll.
+                                    Timber.w("Inbox: the login of machine %d failed (%s); the console's rows stay", machine.primary.id, e::class.simpleName)
                                     first
                                 }
                                 // Rows the console did read stay when that login gives none (it may need the user).
@@ -243,6 +251,7 @@ class InboxViewModel @Inject constructor(
                             }
                         }
                         val read = withContext(dispatchers.io) { withTimeoutOrNull(readTimeoutMs) { work.await() } }
+                            ?: kept.get()
                             ?: return@launch timedOut(id, machine.name, startedIn)
                         probes[id] = read
                         // A machine with a console that found Herdr is not forgotten: it would be learned again at the next refresh.

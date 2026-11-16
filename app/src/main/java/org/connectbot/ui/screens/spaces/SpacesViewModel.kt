@@ -54,7 +54,7 @@ data class SpacesSection(
 /**
  * Backs the Spaces list: the spaces document of every saved machine (hosts of one hostname, port and
  * user are one), one read per machine at a time, only while the herdr-core setting is on. A machine
- * with a console open is read over it, any other over one headless login held while the list shows.
+ * with a console open and signed in is read over it (a console still connecting, or dropped, is passed over), any other over one headless login held while the list shows.
  * Each read also runs `hc ls` for the agents' states. Read only; nothing is written back. [SpacesSection.hostId] is the machine's primary host.
  */
 @HiltViewModel
@@ -113,7 +113,8 @@ class SpacesViewModel @Inject constructor(
         for (machine in machines) {
             val id = machine.primary.id
             if (!reading.add(id)) continue
-            val open = bridges.firstOrNull { b -> b.herd != null && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
+            // Only a console whose SSH session is open and has not dropped can run a command (the Inbox's pick, `InboxViewModel.openExec`).
+            val open = bridges.firstOrNull { b -> b.herd != null && b.isSessionOpen && !b.isDisconnected && machine.hosts.any { it.id == b.host.id } }?.herd?.let { it::exec }
             viewModelScope.launch {
                 try {
                     val answer: Pair<CoreSpaces.Result, Map<String, AgentState>?> = try {

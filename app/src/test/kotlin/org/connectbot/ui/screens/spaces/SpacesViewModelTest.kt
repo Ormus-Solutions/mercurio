@@ -74,13 +74,17 @@ class SpacesViewModelTest {
     private val doc = """{"id":1,"result":{"value":{"spaces":[{"id":"s1","name":"alpha · ONE","folder":"/w","tabs":[{"id":"t1","name":"main","root":{"id":"p","type":"block","content":{"terminal":"t7"}}}]}]}}}"""
 
     // A console to [host]: its Herd session found Herdr or not, and has taken [coreRead] (null: none yet).
-    private fun bridge(host: Host, herdrAnswered: Boolean, coreRead: CoreRead? = null): TerminalBridge {
+    private fun bridge(host: Host, herdrAnswered: Boolean, coreRead: CoreRead? = null, signedIn: Boolean = true, disconnected: Boolean = false, exec: (String) -> CommandOutput? = { null }): TerminalBridge {
         val herd = mock(HerdSession::class.java)
         `when`(herd.herdrAnswered).thenReturn(herdrAnswered)
         `when`(herd.coreRead).thenReturn(MutableStateFlow(coreRead))
+        `when`(herd.exec(org.mockito.kotlin.any())).thenAnswer { exec(it.getArgument(0)) }
         val bridge = mock(TerminalBridge::class.java)
         `when`(bridge.host).thenReturn(host)
         `when`(bridge.herd).thenReturn(herd)
+        // A console is listed from the moment it starts to connect; only one with its SSH session open, and not dropped, can run a command.
+        `when`(bridge.isSessionOpen).thenReturn(signedIn)
+        `when`(bridge.isDisconnected).thenReturn(disconnected)
         return bridge
     }
 
@@ -242,5 +246,54 @@ class SpacesViewModelTest {
 
         vm.refresh()
         await(vm) { it.size == 1 && it.single().states.isEmpty() }
+    }
+
+    // The Inbox takes a console only while its SSH session is open and has not dropped (H3). Spaces had the same pick.
+    @Test
+    fun aConsoleThatIsNotSignedInYet_isNotUsed_andTheSpacesAreReadOnTheOwnLogin() = runTest {
+        val connecting = bridge(host(1, "one"), herdrAnswered = true, signedIn = false)
+        val vm = viewModel(listOf(host(1, "one")), bridges = listOf(connecting))
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun aConsoleThatHasDropped_isNotUsed_andTheSpacesAreReadOnTheOwnLogin() = runTest {
+        val dropped = bridge(host(1, "one"), herdrAnswered = true, disconnected = true)
+        val vm = viewModel(listOf(host(1, "one")), bridges = listOf(dropped))
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(1, logins.get())
+    }
+
+    @Test
+    fun aSignedInConsoleThatAnswers_isStillUsedInsteadOfALogin() = runTest {
+        val live = bridge(host(1, "one"), herdrAnswered = true) { CommandOutput(doc, "", 0) }
+        val vm = viewModel(listOf(host(1, "one")), bridges = listOf(live))
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(0, logins.get())
+    }
+
+    @Test
+    fun withTwoConsoles_theFirstNotSignedIn_theSignedInOneIsUsed_andNoLoginIsMade() = runTest {
+        // Two saved logins of one machine, each with a console: the first is still connecting, the second is live. A pick that takes
+        // the first console of the machine and then checks it would ask the wrong one and fall to a login beside the live console.
+        val asked = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val connecting = bridge(host(1, "one"), herdrAnswered = true, signedIn = false) {
+            asked += "connecting:$it"
+            null
+        }
+        val live = bridge(host(2, "two"), herdrAnswered = true) {
+            asked += "live:$it"
+            CommandOutput(doc, "", 0)
+        }
+        val vm = viewModel(listOf(host(1, "one"), host(2, "two")), bridges = listOf(connecting, live))
+        vm.refresh()
+        await(vm) { it.size == 1 && it.single().result is CoreSpaces.Result.Spaces }
+        assertEquals(0, logins.get())
+        assertTrue("the connecting console was asked: $asked", asked.none { it.startsWith("connecting:") })
+        assertTrue("the live console was not asked: $asked", asked.any { it.startsWith("live:") })
     }
 }
