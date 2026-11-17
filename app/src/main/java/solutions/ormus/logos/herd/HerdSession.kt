@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -276,6 +278,36 @@ class HerdSession(
         val notices = coreAttention.onSnapshot(CoreNotices.snapshot(result.agents), sessionOnScreen = false)
         if (notices.isNotEmpty()) onNotices(notices.map { withCoreScreen(it.inSession(CoreNotices.SESSION)) })
     }
+
+    /**
+     * The panes of the tab the watched herdr-core terminal [watch] sits in, for a console that shows them ([CoreTabPanes.of]: the tab
+     * that draws its address, else the tab the watch names with no pane watched); null when the setting is off, the host has no
+     * herdr-core, or no tab is found. Cold: nothing is read until it is collected, and the read stops
+     * with the collector. It reads at once, then every [periodMs], with the read the Spaces list makes ([CoreSpaces.read]), and
+     * announces only a change. One failed read keeps the last panes (as the Spaces list keeps its states for a refresh); a second in
+     * a row drops them. A host without herdr-core is no Herdr fault: [failure] is not touched.
+     */
+    fun tabPanes(watch: CoreWatchTarget, periodMs: Long = TAB_PANES_POLL_MS): Flow<CoreTabPanes.TabPanes?> = flow {
+        var last: CoreTabPanes.TabPanes? = null
+        var misses = 0
+        while (true) {
+            if (!coreEnabled()) {
+                last = null
+                misses = 0
+            } else {
+                when (val read = CoreSpaces.read(true, ::runQuiet)) {
+                    is CoreSpaces.Result.Spaces -> {
+                        misses = 0
+                        last = CoreTabPanes.of(read.spaces, watch)
+                    }
+
+                    else -> if (++misses > 1) last = null
+                }
+            }
+            emit(last)
+            delay(periodMs)
+        }
+    }.flowOn(io).distinctUntilChanged()
 
     // A core "Needs you" carries the end of the terminal's screen, as a TUI one carries its pane.
     private fun withCoreScreen(notice: HerdAttention.Notice): HerdAttention.Notice {
@@ -644,6 +676,9 @@ class HerdSession(
         const val KEYS_OFF_REASON = "Herdr keys are not sent to a core terminal"
 
         const val POLL_INTERVAL_MS = 4_000L
+
+        /** How often a console reads the panes of its watched terminal's tab: as often as the Spaces list reads. */
+        const val TAB_PANES_POLL_MS = 10_000L
 
         /** How often the open Agents board reads the sessions the monitor does not poll. */
         const val BOARD_POLL_MS = 3 * POLL_INTERVAL_MS

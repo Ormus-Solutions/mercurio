@@ -40,6 +40,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -72,6 +73,7 @@ import solutions.ormus.logos.herd.HerdrSessionSnapshot
 import solutions.ormus.logos.herd.HerdrSessions
 import solutions.ormus.logos.herd.HerdrTabInfo
 import solutions.ormus.logos.herd.HerdrWorkspaceInfo
+import solutions.ormus.logos.herd.JumpSheet
 import solutions.ormus.logos.herd.parseHerdrSnapshot
 
 /**
@@ -121,7 +123,7 @@ class HerdScreenshotTest {
         composeTestRule.setContent {
             ConnectBotTheme {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                    Box(Modifier.fillMaxSize().safeDrawingPadding()) { HerdrJumpContent(targets, onPick = {}) }
+                    Box(Modifier.fillMaxSize().safeDrawingPadding()) { HerdrJumpContent(JumpSheet.items(targets, "box", emptyList()), emptyList(), onPick = {}) }
                 }
             }
         }
@@ -216,7 +218,7 @@ class HerdScreenshotTest {
         composeTestRule.onNodeWithText("Goto").performTouchInput { longClick() }
         screencap("herd-panel-menu")
         composeTestRule.onNodeWithText("Cancel").performClick()
-        composeTestRule.onNodeWithText("Add key").performClick()
+        composeTestRule.onNodeWithText("Add key").performScrollTo().performClick()
         composeTestRule.onNodeWithText("Label").performTextInput("Find")
         composeTestRule.onNodeWithText("Key").performTextInput("super+f")
         screencap("herd-panel-add")
@@ -272,7 +274,7 @@ class HerdScreenshotTest {
                         canChat = { it.agent != "grok" },
                         onChat = {},
                         onJump = {},
-                        onAnswer = { _, _ -> },
+                        onAnswer = { _, _, _ -> },
                         onPick = { _, _ -> },
                         onReply = { _, _ -> },
                         readScreen = { "Run the migration on staging?\n> 1. Yes\n  2. Yes, and run it on prod after\n  3. No\n\nOpus  ~/src/api  main  ctx 68% (137k/200k)" },

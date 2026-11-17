@@ -1,10 +1,10 @@
 # Garden: Mercurio
 
-As of 2026-11-15.
+As of 2026-11-16.
 
 ## Plot
 
-- Copy: repo clone at 50badc7d (.)
+- Copy: repo clone at 87a7f572 (.)
 - Planted: 0 skills (0 principles), 0 commands, 0 guide pages
 
 ## Beds
@@ -16,19 +16,19 @@ As of 2026-11-15.
 
 ## Waiting for review
 
-- none
+- PR #337 docs(pantry): restock 2026-11-16 (pantry/restock-2026-11-16)
 - Goal issue open: #252 [menu] Unblock view: swipe from the home into one question at a time, tap an option or speak the answer (`needs-you-cards`)
 
 ## Weeds
 
 - No gardener PR open
-- Weed pulls in history: 36 (last: e1f645cf 2026-11-14 chore(garden): garden report 2026-11-14 (#320))
+- Weed pulls in history: 37 (last: f91991f9 2026-11-15 chore(garden): garden report 2026-11-15 (#323))
 - Checks planted: 152 commits touched scripts/check.sh or .github/workflows (last: 4272bb6a 2026-10-04 chore(ci): remove hosted CI; the local gate is the gate (#64))
 - Weed kinds in WEEDS.md: 4, 3 with a check
 
 ## Soil
 
-- This clone: 50badc7, current
+- This clone: 87a7f57, current
 
 ## Water
 

@@ -221,4 +221,19 @@ class CoreSpacesTest {
         val r = CoreSpaces.read(true) { CommandOutput("", "", null) }
         assertTrue(!(r as CoreSpaces.Result.Unavailable).reason.contains("null"))
     }
+
+    @Test
+    fun `panes pair each pane's terminal with its place, in the order of the boxes`() {
+        val t = spaces(read(out(doc(space("s", "a · B", tab("t", "x", row(block("t1", """"size":{"weight":2.0},"""), col(block("t2"), block("t3"))))))))).single().tabs.single()
+        val panes = CoreSpaces.panes(t)
+        assertEquals(listOf("t1", "t2", "t3"), panes.map { it.terminal })
+        assertEquals(CoreSpaces.boxes(t), panes.map { it.rect })
+    }
+
+    @Test
+    fun `a tab with no layout has no panes, though it still draws one box`() {
+        val t = CoreSpaces.CoreTab("t", "x", null)
+        assertTrue(CoreSpaces.panes(t).isEmpty())
+        assertEquals(1, CoreSpaces.boxes(t).size)
+    }
 }

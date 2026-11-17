@@ -69,6 +69,9 @@ object CoreSpaces {
     /** One pane's place in the tab, as shares of its width and height, 0 to 1. */
     data class BoxRect(val x: Float, val y: Float, val w: Float, val h: Float)
 
+    /** One pane of a tab: the core's id of its terminal (null for a mod) and its [rect] in the tab. */
+    data class PaneRect(val terminal: String?, val rect: BoxRect)
+
     private const val MAX_DEPTH = 32
 
     private const val MAX_NESTING = 256
@@ -156,15 +159,18 @@ object CoreSpaces {
     }
 
     /** The panes of [tab] as rectangles that tile the unit square; a tab with none draws one box. */
-    fun boxes(tab: CoreTab): List<BoxRect> {
-        val out = ArrayList<BoxRect>()
+    fun boxes(tab: CoreTab): List<BoxRect> = panes(tab).map { it.rect }.ifEmpty { listOf(BoxRect(0f, 0f, 1f, 1f)) }
+
+    /** The panes of [tab] in drawing order, each with its terminal and its place; none for a tab with no layout. */
+    fun panes(tab: CoreTab): List<PaneRect> {
+        val out = ArrayList<PaneRect>()
         tab.root?.let { place(it, BoxRect(0f, 0f, 1f, 1f), out) }
-        return out.ifEmpty { listOf(BoxRect(0f, 0f, 1f, 1f)) }
+        return out
     }
 
-    private fun place(box: PaneBox, into: BoxRect, out: MutableList<BoxRect>) {
+    private fun place(box: PaneBox, into: BoxRect, out: MutableList<PaneRect>) {
         when (box) {
-            is PaneBox.Pane -> out += into
+            is PaneBox.Pane -> out += PaneRect(box.terminal, into)
 
             is PaneBox.Split -> {
                 val total = box.children.sumOf { it.weight.toDouble() }
